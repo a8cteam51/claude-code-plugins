@@ -1,0 +1,30 @@
+{
+  "name": "a8cteam51-claude-code-plugins",
+  "owner": {
+    "name": "Automattic Special Projects",
+    "url": "https://specialprojects.automattic.com/"
+  },
+  "metadata": {
+    "description": "Claude Code plugins by Automattic's Special Projects team for WordPress development, security, and client work",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "plugin-review",
+      "source": "./plugins/plugin-review",
+      "description": "Security review a WordPress plugin by slug, URL, or current directory.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Automattic Special Projects"
+      },
+      "repository": "https://github.com/a8cteam51/claude-code-plugins",
+      "license": "MIT",
+      "keywords": ["wordpress", "security", "plugin-review", "vulnerability", "phpcs", "wpscan"],
+      "category": "development-tools",
+      "strict": true,
+      "skills": [
+        "./skills/plugin-review"
+      ]
+    }
+  ]
+}
