@@ -25,6 +25,23 @@
       "skills": [
         "./skills/plugin-review"
       ]
+    },
+    {
+      "name": "pr-feedback",
+      "source": "./plugins/pr-feedback",
+      "description": "Address unresolved PR review comments. Fetches open threads via GitHub GraphQL, evaluates validity, and applies fixes or surfaces questionable feedback for user decision.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Automattic Special Projects"
+      },
+      "repository": "https://github.com/a8cteam51/claude-code-plugins",
+      "license": "MIT",
+      "keywords": ["github", "pull-request", "code-review", "feedback", "pr"],
+      "category": "development-tools",
+      "strict": true,
+      "commands": [
+        "./commands/pr-addr-feedback.md"
+      ]
     }
   ]
 }

@@ -39,6 +39,35 @@ Automated WordPress plugin security review and risk assessment. Point it at any 
 /plugin-review
 ```
 
+## pr-feedback
+
+Address unresolved PR review comments directly from Claude Code. Point it at any GitHub PR URL and it fetches open review threads, evaluates whether the feedback is valid, applies clear fixes automatically, and surfaces questionable feedback for your decision.
+
+**What's included:**
+
+- **pr-addr-feedback command** - Slash command that processes unresolved review threads one by one
+
+**What it does:**
+
+- Fetches unresolved review threads via GitHub GraphQL API
+- Reads the relevant code context for each comment
+- Evaluates whether feedback is technically valid or a style preference
+- Applies valid fixes automatically with minimal changes
+- Prompts you on questionable feedback before acting
+- Prints a summary table of all actions taken
+
+**Requirements:**
+
+- `gh` CLI authenticated with access to the target repo
+
+```bash
+# Install pr-feedback
+/plugin install pr-feedback@a8cteam51-claude-code-plugins
+
+# Address feedback on a PR
+/pr-addr-feedback https://github.com/org/repo/pull/123
+```
+
 ## Install the Marketplace
 
 Add this marketplace to Claude Code:
