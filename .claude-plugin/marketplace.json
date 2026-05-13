@@ -42,6 +42,26 @@
       "commands": [
         "./commands/pr-addr-feedback.md"
       ]
+    },
+    {
+      "name": "studio-repo-clone",
+      "source": "./plugins/studio-repo-clone",
+      "description": "Scaffold a local WordPress Studio site whose wp-content is a cloned GitHub repo. Downloads WordPress, clones the repo as wp-content, and registers the site with the Studio CLI.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Automattic Special Projects"
+      },
+      "repository": "https://github.com/a8cteam51/claude-code-plugins",
+      "license": "MIT",
+      "keywords": ["wordpress", "studio", "scaffold", "a8c", "local-development"],
+      "category": "development-tools",
+      "strict": true,
+      "commands": [
+        "./commands/init.md"
+      ],
+      "skills": [
+        "./skills/scaffold"
+      ]
     }
   ]
 }
