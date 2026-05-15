@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.0] - 2026-05-15
+
+### Changed
+- Target-directory prompt now offers `~/Studio/<project-name>` as the recommended option (matches Studio's default site location). The previous `<cwd>/<project-name>` and `~/Sites/<project-name>` options remain available.
+
 ## [1.0.0] - 2026-05-13
 
 ### Added

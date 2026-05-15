@@ -38,9 +38,10 @@ Run `pwd`, `basename "$(pwd)"`, and `ls -A "$(pwd)"`.
 
 - **cwd basename equals project name AND cwd is empty** → target = cwd. State this and proceed.
 - **otherwise** → AskUserQuestion:
-  1. `<cwd>/<project-name>` (recommended)
-  2. `~/Sites/<project-name>`
-  3. (Other; must end in the project name to keep folder/site name parity.)
+  1. `~/Studio/<project-name>` (recommended — Studio's default location)
+  2. `<cwd>/<project-name>`
+  3. `~/Sites/<project-name>`
+  4. (Other; must end in the project name to keep folder/site name parity.)
 
 Expand `~` to `$HOME` before passing to the script. State the resolved target in plain text so the user can object before any mutation.
 
