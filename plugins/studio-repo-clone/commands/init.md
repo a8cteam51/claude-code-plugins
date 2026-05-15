@@ -40,14 +40,15 @@ Also detect the user's effective Studio base directory from existing Studio site
 
 ```bash
 studio site list --format json 2>/dev/null \
-  | grep -oE '"path":"[^"]+"' \
-  | sed 's/"path":"//; s/"$//' \
-  | xargs -n1 dirname \
+  | jq -r '.[].path // empty' 2>/dev/null \
+  | xargs -I {} dirname {} \
   | sort | uniq -c | sort -rn \
-  | awk 'NR==1 {print $2}'
+  | awk 'NR==1 {sub(/^[[:space:]]*[0-9]+[[:space:]]+/, ""); print}'
 ```
 
-If this prints a path, use it as `<studio-base>`. If empty (no sites yet, or `studio` not on PATH), fall back to `$HOME/Studio`, which is Studio's documented default.
+`jq` is used for JSON parsing (robust against escaped quotes / minified output), `xargs -I {}` preserves paths with spaces, and the `awk` strips the leading `uniq -c` count without splitting on whitespace inside the path.
+
+If this prints a path, use it as `<studio-base>`. If empty (no sites yet, `studio` not on PATH, or `jq` not installed), fall back to `$HOME/Studio`, which is Studio's documented default.
 
 - **cwd basename equals project name AND cwd is empty** → target = cwd. State this and proceed.
 - **otherwise** → AskUserQuestion:

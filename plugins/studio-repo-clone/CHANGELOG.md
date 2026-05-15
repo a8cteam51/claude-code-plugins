@@ -3,7 +3,7 @@
 ## [1.1.0] - 2026-05-15
 
 ### Changed
-- Target-directory prompt now offers Studio's site directory as the recommended option. The orchestrator infers the user's effective Studio base by parsing `studio site list --format json` (most common parent of existing site paths), falling back to `$HOME/Studio` (Studio's documented default) when no sites exist or the CLI is unavailable. The previous `<cwd>/<project-name>` and `~/Sites/<project-name>` options remain available.
+- Target-directory prompt now offers Studio's site directory as the recommended option. The orchestrator infers the user's effective Studio base by parsing `studio site list --format json` with `jq` (most common parent of existing site paths, space-safe via `xargs -I {}`), falling back to `$HOME/Studio` (Studio's documented default) when no sites exist, the CLI is unavailable, or `jq` is not installed. The previous `<cwd>/<project-name>` and `~/Sites/<project-name>` options remain available.
 
 ## [1.0.0] - 2026-05-13
 
