@@ -11,7 +11,7 @@
 # uses SQLite (the only DB the CLI currently supports as of 1.8).
 #
 # Usage:
-#   scaffold.sh --target-dir <path> --repo <owner/repo|git-url> [--site-name <name>]
+#   scaffold.sh --target-dir <path> --repo <owner/repo|git-url> [--site-name <name>] [--debug-log]
 
 set -euo pipefail
 
@@ -20,13 +20,15 @@ WP_SHA1_URL="${WP_ZIP_URL}.sha1"
 
 usage() {
   cat <<EOF
-Usage: scaffold.sh --target-dir <path> --repo <owner/repo|git-url> [--site-name <name>]
+Usage: scaffold.sh --target-dir <path> --repo <owner/repo|git-url> [--site-name <name>] [--debug-log]
 
   --target-dir   Path to scaffold into. Must be empty or not exist.
                  Created if it does not exist.
   --repo         GitHub shorthand (owner/repo) or full git URL. Cloned
                  into <target>/wp-content as a full wp-content replacement.
   --site-name    Studio site name. Defaults to the target dir basename.
+  --debug-log    Enable WP_DEBUG_LOG on the created site via
+                 'studio site set --debug-log --path <target>'.
 
   -h, --help     Show this help.
 
@@ -37,6 +39,7 @@ EOF
 target_dir=""
 repo=""
 site_name=""
+debug_log=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target-dir)
@@ -48,6 +51,7 @@ while [[ $# -gt 0 ]]; do
     --site-name)
       [[ $# -ge 2 ]] || { echo "scaffold.sh: --site-name needs a value" >&2; exit 2; }
       site_name="$2"; shift 2 ;;
+    --debug-log) debug_log=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "scaffold.sh: unknown arg: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -220,7 +224,21 @@ studio site create \
   --name "$site_name" \
   --skip-browser
 
+# Past the destructive-rollback window: the site is registered, files are in
+# place. Any post-create failure should leave them alone so the user can fix
+# state with a direct 'studio site ...' invocation instead of rerunning.
+mutated_target=0
+
+if (( debug_log == 1 )); then
+  echo
+  echo "==> enabling WP_DEBUG_LOG"
+  studio site set --debug-log --path "$abs_target"
+fi
+
 echo
 echo "==> done"
 echo "    site name:  $site_name"
 echo "    site path:  $abs_target"
+if (( debug_log == 1 )); then
+  echo "    debug log:  enabled"
+fi
