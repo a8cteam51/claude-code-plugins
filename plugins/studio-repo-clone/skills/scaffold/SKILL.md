@@ -37,9 +37,22 @@ The chosen name MUST be a valid directory name: lowercase letters, digits, hyphe
 
 Run `pwd` then `basename "$(pwd)"` and `ls -A "$(pwd)"` to detect cwd state.
 
+Also detect the user's effective Studio base directory by inspecting existing Studio sites — Studio has no CLI flag that exposes its install root, so we infer it from `studio site list`:
+
+```bash
+studio site list --format json 2>/dev/null \
+  | grep -oE '"path":"[^"]+"' \
+  | sed 's/"path":"//; s/"$//' \
+  | xargs -n1 dirname \
+  | sort | uniq -c | sort -rn \
+  | awk 'NR==1 {print $2}'
+```
+
+If this prints a path, use it as `<studio-base>` (e.g. `/Users/you/Studio`). If empty (no sites yet, or `studio` not on PATH), fall back to `$HOME/Studio`, which is Studio's documented default.
+
 - **cwd basename already equals the project name AND cwd is empty** → target = cwd. State this and proceed.
 - **otherwise** → AskUserQuestion with:
-  1. `~/Studio/<project-name>` (recommended — Studio's default location)
+  1. `<studio-base>/<project-name>` (recommended — Studio's default location)
   2. `<cwd>/<project-name>`
   3. `~/Sites/<project-name>`
   4. (Other for custom path; must end in the project name to keep folder/name parity)

@@ -36,9 +36,22 @@ The project name is used for both the root folder and the Studio site name.
 
 Run `pwd`, `basename "$(pwd)"`, and `ls -A "$(pwd)"`.
 
+Also detect the user's effective Studio base directory from existing Studio sites — Studio has no CLI flag that exposes its install root, so we infer it from `studio site list`:
+
+```bash
+studio site list --format json 2>/dev/null \
+  | grep -oE '"path":"[^"]+"' \
+  | sed 's/"path":"//; s/"$//' \
+  | xargs -n1 dirname \
+  | sort | uniq -c | sort -rn \
+  | awk 'NR==1 {print $2}'
+```
+
+If this prints a path, use it as `<studio-base>`. If empty (no sites yet, or `studio` not on PATH), fall back to `$HOME/Studio`, which is Studio's documented default.
+
 - **cwd basename equals project name AND cwd is empty** → target = cwd. State this and proceed.
 - **otherwise** → AskUserQuestion:
-  1. `~/Studio/<project-name>` (recommended — Studio's default location)
+  1. `<studio-base>/<project-name>` (recommended — Studio's default location)
   2. `<cwd>/<project-name>`
   3. `~/Sites/<project-name>`
   4. (Other; must end in the project name to keep folder/site name parity.)
