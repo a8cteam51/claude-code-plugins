@@ -185,6 +185,11 @@ mutated_target=1
 shopt -s dotglob nullglob
 mv "$work_dir/staged/"* "$abs_target/"
 shopt -u dotglob nullglob
+# Move completed: close the destructive-rollback window. Everything after this
+# point (gitignore patch, studio site create, studio site set) is non-destructive
+# from the script's perspective — a failure leaves files in place so the user
+# can fix the underlying issue and re-run the failing Studio command directly.
+mutated_target=0
 
 echo
 echo "==> files in place"
@@ -223,11 +228,6 @@ studio site create \
   --path "$abs_target" \
   --name "$site_name" \
   --skip-browser
-
-# Past the destructive-rollback window: the site is registered, files are in
-# place. Any post-create failure should leave them alone so the user can fix
-# state with a direct 'studio site ...' invocation instead of rerunning.
-mutated_target=0
 
 if (( debug_log == 1 )); then
   echo
