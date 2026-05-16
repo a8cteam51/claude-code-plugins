@@ -36,11 +36,26 @@ The project name is used for both the root folder and the Studio site name.
 
 Run `pwd`, `basename "$(pwd)"`, and `ls -A "$(pwd)"`.
 
+Also detect the user's effective Studio base directory from existing Studio sites — Studio has no CLI flag that exposes its install root, so we infer it from `studio site list`:
+
+```bash
+studio site list --format json 2>/dev/null \
+  | jq -r '.[].path // empty' 2>/dev/null \
+  | xargs -I {} dirname {} \
+  | sort | uniq -c | sort -rn \
+  | awk 'NR==1 {sub(/^[[:space:]]*[0-9]+[[:space:]]+/, ""); print}'
+```
+
+`jq` is used for JSON parsing (robust against escaped quotes / minified output), `xargs -I {}` preserves paths with spaces, and the `awk` strips the leading `uniq -c` count without splitting on whitespace inside the path.
+
+If this prints a path, use it as `<studio-base>`. If empty (no sites yet, `studio` not on PATH, or `jq` not installed), fall back to `$HOME/Studio`, which is Studio's documented default.
+
 - **cwd basename equals project name AND cwd is empty** → target = cwd. State this and proceed.
 - **otherwise** → AskUserQuestion:
-  1. `<cwd>/<project-name>` (recommended)
-  2. `~/Sites/<project-name>`
-  3. (Other; must end in the project name to keep folder/site name parity.)
+  1. `<studio-base>/<project-name>` (recommended — Studio's default location)
+  2. `<cwd>/<project-name>`
+  3. `~/Sites/<project-name>`
+  4. (Other; must end in the project name to keep folder/site name parity.)
 
 Expand `~` to `$HOME` before passing to the script. State the resolved target in plain text so the user can object before any mutation.
 
