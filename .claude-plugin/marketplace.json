@@ -47,7 +47,7 @@
       "name": "studio-repo-clone",
       "source": "./plugins/studio-repo-clone",
       "description": "Scaffold a local WordPress Studio site whose wp-content is a cloned GitHub repo. Downloads WordPress, clones the repo as wp-content, and registers the site with the Studio CLI.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "author": {
         "name": "Automattic Special Projects"
       },
