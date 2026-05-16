@@ -59,16 +59,26 @@ If this prints a path, use it as `<studio-base>`. If empty (no sites yet, `studi
 
 Expand `~` to `$HOME` before passing to the script. State the resolved target in plain text so the user can object before any mutation.
 
-## Step 3 — invoke the script
+## Step 3 — ask about WP_DEBUG_LOG
+
+`WP_DEBUG_LOG` is a near-universal want for local dev sites — without it, PHP errors go nowhere visible. Ask via AskUserQuestion:
+
+1. `Yes — enable WP_DEBUG_LOG` (recommended)
+2. `No — leave defaults`
+
+If the user picks yes, pass `--debug-log` to the script. The script runs `studio site set --debug-log --path "<target>"` after the site is created.
+
+## Step 4 — invoke the script
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold.sh" \
   --target-dir "<resolved-target>" \
   --repo "<token-1>" \
-  --site-name "<project-name>"
+  --site-name "<project-name>" \
+  [--debug-log]
 ```
 
-Always quote all values. The script handles `owner/repo` → URL normalisation. Always pass `--site-name` explicitly with the project name so the Studio site matches the folder.
+Always quote all values. The script handles `owner/repo` → URL normalisation. Always pass `--site-name` explicitly with the project name so the Studio site matches the folder. Include `--debug-log` only when the user opted in at Step 3.
 
 The script will:
 1. Validate inputs, check `studio` CLI is on PATH, and run `git ls-remote` against the repo URL so private-repo auth failures surface before any download.
@@ -76,21 +86,24 @@ The script will:
 3. Move the staged tree into the target.
 4. Append a Studio-generated-files block to `<target>/wp-content/.gitignore` if those entries are missing (creates the file if absent).
 5. Run `studio site create --path <target> --name <site-name> --skip-browser` (Studio 1.8 is SQLite-only via the CLI; default WordPress and PHP versions).
+6. If `--debug-log` was passed, run `studio site set --debug-log --path <target>` to enable `WP_DEBUG_LOG`. A failure here leaves the site in place — the user can re-run it manually.
 
-If anything fails before step 3, the target directory is untouched. If the script created the target dir and then failed mid-move, it removes the partial target on the way out. Step 5 failures leave files in place — the user can rerun `studio site create` manually.
+If anything fails before step 3, the target directory is untouched. If the script created the target dir and then failed mid-move, it removes the partial target on the way out. Step 5 and 6 failures leave files in place — the user can rerun the Studio command manually.
 
 ## Reporting
 
-On success, emit a 4-5 line summary:
+On success, emit a 4-6 line summary:
 - Project name
 - Target directory
 - Repo cloned into wp-content
 - Studio site name (= project name, DB: SQLite)
+- If `--debug-log` was passed (script prints `debug log:  enabled`), note that `WP_DEBUG_LOG` is on.
 - Point the user at the URL and admin credentials Studio printed to stdout.
 
 On non-zero exit, surface the script's stderr verbatim and stop. Do not try to repair partial state, retry, or work around the failure — repeatability requires the script to be the only mutator. If the user asks you to recover, suggest:
 - Pre-Studio failure: delete the target dir and re-run `/studio-repo-clone:init`.
-- Studio-only failure: re-run `studio site create --path <target> --name <name> --skip-browser` directly.
+- Studio-create failure: re-run `studio site create --path <target> --name <name> --skip-browser` directly.
+- Debug-log failure (site already exists): re-run `studio site set --debug-log --path <target>` directly.
 
 ## Constraints
 
