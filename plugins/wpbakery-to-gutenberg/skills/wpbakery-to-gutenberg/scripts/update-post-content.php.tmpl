@@ -1,0 +1,23 @@
+<?php
+// Template used by the convert-page skill, step 6.
+//
+// Substitute __POST_ID__ with the integer post ID and stage this file at
+// <site-path>/.wpbakery-migration/update-<id>.php alongside a sibling
+// converted-<id>.txt that holds the post_content to write.
+//
+// The script echoes a single WPBM_OK sentinel on success or WPBM_FAIL on
+// failure. The caller MUST grep for WPBM_OK — exit codes alone are unreliable
+// inside `studio wp eval-file` (unrelated SQLite/Yoast warnings are common
+// during wp_update_post on Studio sites and do not indicate failure).
+
+$content = file_get_contents(__DIR__ . '/converted-__POST_ID__.txt');
+if ($content === false) {
+  fwrite(STDERR, "WPBM_FAIL: could not read converted file\n");
+  exit(1);
+}
+$result = wp_update_post(['ID' => __POST_ID__, 'post_content' => $content], true);
+if (is_wp_error($result)) {
+  fwrite(STDERR, "WPBM_FAIL: " . $result->get_error_message() . "\n");
+  exit(1);
+}
+echo "WPBM_OK id=__POST_ID__ bytes=" . strlen($content) . "\n";

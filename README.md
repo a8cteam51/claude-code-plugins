@@ -102,6 +102,40 @@ Scaffold a local WordPress [Studio](https://developer.wordpress.com/studio/) sit
 /studio-repo-clone:init Automattic/some-repo my-cool-project
 ```
 
+## wpbakery-to-gutenberg
+
+Convert a WPBakery (Visual Composer) page on a local WordPress [Studio](https://developer.wordpress.com/studio/) site to Gutenberg block markup in place. Hand it a page URL on a running Studio site and it resolves the URL to a post ID, extracts WPBakery's compiled CSS from the rendered page, walks the shortcode tree using a documented mapping table, validates the converted blocks against the site's real block editor, and writes the result back as a new revision.
+
+**What's included:**
+
+- **wpbakery-to-gutenberg skill** - Natural-language trigger for phrases like "convert this page", "migrate this page to blocks", or "convert WPBakery on <URL>"
+- **references/shortcode-mappings.md** - Source of truth for `vc_*` shortcode → block mappings, including attribute decoders for `link=`, `font_container=`, and `css=`
+- **scripts/update-post-content.php.tmpl** - Sentinel-verified PHP write template, staged inside the site directory to work around `studio wp eval-file -` silently no-op'ing on stdin heredocs
+
+**What it does:**
+
+- Resolves the page URL to a post ID via `url_to_postid` and verifies the post actually contains `[vc_` shortcodes before doing any work
+- Fetches the rendered page and extracts WPBakery's `<style data-type="vc_shortcodes-custom-css">` block so per-shortcode `.vc_custom_*` styling can be applied to the converted block attributes
+- Walks the shortcode tree depth-first, applying the mappings table and decoding `link=` / `font_container=` / `css=` attributes
+- Downgrades unknown `vc_*` shortcodes to `core/html` with a `TODO(wpbakery-migration)` comment rather than inventing mappings
+- Validates the converted markup via the Studio MCP `validate_blocks` tool (runs each block through the editor's real `save()` and returns the expected HTML for mismatches), with auto-fix from the expected HTML and a two-call ceiling
+- Captures the pre-write revision ID so the rollback instructions in the final report are unambiguous
+- Writes back via a staged PHP script with a sentinel echo, re-reads the post to confirm `<!-- wp:` markup landed, and smoke-tests the rendered page
+
+**Requirements:**
+
+- `studio` (Studio CLI 1.8+), `curl`, `perl` on `$PATH`
+- Studio MCP server registered in Claude Code (one-time: `claude mcp add --scope user wordpress-studio -- studio mcp`) for the `validate_blocks` validation pass
+- The target Studio site must be running
+
+```bash
+# Install wpbakery-to-gutenberg
+/plugin install wpbakery-to-gutenberg@a8cteam51-claude-code-plugins
+
+# Then trigger the skill in natural language with a page URL on the running site:
+# > convert this page: http://localhost:8881/about-us/
+```
+
 ## Install the Marketplace
 
 Add this marketplace to Claude Code:
