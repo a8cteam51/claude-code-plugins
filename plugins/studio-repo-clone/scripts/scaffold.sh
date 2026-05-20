@@ -235,6 +235,17 @@ if (( debug_log == 1 )); then
   studio site set --debug-log --path "$abs_target"
 fi
 
+# Install + activate safety-net. Non-fatal: a failure here leaves the site
+# usable; the user can re-run install-safety-net.sh manually.
+echo
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! bash "$script_dir/install-safety-net.sh" --target-dir "$abs_target"; then
+  echo "scaffold.sh: safety-net install failed; continuing anyway" >&2
+  safety_net_status="failed (re-run install-safety-net.sh manually)"
+else
+  safety_net_status="installed and activated"
+fi
+
 echo
 echo "==> done"
 echo "    site name:  $site_name"
@@ -242,3 +253,4 @@ echo "    site path:  $abs_target"
 if (( debug_log == 1 )); then
   echo "    debug log:  enabled"
 fi
+echo "    safety-net: $safety_net_status"

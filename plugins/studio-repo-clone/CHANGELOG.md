@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.0] - 2026-05-20
+
+### Added
+- Both setup flows now install and activate the [`a8cteam51/safety-net`](https://github.com/a8cteam51/safety-net) plugin into `wp-content/plugins/safety-net` after the rest of the setup completes, so fresh clones of production-derived `wp-content` can't accidentally email real users from a developer's laptop. The latest release tag is resolved dynamically from `https://api.github.com/repos/a8cteam51/safety-net/releases/latest` at runtime (no hardcoded version). Activation goes through `studio wp --path <target> plugin activate safety-net`. The install lives in a shared helper at `scripts/install-safety-net.sh` invoked by both `scaffold.sh` and `clone-into-existing-site.sh`. The step is idempotent (skips download if `plugins/safety-net/` already exists) and non-fatal (a failure prints a warning, the rest of the setup is preserved, and the user can re-run the helper directly).
+- New `clone-into-existing-site` skill and accompanying `scripts/clone-into-existing-site.sh` for converting an already-running local Studio site's `wp-content` into a git clone without losing local runtime data. The script renames the existing `wp-content` to `wp-content-temp`, clones the repo into a fresh `wp-content`, then moves `uploads/`, `database/`, `db.php`, and `mu-plugins/sqlite-database-integration/` back from the temp copy as whole units. For `plugins/` and `themes/`, the script moves each child individually so plugins/themes committed to the repo aren't blown away wholesale — only per-child name conflicts are overwritten (local copies win). `wp-content-temp` is left in place for the user to inspect and delete; the script does not remove it. The cloned repo's `.gitignore` is patched with the Studio-generated runtime entries (`/database`, `/db.php`, `/index.php`, `/uploads`, `/mu-plugins/sqlite-database-integration`). On clone failure after the rename, `wp-content` is restored from `wp-content-temp` automatically.
+
+### Changed
+- Renamed the `scaffold` skill to `clone-new-site` and updated its `name:` frontmatter and description to disambiguate from the new `clone-into-existing-site` skill. The marketplace skill path now points to `./skills/clone-new-site`. The underlying `scripts/scaffold.sh` and `/studio-repo-clone:init` command are unchanged.
+
 ## [1.1.0] - 2026-05-15
 
 ### Added

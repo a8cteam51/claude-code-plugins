@@ -1,11 +1,13 @@
 ---
-name: scaffold-studio-site
-description: Scaffolds a local WordPress Studio site from a GitHub repo by downloading WordPress, replacing wp-content with the cloned repo, and creating a Studio site via the studio CLI. Use when the user asks to "set up a Studio site", "scaffold a Studio site from <repo>", "spin up a local WordPress for <repo>", "create a Studio site using <github url>", "install WordPress with this repo as wp-content", "clone <repo> into a fresh WordPress install", "get a Studio site running with <repo>", "bootstrap a WordPress site from <repo>", "stand up a local WP site with wp-content from <repo>", or describes any variant of bootstrapping/getting-running a local WP Studio site whose wp-content comes from a specific repo.
+name: clone-new-site
+description: Scaffolds a brand-new local WordPress Studio site from a GitHub repo by downloading WordPress, using the cloned repo AS wp-content, and creating a Studio site via the studio CLI. Use when the user asks to "set up a new Studio site", "scaffold a Studio site from <repo>", "spin up a local WordPress for <repo>", "create a Studio site using <github url>", "install WordPress with this repo as wp-content", "clone <repo> into a fresh WordPress install", "get a new Studio site running with <repo>", "bootstrap a WordPress site from <repo>", "stand up a local WP site with wp-content from <repo>", or describes any variant of bootstrapping a new local WP Studio site whose wp-content comes from a specific repo. For converting an existing local site's wp-content into a git clone (preserving uploads/database), use clone-into-existing-site instead.
 ---
 
-# Scaffold a Studio site from a repo
+# Clone a repo as wp-content into a new Studio site
 
-Trigger when the user wants to set up a local WordPress site whose `wp-content` is a cloned GitHub repo, with Studio managing it. All filesystem mutation, git auth preflight, `.gitignore` patching, and Studio invocation are delegated to `${CLAUDE_PLUGIN_ROOT}/scripts/scaffold.sh`. Never re-implement steps inline; that breaks the repeatability guarantee.
+Trigger when the user wants to set up a **new** local WordPress site whose `wp-content` is a cloned GitHub repo, with Studio managing it. If the user already has a working local site and wants to convert its `wp-content` into a git clone, use the `clone-into-existing-site` skill instead.
+
+All filesystem mutation, git auth preflight, `.gitignore` patching, and Studio invocation are delegated to `${CLAUDE_PLUGIN_ROOT}/scripts/scaffold.sh`. Never re-implement steps inline; that breaks the repeatability guarantee.
 
 This is the same workflow as the `/studio-repo-clone:init` slash command, exposed via natural language.
 
@@ -88,24 +90,27 @@ The script:
 4. Appends a Studio-generated-files block to `<target>/wp-content/.gitignore` if those entries are missing (creates the file if absent). The script prints `==> .gitignore patched` when it does so.
 5. Runs `studio site create --path <target> --name <site-name> --skip-browser` (Studio 1.8 is SQLite-only via the CLI; default WordPress and PHP versions).
 6. If `--debug-log` was passed, runs `studio site set --debug-log --path <target>` to enable `WP_DEBUG_LOG`. A failure here leaves the site in place — the user can re-run the command manually.
+7. Installs the latest release of the `a8cteam51/safety-net` plugin into `wp-content/plugins/safety-net` and activates it via `studio wp --path <target> plugin activate safety-net`. The latest release tag is resolved from `https://api.github.com/repos/a8cteam51/safety-net/releases/latest` at runtime. This step is non-fatal: a failure prints a warning and leaves the rest of the setup intact — the user can re-run `${CLAUDE_PLUGIN_ROOT}/scripts/install-safety-net.sh --target-dir <target>` manually.
 
-If anything fails before step 3, the target dir is untouched. If the script created the target and failed mid-move, it removes the partial target. Step 5 and 6 failures leave files in place — Studio can be retried manually.
+If anything fails before step 3, the target dir is untouched. If the script created the target and failed mid-move, it removes the partial target. Step 5, 6 and 7 failures leave files in place — Studio and `install-safety-net.sh` can be retried manually.
 
 ## Reporting
 
-On success, emit a 4-7 line summary:
+On success, emit a 5-8 line summary:
 - Project name
 - Target directory
 - Repo cloned into wp-content
 - Studio site name (= project name, DB: SQLite)
 - If the script printed `==> .gitignore patched`, note that `wp-content/.gitignore` was updated to ignore Studio-generated files.
 - If `--debug-log` was passed (script prints `debug log:  enabled`), note that `WP_DEBUG_LOG` is on.
+- Safety-net status from the script's final `safety-net:` line — either "installed and activated" or a note that the user should re-run `install-safety-net.sh` manually.
 - Point the user at the URL and admin credentials Studio printed to stdout.
 
 On non-zero exit, surface the script's stderr verbatim and stop. Do not try to repair partial state, retry, or work around the failure. If the user asks to recover:
 - Pre-Studio failure: delete the target dir and re-trigger the workflow.
 - Studio-create failure: re-run `studio site create --path <target> --name <name> --skip-browser` directly.
 - Debug-log failure (site already exists): re-run `studio site set --debug-log --path <target>` directly.
+- Safety-net failure: re-run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/install-safety-net.sh" --target-dir <target>` directly.
 
 ## Constraints
 
