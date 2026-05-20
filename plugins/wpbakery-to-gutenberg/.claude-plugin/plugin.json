@@ -1,7 +1,7 @@
 {
   "name": "wpbakery-to-gutenberg",
-  "version": "0.1.0",
-  "description": "Convert a WPBakery (Visual Composer) page on a local WordPress Studio site to Gutenberg block markup in place, validated against the site's block editor before write-back.",
+  "version": "0.2.0",
+  "description": "Convert WPBakery (Visual Composer) pages on a local WordPress Studio site to Gutenberg block markup in place. Includes a single-page skill and a batch slash command that dispatches one subagent per page.",
   "author": {
     "name": "Automattic Special Projects"
   },
@@ -15,6 +15,7 @@
     "migration",
     "shortcodes",
     "block-editor",
-    "studio"
+    "studio",
+    "batch"
   ]
 }

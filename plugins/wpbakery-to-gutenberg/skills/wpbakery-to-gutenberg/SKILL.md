@@ -73,7 +73,7 @@ studio wp eval 'echo url_to_postid("<url>");' --path=<site-path>
 
 If the output is `0`, the URL didn't resolve. Stop and ask the user to double-check the URL (likely a non-published draft, a custom post type with non-default rewrites, or a redirect).
 
-### 2. Fetch the current content and capture the pre-write revision ID
+### 2. Fetch the current content
 
 ```bash
 studio wp post get <id> --field=post_content --path=<site-path> > /tmp/wpbakery-original-<id>.txt
@@ -85,13 +85,7 @@ Also fetch a few attributes for context — `post_title`, `post_status`, `post_t
 studio wp post get <id> --fields=ID,post_title,post_status,post_type --format=json --path=<site-path>
 ```
 
-**Capture the latest revision ID *before* writing** so the rollback instructions in the final report are unambiguous (the new revision created by the update will outrank it by date, so "latest revision" is ambiguous after the write):
-
-```bash
-studio wp post list --post_type=revision --post_parent=<id> --field=ID --orderby=date --order=DESC --path=<site-path> | head -1
-```
-
-Save this as `PRE_WRITE_REVISION_ID` and reference only this value in the rollback section of the final report. If empty, revisions are disabled — note that for the user and offer the `/tmp/wpbakery-original-<id>.txt` file as the only rollback path.
+The `/tmp/wpbakery-original-<id>.txt` file is the user's audit trail of the pre-conversion content. Rolling back, if needed, is done by the user in the WordPress admin (Revisions panel) — this skill does not script that path.
 
 ### 3. Fetch the rendered page and extract WPBakery's compiled CSS
 
@@ -206,14 +200,6 @@ studio wp post get <id> --field=post_content --path=<site-path> | head -c 200
 
 The output must start with `<!-- wp:` (block markup), NOT `[vc_` (the original shortcodes). If `[vc_` is still present, the write did not take effect — stop and surface the failure; do not report success.
 
-Then capture the new revision ID for the rollback line in the report:
-
-```bash
-studio wp post list --post_type=revision --post_parent=<id> --field=ID --orderby=date --order=DESC --path=<site-path> | head -1
-```
-
-Save as `POST_WRITE_REVISION_ID`. The rollback target is **`PRE_WRITE_REVISION_ID`** (from step 2), not this one — the post-write revision is just confirmation the write created a new entry.
-
 ### 6b. Smoke-test the rendered page
 
 Fetch the page again and check it still renders without fatal errors:
@@ -244,22 +230,7 @@ Summarize, after the write and verification both pass:
 - `validate_blocks` summary from step 5a: `(validated_ok, auto_fixed_from_expected_html, downgraded_to_html)`. If the Studio MCP tool was unavailable, say so explicitly — do not omit this line.
 - TODOs left in the converted content (unhandled `vc_*`, MCP-downgraded blocks, lossy mappings like carousels/charts) so the user knows what to inspect
 - The smoke-test result from step 6b (HTTP status + error-string count)
-- Rollback command using **`PRE_WRITE_REVISION_ID`** specifically: `studio wp post-revisions restore <PRE_WRITE_REVISION_ID> --path=<site-path>`. Do NOT print both the pre- and post-write revision IDs as alternatives — that ambiguity is what makes rollback risky.
-- Path to the original content backup at `/tmp/wpbakery-original-<id>.txt` as a secondary rollback option (`studio wp post update <id> --post_content="$(< /tmp/wpbakery-original-<id>.txt)"` is fine for restoring from this file since the original shortcode form is well under ARG_MAX).
-
-## Rollback
-
-If the user wants to revert, use the `PRE_WRITE_REVISION_ID` captured in step 2:
-
-```bash
-studio wp post-revisions restore <PRE_WRITE_REVISION_ID> --path=<site-path>
-```
-
-If revisions are disabled, restore from the saved original:
-
-```bash
-studio wp post update <id> --post_content="$(< /tmp/wpbakery-original-<id>.txt)" --path=<site-path>
-```
+- Path to the pre-conversion content backup at `/tmp/wpbakery-original-<id>.txt`, and a one-line note that revert is done in the WordPress admin via the Revisions panel on the edit screen.
 
 ## Things that should stop the run
 
