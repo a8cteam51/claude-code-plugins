@@ -1,0 +1,20 @@
+{
+  "name": "html-to-block-theme",
+  "version": "0.1.0",
+  "description": "Convert a set of static Claude Design HTML/CSS/JS files into a standards-driven WordPress block theme on a local Studio site, using theme.json, block styles, patterns, and build-less custom blocks, refined to match via Playwright.",
+  "author": {
+    "name": "Automattic Special Projects"
+  },
+  "repository": "https://github.com/a8cteam51/claude-code-plugins",
+  "license": "MIT",
+  "keywords": [
+    "wordpress",
+    "block-theme",
+    "theme-json",
+    "gutenberg",
+    "html",
+    "claude-design",
+    "studio",
+    "playwright"
+  ]
+}

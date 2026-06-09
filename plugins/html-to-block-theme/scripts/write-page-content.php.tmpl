@@ -1,0 +1,71 @@
+<?php
+/**
+ * write-page-content.php.tmpl — upsert a WordPress page from block markup.
+ *
+ * The html-to-block-theme section-builder stages this file inside the site dir
+ * (<site-path>/.h2bt/) after substituting the __PLACEHOLDERS__, alongside the
+ * content file it references. Run it with:
+ *
+ *   studio wp eval-file .h2bt/write-<slug>.php --path=<site-path>
+ *
+ * It echoes exactly one sentinel line — H2BT_OK ... on success, H2BT_FAIL: ...
+ * on failure — which the caller greps for. Do not trust the exit code alone.
+ *
+ * Placeholders (sed-substituted before running):
+ *   __PAGE_TITLE__    page title
+ *   __PAGE_SLUG__     page slug (used for upsert lookup)
+ *   __TEMPLATE__      page template slug, or "default"
+ *   __CONTENT_FILE__  basename of the block-markup file in this same directory
+ */
+
+$title         = '__PAGE_TITLE__';
+$slug          = '__PAGE_SLUG__';
+$template      = '__TEMPLATE__';
+$content_file  = __DIR__ . '/__CONTENT_FILE__';
+
+if ( ! is_readable( $content_file ) ) {
+	echo 'H2BT_FAIL: content file not readable: ' . $content_file . "\n";
+	exit;
+}
+
+$content = file_get_contents( $content_file );
+if ( false === $content || '' === trim( $content ) ) {
+	echo "H2BT_FAIL: content file empty\n";
+	exit;
+}
+
+// Preserve block-delimiter comments and raw markup: drop kses for this write.
+kses_remove_filters();
+
+$existing = get_page_by_path( $slug, OBJECT, 'page' );
+
+$postarr = array(
+	'post_title'   => $title,
+	'post_name'    => $slug,
+	'post_status'  => 'publish',
+	'post_type'    => 'page',
+	'post_content' => wp_slash( $content ),
+);
+
+if ( $existing instanceof WP_Post ) {
+	$postarr['ID'] = $existing->ID;
+	$post_id       = wp_update_post( $postarr, true );
+} else {
+	$post_id = wp_insert_post( $postarr, true );
+}
+
+kses_init_filters();
+
+if ( is_wp_error( $post_id ) || ! $post_id ) {
+	$reason = is_wp_error( $post_id ) ? $post_id->get_error_message() : 'unknown error';
+	echo 'H2BT_FAIL: ' . $reason . "\n";
+	exit;
+}
+
+if ( $template && 'default' !== $template ) {
+	update_post_meta( $post_id, '_wp_page_template', $template );
+} else {
+	delete_post_meta( $post_id, '_wp_page_template' );
+}
+
+echo 'H2BT_OK id=' . $post_id . ' bytes=' . strlen( $content ) . "\n";
