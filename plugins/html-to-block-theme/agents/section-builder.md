@@ -29,7 +29,7 @@ You build and refine **one** design file's WordPress output. You run **serially*
 ## Build
 
 1. Walk the file's sections per the blueprint. Emit Gutenberg block markup for each, applying the escalation ladder. Use **only `<!-- wp ... -->` comments** — no other comments in markup.
-2. Pull styling from `theme.json` presets and existing block style variations. Do not duplicate token values inline. Reach for custom CSS only at rung 4, scoped and minimal, and record every rule.
+2. Pull styling from `theme.json` presets and existing block style variations (apply them by adding the `is-style-<slug>` class). Do not duplicate token values inline. If a section forces new block CSS (a new variation at rung 2 or a tight tweak at rung 4), register the variation in `functions.php` with `register_block_style()`, put the CSS in that block type's own file `assets/css/blocks/<block-name>.css` (one file per block type, `/` → `-`), and enqueue it with `wp_enqueue_block_style()` — never a global stylesheet (see `block-styles-guide.md`). Keep it scoped and minimal, and record every rule.
 3. Write to the right home:
    - **Core template / part** → write `templates/*.html` or `parts/*.html` directly in the theme.
    - **Shared-wrapper page content** → set a WordPress page's `post_content` to the block markup and assign the shared template. Use the sentinel-verified staged write, not `post update --post_content=$(<file)` (ARG_MAX) and not `eval-file -` (silent no-op). Stage the markup file first, then substitute **all four** template placeholders (`__PAGE_TITLE__`, `__PAGE_SLUG__`, `__TEMPLATE__`, `__CONTENT_FILE__`):
@@ -64,7 +64,7 @@ Return **only** this JSON object:
   "target": "page:About (template: page) | templates/index.html | parts/header.html",
   "built": ["templates/page.html", "page id=12"],
   "validation": { "validated_ok": 0, "auto_fixed": 0, "downgraded": 0 },
-  "custom_css": [{ "selector": ".is-style-x .wp-block-button__link", "reason": "hover transition; no support path" }],
+  "custom_css": [{ "file": "assets/css/blocks/core-button.css", "selector": ".is-style-x .wp-block-button__link", "reason": "hover transition; no support path" }],
   "custom_blocks_used": ["theme/carousel"],
   "drift": [{ "section": "hero", "diff": "subhead 2px larger", "viewport": "mobile", "rung_to_fix": 2, "why_left": "not worth a variation" }],
   "todos": ["port scroll-reveal animation"],

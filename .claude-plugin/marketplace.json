@@ -88,7 +88,7 @@
       "name": "html-to-block-theme",
       "source": "./plugins/html-to-block-theme",
       "description": "Convert a set of static Claude Design HTML/CSS/JS files into a standards-driven WordPress block theme on a local Studio site, using theme.json, block styles, patterns, and build-less custom blocks, refined to match via Playwright.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": {
         "name": "Automattic Special Projects"
       },

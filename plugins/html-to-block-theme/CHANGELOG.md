@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0] - 2026-06-10
+
+### Changed
+- Block style variations are now registered in `functions.php` with `register_block_style()` instead of `/styles/*.json` files.
+- Block CSS is split into **one file per block type** under `assets/css/blocks/<block-name>.css` (e.g. `core-button.css`) and loaded on demand with [`wp_enqueue_block_style()`](https://developer.wordpress.org/reference/functions/wp_enqueue_block_style/) — replacing the previous single-stylesheet approach. CSS now loads only when its block renders.
+- `standards-audit.sh` enforces the new layout: it fails (`css_org` > 0) when a block CSS file is not enqueued via `wp_enqueue_block_style()` or when block CSS lives outside `assets/css/blocks/`.
+- Updated `block-styles-guide.md`, `mapping-guide.md`, `standards.md`, the `html-to-block-theme` skill, and the `section-builder` agent to document the PHP-registration + per-block-CSS workflow.
+
 ## [0.1.0] - 2026-06-09
 
 ### Added

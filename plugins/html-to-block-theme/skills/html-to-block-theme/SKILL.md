@@ -76,7 +76,7 @@ Build the shared foundation once, before any per-file content. Load `${CLAUDE_PL
 
 1. Write `theme.json` from the unified token set: palette, typography/`fontFamilies`, spacing scale, layout `contentSize`/`wideSize`, radii/shadows, and element styles.
 2. Create template parts for the shared chrome (`parts/header.html`, `parts/footer.html`, etc.).
-3. Register block styles as **their own JSON files** — WP 6.6 block style variations in the theme's `/styles` folder (`blockTypes` + `slug` + `title`) — one per mapped custom CSS class. Keep any CSS minimal.
+3. Register block styles in **`functions.php` via `register_block_style()`** — one per mapped custom CSS class. Put each block type's CSS in **its own file** at `assets/css/blocks/<block-name>.css` (the block name's `/` becomes `-`, e.g. `core-button.css`) and load it on demand with **`wp_enqueue_block_style()`**. One CSS file per block type — never a monolithic stylesheet, and not `/styles/*.json` block-style files. See `block-styles-guide.md`.
 4. Scaffold each needed custom block build-less and register it from the theme:
 
    ```bash
@@ -107,7 +107,7 @@ Collect each subagent's JSON result (target built, validation summary, drift lis
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/standards-audit.sh" --theme-dir "<theme-dir>"
    ```
 
-   It must report zero non-`<!-- wp -->` inline comments and an itemised, minimal custom-CSS footprint. Load `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/standards.md` for what counts as a violation.
+   It must report zero non-`<!-- wp -->` inline comments (`stray_comments=0`), zero block-CSS organization violations (`css_org=0` — every block CSS file is one-per-block-type under `assets/css/blocks/` and enqueued via `wp_enqueue_block_style()`), and an itemised, minimal custom-CSS footprint. Load `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/standards.md` for what counts as a violation.
 4. Report (see below). Stop the static server (`bash "${CLAUDE_PLUGIN_ROOT}/scripts/serve-html.sh" --stop --pidfile <pidfile>`) so it doesn't leak, and clean up transient staged files in `<site-path>/.h2bt/`, leaving `blueprint.md` as the audit trail.
 
 ## Report
@@ -123,4 +123,4 @@ After Phase 4, summarise:
 
 ## Things that should stop the run
 
-Each precondition and each post-write verification is a hard gate. Never report success when a page-content write's sentinel grep fails, when block validation still shows invalid blocks after the two-call ceiling (downgrade to `core/html` instead), or when the standards audit reports stray inline comments. Surface the reason plainly and stop — the user is driving this and needs to know exactly what was checked.
+Each precondition and each post-write verification is a hard gate. Never report success when a page-content write's sentinel grep fails, when block validation still shows invalid blocks after the two-call ceiling (downgrade to `core/html` instead), or when the standards audit reports stray inline comments or block-CSS organization violations. Surface the reason plainly and stop — the user is driving this and needs to know exactly what was checked.

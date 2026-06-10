@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 #
-# standards-audit.sh — enforce the two machine-checkable standards for a generated
+# standards-audit.sh — enforce the machine-checkable standards for a generated
 # block theme:
 #   1. Block markup (templates/, parts/, patterns/) contains ONLY <!-- wp ... -->
 #      comments. Any other HTML comment is a violation.
 #   2. Custom CSS is minimal — report the footprint so it can be reviewed.
+#   3. Block CSS is one file per block type under assets/css/blocks/, each enqueued
+#      via wp_enqueue_block_style() in functions.php. Stray or unenqueued block
+#      stylesheets are violations.
 #
 # Usage: standards-audit.sh --theme-dir <dir>
-# Exits non-zero if stray (non-wp) HTML comments are found.
+# Exits non-zero if stray comments or block-CSS organization violations are found.
 #
 set -euo pipefail
 
@@ -16,8 +19,10 @@ usage() {
 Usage: standards-audit.sh --theme-dir <dir>
 
 Scans <dir>/templates, <dir>/parts, <dir>/patterns for HTML comments that are not
-Gutenberg block delimiters, and measures the custom-CSS footprint across the theme.
-Prints a report. Exits 1 if any stray comment is found, 0 otherwise.
+Gutenberg block delimiters, measures the custom-CSS footprint, and checks that block
+CSS is one file per block type under assets/css/blocks/ enqueued via
+wp_enqueue_block_style(). Prints a report. Exits 1 if any stray comment or block-CSS
+organization violation is found, 0 otherwise.
 EOF
 }
 
@@ -73,8 +78,54 @@ echo "  TOTAL custom CSS lines: ${total}"
 echo "  NOTE: style.css theme-header comment is excluded; lower is better. Review each rule against the report."
 
 echo
-if [[ "$violations" -gt 0 ]]; then
-	echo "H2BT_AUDIT_FAIL stray_comments=${violations} css_lines=${total}"
+echo "== Block CSS organization =="
+css_org=0
+functions_php="$theme_dir/functions.php"
+blocks_css_dir="$theme_dir/assets/css/blocks"
+
+# 1. Every per-block stylesheet must be enqueued via wp_enqueue_block_style() in functions.php.
+if [[ -d "$blocks_css_dir" ]]; then
+	if [[ ! -f "$functions_php" ]]; then
+		echo "  MISSING     functions.php — block CSS files exist but cannot be enqueued"
+		css_org=$((css_org + 1))
+	elif ! grep -q "wp_enqueue_block_style" "$functions_php"; then
+		echo "  MISSING     functions.php never calls wp_enqueue_block_style()"
+		css_org=$((css_org + 1))
+	fi
+	while IFS= read -r -d '' bcss; do
+		base="$(basename "$bcss")"
+		if [[ -f "$functions_php" ]] && grep -qF "$base" "$functions_php"; then
+			echo "  OK          ${bcss#$theme_dir/} (enqueued)"
+		else
+			echo "  UNENQUEUED  ${bcss#$theme_dir/} — not referenced in functions.php"
+			css_org=$((css_org + 1))
+		fi
+	done < <(find "$blocks_css_dir" -type f -name '*.css' -print0 2>/dev/null)
+fi
+
+# 2. Block CSS must be one file per block type under assets/css/blocks/. Flag strays.
+#    Allowed elsewhere: the theme-header style.css and a custom block's own bundled
+#    CSS under blocks/<slug>/.
+while IFS= read -r -d '' css; do
+	rel="${css#$theme_dir/}"
+	case "$rel" in
+		style.css) ;;
+		assets/css/blocks/*.css) ;;
+		blocks/*) ;;
+		*)
+			echo "  STRAY       ${rel} — block CSS must be one file per block type under assets/css/blocks/"
+			css_org=$((css_org + 1))
+			;;
+	esac
+done < <(find "$theme_dir" -type f -name '*.css' -print0 2>/dev/null)
+
+if [[ "$css_org" -eq 0 ]]; then
+	echo "  OK — block CSS is one file per block type, each enqueued via wp_enqueue_block_style()"
+fi
+
+echo
+if [[ "$violations" -gt 0 || "$css_org" -gt 0 ]]; then
+	echo "H2BT_AUDIT_FAIL stray_comments=${violations} css_org=${css_org} css_lines=${total}"
 	exit 1
 fi
-echo "H2BT_AUDIT_OK stray_comments=0 css_lines=${total}"
+echo "H2BT_AUDIT_OK stray_comments=0 css_org=0 css_lines=${total}"

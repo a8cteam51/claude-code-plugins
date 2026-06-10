@@ -111,4 +111,4 @@ Because every design file feeds one theme:
 
 - One-off geometry for a single section (use the block instance's `style`).
 - Behaviour/JS (custom block territory).
-- Anything achievable by a block style variation (that goes in `/styles/*.json` — see `block-styles-guide.md`).
+- Anything achievable by a block style variation (registered in `functions.php` with `register_block_style()`, CSS in one file per block type under `assets/css/blocks/` — see `block-styles-guide.md`).

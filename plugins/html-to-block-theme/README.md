@@ -8,7 +8,7 @@ The agent maps the design to WordPress primitives — templates, template parts,
 
 - **Plans before building.** Analyses every HTML file (and its linked CSS/JS) and writes a blueprint that maps each section to core blocks, maps custom CSS classes to block styles, and lists any custom blocks needed for behaviour beyond core.
 - **`theme.json` is the source of truth.** Design tokens (colours, typography, spacing, layout widths) are unified across the whole design set into `theme.json`.
-- **Minimal custom CSS.** Styling is expressed first through block supports, then through block style variations registered as their own JSON files. Hand-written CSS is a last resort and every rule is reported.
+- **Minimal custom CSS.** Styling is expressed first through block supports, then through block style variations registered in `functions.php` with `register_block_style()`. Any block CSS is split into one file per block type under `assets/css/blocks/` and loaded on demand with `wp_enqueue_block_style()` — never a monolithic stylesheet. Hand-written CSS is a last resort and every rule is reported.
 - **Build-less custom blocks.** When core blocks cannot express a behaviour, a custom block is scaffolded with `block.json` + PHP `render.php` + vanilla `view.js` / the Interactivity API — no node/webpack build step.
 - **Refines against the originals.** Uses the bundled Playwright MCP to screenshot the original design and the WordPress output at matched viewports, then iterates.
 

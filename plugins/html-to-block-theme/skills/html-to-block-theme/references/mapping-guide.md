@@ -7,9 +7,9 @@ This is the source of truth for how design markup becomes block markup. Walk the
 Resolve every visual detail at the **lowest** rung that achieves it. Record the rung used for each non-trivial decision so the report can justify it.
 
 1. **Core block + block supports.** Express the detail through a core block and its supported attributes (spacing, colour, typography, border, dimensions, layout), drawing values from `theme.json` presets. This is the default — WordPress block properties are the de-facto styling mechanism.
-2. **Block style variation** (its own JSON file, see `block-styles-guide.md`). Use when a recurring custom class adds styling that supports cannot express, but is still "a variant of a core block." Minimal CSS, registered declaratively.
+2. **Block style variation** — registered in `functions.php` with `register_block_style()`; its CSS lives in that block type's own file (`assets/css/blocks/<block-name>.css`) loaded with `wp_enqueue_block_style()` (see `block-styles-guide.md`). Use when a recurring custom class adds styling that supports cannot express, but is still "a variant of a core block." One CSS file per block type — never a monolithic stylesheet.
 3. **Custom block** (build-less, see `custom-blocks-guide.md`). Use only for genuine behaviour or markup beyond core: JS interactions, dynamic/repeating structures, or markup core blocks cannot produce.
-4. **Documented custom CSS** in the theme stylesheet. Last resort. Keep each rule minimal, scope it tightly, and flag it in the report with the reason rung 1–3 could not do it.
+4. **Documented custom CSS.** Last resort. When it targets a block type, put it in that block's `assets/css/blocks/<block-name>.css` file enqueued with `wp_enqueue_block_style()` (see `block-styles-guide.md`), not a global stylesheet. Keep each rule minimal, scope it tightly, and flag it in the report with the reason rung 1–3 could not do it.
 
 Never invent block attribute names. Use documented globals (`className`, `anchor`, `style`, `backgroundColor`, `textColor`, `fontSize`, `fontFamily`, `align`, `layout`) plus the per-block attributes this guide spells out. `validate_html_blocks` catches drift after the fact, but every wrong name costs a fix round — get them right up front. Colour classes are `has-{slug}-background-color` / `has-{slug}-color`, **not** `has-background-color-{slug}`.
 
