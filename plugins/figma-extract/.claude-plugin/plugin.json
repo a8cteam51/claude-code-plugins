@@ -1,0 +1,19 @@
+{
+  "name": "figma-extract",
+  "version": "0.1.0",
+  "description": "Extract images and design context from the current Figma selection over Figma desktop's local Dev Mode MCP connection. Downloads referenced assets (PNG/JPG/GIF/WEBP/SVG), a screenshot, and the design context to a local folder.",
+  "author": {
+    "name": "Automattic Special Projects"
+  },
+  "repository": "https://github.com/a8cteam51/claude-code-plugins",
+  "license": "MIT",
+  "keywords": [
+    "figma",
+    "design",
+    "assets",
+    "images",
+    "mcp",
+    "dev-mode",
+    "design-to-code"
+  ]
+}
