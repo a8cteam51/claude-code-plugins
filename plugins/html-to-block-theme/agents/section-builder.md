@@ -45,10 +45,18 @@ You build and refine **one** design file's WordPress output. You run **serially*
      grep -q '^H2BT_OK' /tmp/h2bt-write-<slug>.log || { echo "WRITE FAILED"; exit 1; }
      ```
      Use `default` for `__TEMPLATE__` when the page uses the theme's default page template. The content file basename in the `sed` must match the staged file from step 1.
+   - **Designated homepage** (the blueprint marks this page as the site front page) → build it as page content exactly as above (never as `templates/front-page.html`), then point WordPress at it after the sentinel-verified write:
+
+     ```bash
+     studio wp option update show_on_front page --path=<site-path>
+     studio wp option update page_on_front <page-id> --path=<site-path>
+     ```
+
+     When the homepage chrome differs from the shared page wrapper, its custom page template (from the blueprint, registered in `theme.json` `customTemplates`) is a `templates/*.html` write like any other — but the homepage's body still lives in the page's `post_content`, rendered via `core/post-content`.
 
 ## Validate
 
-Validate the markup with `mcp__wordpress-studio__validate_html_blocks`, then fix with `mcp__wordpress-studio__validate_and_fix_blocks` (confirm the exact Studio MCP tool names in-session — they have been renamed before). Two-call ceiling: validate, apply fixes in one pass, re-validate once. Any block still invalid → downgrade to `core/html` with the semantic markup; never ship invalid blocks. Track `(validated_ok, auto_fixed, downgraded)`.
+Validate with the Studio MCP validator — currently the combined `mcp__wordpress-studio__validate_blocks` (confirm the exact tool name in-session; earlier Studio versions shipped split validate/fix tools). It runs a **static core/html policy check first** (see the core/html policy in `mapping-guide.md`): a `core/html` block holding anything beyond bare inline SVG, no-equivalent embed markup, or a single script block is rejected before editor validation — rewrite it as editable blocks (icon links → `core/social-links`), don't retry it. With `filePath` it fixes theme files in place; with inline `content` it returns fixed content to write. Two-call ceiling: validate, apply fixes in one pass, re-validate once. Any block still invalid → downgrade to a **policy-compliant** form (editable blocks plus scoped CSS; `core/html` only within the policy); never ship invalid blocks. Track `(validated_ok, auto_fixed, downgraded)`.
 
 ## Refine
 

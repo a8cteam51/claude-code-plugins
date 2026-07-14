@@ -8,9 +8,12 @@
 #   3. Block CSS is one file per block type under assets/css/blocks/, each enqueued
 #      via wp_enqueue_block_style() in functions.php. Stray or unenqueued block
 #      stylesheets are violations.
+#   4. No templates/front-page.html — the homepage must be a WordPress page set as
+#      the static front page via Reading settings, not a template.
 #
 # Usage: standards-audit.sh --theme-dir <dir>
-# Exits non-zero if stray comments or block-CSS organization violations are found.
+# Exits non-zero if stray comments, block-CSS organization violations, or a
+# front-page.html template are found.
 #
 set -euo pipefail
 
@@ -124,8 +127,18 @@ if [[ "$css_org" -eq 0 ]]; then
 fi
 
 echo
-if [[ "$violations" -gt 0 || "$css_org" -gt 0 ]]; then
-	echo "H2BT_AUDIT_FAIL stray_comments=${violations} css_org=${css_org} css_lines=${total}"
+echo "== Front-page template check =="
+front_page=0
+if [[ -f "$theme_dir/templates/front-page.html" ]]; then
+	echo "  FORBIDDEN   templates/front-page.html — set a page as the front page via Reading settings instead"
+	front_page=1
+else
+	echo "  OK — no templates/front-page.html"
+fi
+
+echo
+if [[ "$violations" -gt 0 || "$css_org" -gt 0 || "$front_page" -gt 0 ]]; then
+	echo "H2BT_AUDIT_FAIL stray_comments=${violations} css_org=${css_org} front_page=${front_page} css_lines=${total}"
 	exit 1
 fi
-echo "H2BT_AUDIT_OK stray_comments=0 css_org=0 css_lines=${total}"
+echo "H2BT_AUDIT_OK stray_comments=0 css_org=0 front_page=0 css_lines=${total}"

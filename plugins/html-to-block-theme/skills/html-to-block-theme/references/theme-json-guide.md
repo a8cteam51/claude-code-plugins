@@ -71,6 +71,7 @@ Read the linked CSS (and CSS custom properties / `:root` variables — designers
 - **`layout.contentSize`/`wideSize`** replace CSS container `max-width`. Constrained groups read these.
 - **Disable defaults you replace** (`defaultPalette: false`, `defaultFontSizes: false`) so the editor only offers the design's tokens.
 - **Slugs are an API.** Once a block references `var:preset|color|primary`, renaming the slug breaks it. Choose semantic slugs (`primary`, `accent`, `surface`) up front.
+- **Slugs are kebab-cased when WordPress generates CSS.** A slug like `type-h1` expands to `--wp--preset--font-size--type-h-1` (and the class `has-type-h-1-font-size`) — WordPress inserts a dash at letter/digit boundaries. Hand-written CSS referencing the un-expanded name (`var(--wp--preset--font-size--type-h1)`) silently resolves to nothing. Choose slugs already in fully-expanded kebab form (`type-h-1`, `heading-1`) so `theme.json`, generated classes, and `var(--wp--preset--…)` references all match verbatim.
 
 ## styles
 

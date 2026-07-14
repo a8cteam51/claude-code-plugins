@@ -28,9 +28,8 @@ These will silently corrupt output if missed (inherited from the Studio environm
 This skill uses two MCP servers plus the `studio` CLI.
 
 - **Playwright MCP** — bundled with this plugin via `.mcp.json` (runs `npx -y @playwright/mcp@latest`). Used to load the original HTML (served locally) and the WordPress output, screenshot both at matched viewports, and inspect DOM/computed styles. See `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/visual-refinement.md`.
-- **Studio MCP** — ships with the `studio` CLI; register once at user scope: `claude mcp add --scope user wordpress-studio -- studio mcp`. Relevant tools (confirm exact names in-session before relying on them — older docs reference a since-renamed `validate_blocks`):
-  - `mcp__wordpress-studio__validate_html_blocks` — load block markup into the real editor and report invalid blocks with the expected `save()` HTML.
-  - `mcp__wordpress-studio__validate_and_fix_blocks` — the auto-fix counterpart. Two-call ceiling: validate, fix in one pass, re-validate once; never loop per block.
+- **Studio MCP** — ships with the `studio` CLI; register once at user scope: `claude mcp add --scope user wordpress-studio -- studio mcp`. Relevant tools (confirm exact names in-session before relying on them — the validator has been renamed across Studio versions, e.g. earlier split `validate_html_blocks` / `validate_and_fix_blocks` tools):
+  - `mcp__wordpress-studio__validate_blocks` — the combined validator. Stage 1 is a **static core/html policy check** (see the core/html policy in `mapping-guide.md`): disallowed `core/html` (anything beyond bare inline SVG, no-equivalent embed markup, or a single script block) is rejected before the editor is touched — rewrite as editable blocks rather than retrying. Stage 2 validates in the site's real block editor: with `filePath` it applies safe serialization fixes to the file in place; with inline `content` it returns the fixed block content. Two-call ceiling: validate, apply fixes in one pass, re-validate once; never loop per block.
   - `mcp__wordpress-studio__take_screenshot` — fallback screenshotter if Playwright is unavailable.
   - `mcp__wordpress-studio__scaffold_theme` — scaffold a minimal block theme if the site has none.
 
@@ -65,7 +64,7 @@ Run these in parallel before any work. If any fails, stop and report — do not 
    - A single unified token set for `theme.json` (merge near-duplicate colours/sizes; one source of truth).
    - The shared chrome (header/footer/nav present across files) → template parts.
    - Repeated cross-file sections → block patterns.
-   - Each file's target: core templates (`templates/index.html`, `single.html`, `archive.html`, `404.html`, `front-page.html`, …) vs inner pages that share a wrapper template and differ only in content → a WordPress page assigned to that template.
+   - Each file's target: core templates (`templates/index.html`, `single.html`, `archive.html`, `404.html`, …) vs pages that share a wrapper template and differ only in content → a WordPress page assigned to that template. **The homepage is always a page, never `templates/front-page.html`** — assign it the shared page template or a custom page template (registered via `theme.json` `customTemplates`) and set it as the static front page through the Reading settings (`studio wp option update show_on_front page` + `studio wp option update page_on_front <page-id>`); see the homepage rule in `mapping-guide.md`.
    - The list of custom blocks to build, each justified against core.
 
 4. Write the blueprint to `<site-path>/.h2bt/blueprint.md` (a per-file target table, the token set, the part/pattern/custom-block lists, and the per-section mapping). **Surface it to the user and let them review before building** — this is the build contract.
@@ -92,7 +91,7 @@ Process the files **one at a time** (serial — see quirk 4). For each file, dis
 - Emits Gutenberg block markup using **only `<!-- wp -->` comments** (no other inline comments) for each section, applying the escalation ladder from `mapping-guide.md`.
 - For core templates: writes `templates/*.html` / `parts/*.html`.
 - For shared-wrapper pages: creates/updates a WordPress page whose `post_content` is the block markup, assigned to the shared template, via the sentinel-verified staged write (`${CLAUDE_PLUGIN_ROOT}/scripts/write-page-content.php.tmpl`).
-- Validates the markup with `validate_html_blocks` → `validate_and_fix_blocks` (two-call ceiling).
+- Validates the markup with the Studio validator (`validate_blocks` — policy check + editor validation, two-call ceiling).
 - Refines against the original in Playwright per `visual-refinement.md`: screenshot original vs WP output at matched viewports, compare per section, apply the ladder for mismatches, converge in ~3 rounds max, and record residual drift rather than looping.
 
 Collect each subagent's JSON result (target built, validation summary, drift list, custom CSS used, TODOs) before starting the next file.

@@ -33,7 +33,7 @@ You analyze **one** static HTML design file and return a structured mapping for 
 2. Walk the HTML depth-first. Break it into top-level **sections** (hero, feature grid, testimonial row, footer, etc.).
 3. For each section, decide the block mapping and the **lowest** escalation-ladder rung that achieves it. Note recurring custom classes that should become block style variations, and any behaviour that needs a custom block (with the reason core cannot do it).
 4. Detect the section's design tokens (colours, font families + sizes, spacing, layout widths, radii, shadows). Report exact values; later reconciliation unifies them across files.
-5. Classify the file: a **core template** (home/index, single, archive, 404, front-page, generic page) or **shared-wrapper page content** (inner page that shares header/footer/wrapper with others and differs only in body). Flag the shared chrome present (header/nav/footer).
+5. Classify the file: a **core template** (blog index, single, archive, 404, generic page layout) or **shared-wrapper page content** (inner page that shares header/footer/wrapper with others and differs only in body). A distinct homepage is **always page content, never a `front-page.html` template** — classify it `page-content`, note that it is the designated front page, and when its chrome differs from the other pages (different or absent header/footer) note that it needs a custom page template. Flag the shared chrome present (header/nav/footer).
 6. List linked assets and their roles (content image vs decorative/background, fonts, scripts).
 
 ## Discipline
@@ -51,7 +51,7 @@ Return **only** this JSON object (no prose):
 {
   "file": "<filename>",
   "classification": "core-template | page-content | ambiguous",
-  "suggested_target": "templates/index.html | page:About | front-page | ...",
+  "suggested_target": "templates/index.html | page:About | page:Home (front page via Reading settings, custom template) | ...",
   "shared_chrome": { "header": true, "nav": true, "footer": true },
   "design_tokens": {
     "colors": [{ "slug": "primary", "value": "#2563eb" }],

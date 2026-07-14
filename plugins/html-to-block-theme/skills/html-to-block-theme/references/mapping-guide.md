@@ -28,7 +28,7 @@ Never invent block attribute names. Use documented globals (`className`, `anchor
 | `<ul>`/`<ol>` | `core/list` + `core/list-item` | |
 | Site nav | `core/navigation` | Lives in `parts/header.html`. |
 | Logo | `core/site-logo` or `core/image` | |
-| Icon / inline SVG | `core/html` (small inline SVG) or a custom block if interactive | Keep SVGs inline in markup; do not invent an "icon block." |
+| Icon / inline SVG | `core/html` (bare inline SVG only) or a custom block if interactive | An SVG wrapped in an `<a>`/`<div>` fails the core/html policy — icon *links* are `core/social-links` (restyled by a block style variation when the glyph is bespoke). Do not invent an "icon block." |
 | Background media + overlay + content | `core/cover` | Maps cleanly to hero sections with a background image/colour and overlay. |
 | Separator / `<hr>` | `core/separator` | |
 | Spacer gap (no semantic content) | spacing supports first; `core/spacer` only if unavoidable | Prefer `blockGap`/padding over spacer blocks. |
@@ -62,12 +62,21 @@ If a declaration has no support and no preset path, escalate one rung — do not
 
 For each HTML file in the set, decide its home:
 
-- **Core template** — the file represents a WordPress view: home/blog index → `templates/index.html`; a single post layout → `single.html`; an archive → `archive.html`; a 404 → `404.html`; a distinct front page → `front-page.html`; a generic page layout → `page.html`.
+- **Core template** — the file represents a WordPress view: blog index → `templates/index.html` (or `home.html`); a single post layout → `single.html`; an archive → `archive.html`; a 404 → `404.html`; a generic page layout → `page.html`. **Never `front-page.html`** — see the homepage rule below.
 - **Shared-wrapper page content** — the file is an inner page (About, Services, Contact) that shares the same header/footer/wrapper as others and differs only in body content. The wrapper becomes a template (often `page.html`); the body becomes a **WordPress page** whose `post_content` is block markup, assigned to that template. The content lives in WordPress, not hardcoded in the template.
 - **Template part** — markup that repeats across files unchanged (header, footer, nav, a CTA banner) → `parts/*.html`, referenced via `core/template-part`.
 - **Block pattern** — a repeated *section* (feature grid, testimonial row, pricing table) that recurs with varying content → a registered pattern in `patterns/*.php`, inserted where needed. Use synced patterns only when the user wants edit-once-update-everywhere.
 
 When two files share chrome but differ in body, extract the chrome **once** into parts and a shared template; never duplicate it per file.
+
+### The homepage rule: no front-page.html
+
+Never create `templates/front-page.html`. The homepage is **content, not a view**: build it as a WordPress page whose `post_content` is the block markup, then point WordPress at it through the Reading settings (`wp option update show_on_front page` + `wp option update page_on_front <page-id>`). Choose its template by wrapper:
+
+- Homepage shares the standard page chrome → the shared page template (`page.html` / `default`).
+- Homepage has its own chrome (different or absent header/footer, full-viewport hero) → a **custom page template** (e.g. `templates/page-home.html`) registered in `theme.json` `customTemplates`, rendering the page's content via `core/post-content`.
+
+This keeps the homepage editable in WordPress like every other page instead of hardcoding its content in a template that shadows the page.
 
 ## Asset routing
 
@@ -85,8 +94,18 @@ Static JS in the design (sliders, accordions, mobile menus, scroll effects) has 
 - **Needs custom behaviour** → a build-less custom block whose `view.js` (or the Interactivity API) reproduces it (see `custom-blocks-guide.md`). This is the home the user wants for "functionality beyond core."
 - **Purely decorative scroll/animation** → reproduce with CSS where cheap; otherwise drop it and note it in the report. Do not enqueue the original JS file wholesale.
 
+## core/html policy (enforced by the validator)
+
+The Studio validator statically rejects `core/html` blocks whose markup should be editable blocks — `core/html` is not a general-purpose escape hatch. It is allowed only for:
+
+- **Bare inline SVG** — the `<svg>` element itself. Wrapping it in an `<a>` or `<div>` already fails; icon links belong in `core/social-links` with a block style variation for a bespoke glyph.
+- **Third-party embed / interaction markup with no block equivalent** (a booking-widget snippet, a marquee), kept to the embed's own markup.
+- **A single script block.**
+
+Everything else — text, links, layout, images — must be rewritten as editable core blocks even when that costs a ladder rung. Plan mappings assuming this policy; a "downgrade to core/html" that violates it bounces off validation instead of shipping.
+
 ## Fidelity discipline
 
 - Reproduce structure and spacing faithfully; accept sub-pixel/minor drift to stay on a lower ladder rung.
 - Anything dropped (animation, effect, unsupported layout) goes in the report's residual-drift list with the reason.
-- Long-tail markup with no clean mapping → `core/html` containing semantic markup the theme can style, flagged as a TODO. Do not invent block types.
+- Long-tail markup with no clean mapping → decompose into core blocks plus tightly-scoped CSS where possible; `core/html` is a fallback only within the core/html policy above (embeds, bare SVG, scripts), flagged as a TODO. Do not invent block types.

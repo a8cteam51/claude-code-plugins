@@ -100,7 +100,27 @@ Keep these scoped under `.is-style-<slug>` and token-driven. Because the file is
 
 ## Block CSS that is not a variation
 
-Some block types need a little custom CSS that is not an editor-selectable variation (a tweak block supports cannot reach). It follows the same rule: put it in that block type's `assets/css/blocks/<block-name>.css`, scoped to the block wrapper, enqueued with `wp_enqueue_block_style()` (no `register_block_style()` call needed when there is no selectable variation). This is rung 4 and is reported. Do not invent a fake variation just to hold it, and do not drop it into a global stylesheet.
+Some block types need a little custom CSS that is not an editor-selectable variation (a tweak block supports cannot reach). It follows the same rule: put it in that block type's `assets/css/blocks/<block-name>.css`, enqueued with `wp_enqueue_block_style()` (no `register_block_style()` call needed when there is no selectable variation). This is rung 4 and is reported. Do not invent a fake variation just to hold it, and do not drop it into a global stylesheet.
+
+### Direct block targeting or block style? The decision rule
+
+Rung-4 structural CSS may target **block selectors directly** — the block's own wrapper classes and contextual combinators:
+
+```css
+header.wp-block-template-part > .wp-block-group { position: relative; height: 306px; }
+header.wp-block-template-part nav.wp-block-navigation { position: absolute; top: 211px; }
+.wp-block-group > footer.wp-block-template-part { margin-top: auto; }
+```
+
+When structure alone identifies the target (there is one header part, one footer part, one cover on that template), no class hook is needed and none should be invented.
+
+The moment a rule needs a **custom class as a CSS hook** to disambiguate ("this group, not the others"), that hook must be a **registered block style**: `register_block_style()` in `functions.php`, applied as `is-style-<slug>`, CSS in the block type's file. Never ship an unregistered bespoke className as a CSS hook — if it is worth a class, it is worth a registration the editor can see. This includes structural/responsive utilities (`is-style-pull-up`, `is-style-hide-below-1024`, `is-style-full-width-below-640`) and variations that restyle a block's inner markup (e.g. swapping a social icon's glyph via mask) — behaviour stays in the block; the variation only restyles it.
+
+Scoping rules either way:
+
+- Never emit an `is-style-*` class that has no `register_block_style()` registration behind it.
+- Never style the design's original class names — name variations by intent.
+- Keep every rule token-driven (`var(--wp--preset--…)`) and listed in the report.
 
 ## Discipline
 

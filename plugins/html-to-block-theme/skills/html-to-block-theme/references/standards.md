@@ -23,7 +23,9 @@ If a section needs a note for the user, it goes in the **report**, not as a comm
 
 - Use documented attributes only (`className`, `anchor`, `style`, `backgroundColor`, `textColor`, `fontSize`, `fontFamily`, `align`, `layout`, plus per-block attributes). Never invent attribute names.
 - Colour classes are `has-{slug}-background-color` / `has-{slug}-color`.
-- Every block validates through `validate_html_blocks` — markup whose `save()` output differs from input is wrong; fix it or downgrade to `core/html`, never ship invalid blocks.
+- Every block validates through the Studio validator (`validate_blocks`) — markup whose `save()` output differs from input is wrong; fix it, never ship invalid blocks.
+- **`core/html` is restricted** (enforced by the validator's static policy check): bare inline SVG, third-party embed/interaction markup with no block equivalent, or a single script block — nothing else. Icon links are `core/social-links` (block style variation for a bespoke glyph); text/layout/images are always editable blocks.
+- Custom CSS hooks are always registered block styles: every class a stylesheet targets is either a block's own wrapper/structural class or an `is-style-*` class backed by `register_block_style()`. Structural rung-4 CSS targets block selectors directly (wrapper classes, contextual combinators). An unregistered bespoke className used as a CSS hook is a violation (`block-styles-guide.md`, decision rule).
 
 ## Theme structure
 
@@ -33,7 +35,7 @@ A valid block theme has:
 style.css            # theme header comment block (required)
 theme.json           # source of truth
 functions.php        # register_block_style() + wp_enqueue_block_style() per block, font/asset wiring
-templates/           # index.html (required) + others (single, archive, 404, page, front-page…)
+templates/           # index.html (required) + others (single, archive, 404, page, custom page templates…) — never front-page.html
 parts/               # header.html, footer.html, shared chrome
 patterns/            # *.php registered patterns
 styles/              # global (full-theme) style variations only (*.json); block styles are PHP-registered
@@ -43,6 +45,8 @@ blocks/              # build-less custom blocks (one dir each)
 ```
 
 `style.css` must carry the theme header (Theme Name, Version, Text Domain, etc.). `templates/index.html` must exist for the theme to be valid.
+
+The theme must **not** ship `templates/front-page.html`. The homepage is a WordPress page set as the static front page through the Reading settings (`show_on_front=page`, `page_on_front=<page-id>`), assigned to the shared page template or a custom page template registered in `theme.json` `customTemplates`. The standards audit fails a theme containing `front-page.html`.
 
 ## WordPress / PHP
 
