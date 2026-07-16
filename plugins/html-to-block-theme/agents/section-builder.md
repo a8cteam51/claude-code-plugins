@@ -60,7 +60,7 @@ Validate with the Studio MCP validator — currently the combined `mcp__wordpres
 
 ## Refine
 
-Follow `visual-refinement.md`. Resize the browser to matched viewports (the design's breakpoints; default desktop/tablet/mobile). Screenshot the served original and the WordPress output at each, compare per section, and spot-check computed styles with the browser when unsure. Fix at the lowest ladder rung; re-validate changed markup. Converge in ~3 rounds per section — then record residual drift instead of looping. Drive interactive states (open menus/accordions) before comparing so you compare equivalent states.
+Follow `visual-refinement.md`. Resize the browser to matched viewports (the design's breakpoints; default desktop/tablet/mobile). Screenshot the served original and the WordPress output at each, compare per section, and spot-check computed styles with the browser when unsure. Fix at the lowest ladder rung; re-validate changed markup. Converge in ~3 rounds per section — then record residual drift instead of looping. Drive interactive states (open menus/accordions) before comparing so you compare equivalent states. Finish with the `1900px` wide-desktop sanity check pass on the WordPress output — fix anything that visibly breaks at that width (unconstrained containers, stretched images, runaway full-bleed backgrounds).
 
 ## Output
 

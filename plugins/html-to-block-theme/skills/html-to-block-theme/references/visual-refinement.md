@@ -11,6 +11,8 @@ After a section's block markup is written and validated, refine it against the o
 
 Read the design CSS media queries to learn its breakpoints; refine at each. A sensible default set if the design gives no signal: desktop `1440×900`, tablet `768×1024`, mobile `390×844`. Resize the browser to the **same** width on both sides before screenshotting — comparing different viewports is meaningless.
 
+**Wide-desktop sanity check:** every design also gets one pass at `1900px` browser width (e.g. `1900×1000`), regardless of the breakpoints it declares. Designs are usually authored narrower, so this is where unconstrained containers, stretched images, and full-bleed backgrounds that should stop at a max-width break. This is a sanity pass, not a pixel-match target — fix anything that visibly breaks; don't chase 1:1 fidelity at a width the design never specified.
+
 ## The loop (per section, converge fast)
 
 1. **Capture both.** Navigate to the original, resize, full-page screenshot; repeat for the WordPress output at the same size.
@@ -23,7 +25,7 @@ Read the design CSS media queries to learn its breakpoints; refine at each. A se
 
 - **Tolerance:** minor sub-pixel/anti-aliasing differences are acceptable and expected — they are not drift. Drift is a visible difference in layout, spacing, colour, or type.
 - **Ceiling:** ~3 refine rounds per section. If still off after that, the detail is probably blocked at a higher ladder rung than is worth paying for — record it (what differs, which rung would fix it, why it was not taken) rather than escalating endlessly.
-- **Whole-file pass:** after all sections, do one full-page comparison per viewport to catch cumulative spacing drift between sections.
+- **Whole-file pass:** after all sections, do one full-page comparison per viewport to catch cumulative spacing drift between sections, plus the `1900px` wide-desktop sanity check on the WordPress output.
 
 ## What to record
 

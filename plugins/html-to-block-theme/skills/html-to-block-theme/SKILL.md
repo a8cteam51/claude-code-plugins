@@ -92,13 +92,13 @@ Process the files **one at a time** (serial — see quirk 4). For each file, dis
 - For core templates: writes `templates/*.html` / `parts/*.html`.
 - For shared-wrapper pages: creates/updates a WordPress page whose `post_content` is the block markup, assigned to the shared template, via the sentinel-verified staged write (`${CLAUDE_PLUGIN_ROOT}/scripts/write-page-content.php.tmpl`).
 - Validates the markup with the Studio validator (`validate_blocks` — policy check + editor validation, two-call ceiling).
-- Refines against the original in Playwright per `visual-refinement.md`: screenshot original vs WP output at matched viewports, compare per section, apply the ladder for mismatches, converge in ~3 rounds max, and record residual drift rather than looping.
+- Refines against the original in Playwright per `visual-refinement.md`: screenshot original vs WP output at matched viewports, compare per section, apply the ladder for mismatches, converge in ~3 rounds max, and record residual drift rather than looping. Ends with a `1900px` wide-desktop sanity check pass on the WordPress output.
 
 Collect each subagent's JSON result (target built, validation summary, drift list, custom CSS used, TODOs) before starting the next file.
 
 ### Phase 4 — Verify and report
 
-1. Full-page visual diff per file at desktop + the responsive breakpoints the designs define.
+1. Full-page visual diff per file at desktop + the responsive breakpoints the designs define, plus the `1900px` wide-desktop sanity check on each page.
 2. Block-validity summary across all files.
 3. Standards audit:
 
