@@ -153,7 +153,7 @@
     return clone.outerHTML.slice(0, 1500);
   }
 
-  function capture(el, note) {
+  function capture(el, note, action) {
     const rect = el.getBoundingClientRect();
     const cs = getComputedStyle(el);
     const styles = {};
@@ -161,6 +161,7 @@
     return {
       id: state.annotations.length + 1,
       note,
+      action,
       selector: selectorFor(el),
       tag: el.localName,
       classes: [...el.classList].filter((c) => !c.startsWith('__claude')),
@@ -208,7 +209,9 @@
       padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
     .pin { position: fixed; width: 22px; height: 22px; border-radius: 999px; background: #d97757; color: #fff;
       display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700;
-      pointer-events: none; box-shadow: 0 2px 8px rgba(0,0,0,.3); transform: translate(-50%, -50%); }
+      pointer-events: auto; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.3); transform: translate(-50%, -50%); }
+    .pin:hover { outline: 2px solid #faf9f5; }
+    .pin.review { background: #5f7fbf; }
     .panel { position: fixed; width: 320px; background: #1f1e1d; color: #faf9f5; border-radius: 10px;
       box-shadow: 0 4px 24px rgba(0,0,0,.4); padding: 12px; pointer-events: auto; }
     .target { font-size: 12px; color: #b8b5ad; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis;
@@ -216,7 +219,13 @@
     textarea { width: 100%; background: #2b2a28; color: #faf9f5; border: 1px solid #4a4947; border-radius: 7px;
       padding: 8px; font-size: 13px; resize: vertical; min-height: 64px; }
     textarea:focus { outline: 2px solid #d97757; border-color: transparent; }
+    .mode { display: flex; gap: 6px; margin-top: 8px; }
+    .mode button { flex: 1; background: #2b2a28; border: 1px solid #4a4947; color: #b8b5ad; }
+    #act-review.active { background: #5f7fbf; border-color: #5f7fbf; color: #fff; }
+    #act-fix.active { background: #d97757; border-color: #d97757; color: #fff; }
     .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+    #delete { margin-right: auto; color: #e08b7d; }
+    #delete:hover { background: #4a2b25; color: #ffb4a5; }
     [hidden] { display: none !important; }
   </style>
   <div class="toolbar" part="toolbar">
@@ -231,7 +240,12 @@
   <div class="panel" id="panel" hidden>
     <div class="target" id="target"></div>
     <textarea id="note" placeholder="What should Claude fix or check here?"></textarea>
+    <div class="mode">
+      <button id="act-review" title="Claude proposes a fix and asks first">Review</button>
+      <button id="act-fix" title="Claude applies the fix immediately">Fix</button>
+    </div>
     <div class="actions">
+      <button id="delete" class="ghost" hidden>Delete</button>
       <button id="discard" class="ghost">Discard</button>
       <button id="save" class="primary">Save note</button>
     </div>
@@ -242,12 +256,21 @@
     pick: $('pick'), send: $('send'), cancel: $('cancel'), count: $('count'),
     hl: $('hl'), hlLabel: $('hl-label'), pins: $('pins'), panel: $('panel'),
     target: $('target'), note: $('note'), save: $('save'), discard: $('discard'),
+    actReview: $('act-review'), actFix: $('act-fix'), del: $('delete'),
   };
 
   let picking = false;
   let hoverEl = null;
   let pendingEl = null;
-  const pinned = []; // { el, pin }
+  let pendingAction = 'review'; // sticky: remembers the last choice
+  let editingAnn = null; // annotation being edited via its pin, else null
+  const pinned = []; // { el, pin, ann }
+
+  function setAction(a) {
+    pendingAction = a;
+    ui.actReview.classList.toggle('active', a === 'review');
+    ui.actFix.classList.toggle('active', a === 'fix');
+  }
 
   const describe = (el) => {
     let d = el.localName;
@@ -277,14 +300,18 @@
     ui.hl.hidden = false;
   }
 
-  function openPanel(el) {
+  function openPanel(el, existing) {
     pendingEl = el;
+    editingAnn = existing || null;
     ui.target.textContent = describe(el);
-    ui.note.value = '';
+    ui.note.value = existing ? existing.note : '';
+    setAction(existing ? (existing.action || 'review') : pendingAction);
+    ui.save.textContent = existing ? 'Update note' : 'Save note';
+    ui.del.hidden = !existing;
     ui.panel.hidden = false;
     const r = el.getBoundingClientRect();
     const pw = 320;
-    const ph = 170;
+    const ph = 210;
     const left = Math.min(Math.max(8, r.left), Math.max(8, innerWidth - pw - 8));
     let top = r.bottom + 8;
     if (top + ph > innerHeight - 8) top = Math.max(8, r.top - ph - 8);
@@ -295,6 +322,16 @@
   function closePanel() {
     ui.panel.hidden = true;
     pendingEl = null;
+    editingAnn = null;
+  }
+
+  // Any change after a Send starts a new batch and re-arms the Send button.
+  function markDirty() {
+    if (state.status === 'sent') {
+      state.status = 'annotating';
+      ui.send.textContent = 'Send to Claude';
+    }
+    ui.send.disabled = state.annotations.length === 0;
   }
 
   function layoutPins() {
@@ -307,29 +344,50 @@
     }
   }
 
-  function addPin(el, n) {
+  function addPin(el, ann) {
     const pin = document.createElement('div');
-    pin.className = 'pin';
-    pin.textContent = n;
+    pin.className = 'pin ' + (ann.action === 'fix' ? 'fix' : 'review');
+    pin.textContent = ann.id;
+    pin.title = 'Edit note';
+    pin.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setPicking(false);
+      openPanel(el, ann);
+    });
     ui.pins.appendChild(pin);
-    pinned.push({ el, pin });
+    pinned.push({ el, pin, ann });
     layoutPins();
   }
 
   function saveNote() {
     const note = ui.note.value.trim();
     if (!pendingEl || !note) { closePanel(); return; }
-    const ann = capture(pendingEl, note);
-    state.annotations.push(ann);
-    // A save after a Send starts a new batch.
-    if (state.status === 'sent') {
-      state.status = 'annotating';
-      ui.send.textContent = 'Send to Claude';
+    if (editingAnn) {
+      editingAnn.note = note;
+      editingAnn.action = pendingAction;
+      editingAnn.updatedAt = new Date().toISOString();
+      const entry = pinned.find((p) => p.ann === editingAnn);
+      if (entry) entry.pin.className = 'pin ' + (editingAnn.action === 'fix' ? 'fix' : 'review');
+    } else {
+      const ann = capture(pendingEl, note, pendingAction);
+      state.annotations.push(ann);
+      addPin(pendingEl, ann);
     }
+    markDirty();
     writeState();
-    addPin(pendingEl, ann.id);
     ui.count.textContent = String(state.annotations.length);
-    ui.send.disabled = state.annotations.length === 0;
+    closePanel();
+  }
+
+  function deleteNote() {
+    if (!editingAnn) { closePanel(); return; }
+    const idx = state.annotations.indexOf(editingAnn);
+    if (idx !== -1) state.annotations.splice(idx, 1);
+    const pIdx = pinned.findIndex((p) => p.ann === editingAnn);
+    if (pIdx !== -1) { pinned[pIdx].pin.remove(); pinned.splice(pIdx, 1); }
+    markDirty();
+    writeState();
+    ui.count.textContent = String(state.annotations.length);
     closePanel();
   }
 
@@ -391,6 +449,9 @@
   }
 
   ui.pick.addEventListener('click', () => { closePanel(); setPicking(!picking); });
+  ui.actReview.addEventListener('click', () => setAction('review'));
+  ui.actFix.addEventListener('click', () => setAction('fix'));
+  ui.del.addEventListener('click', deleteNote);
   ui.save.addEventListener('click', saveNote);
   ui.discard.addEventListener('click', closePanel);
   ui.note.addEventListener('keydown', (e) => {

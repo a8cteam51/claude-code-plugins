@@ -19,6 +19,7 @@ contains one JSON object:
     {
       "id": 1,
       "note": "This button wraps to two lines on desktop — it shouldn't",
+      "action": "review",
       "selector": "#pricing > div.tier-card:nth-of-type(2) > a.btn-primary",
       "tag": "a",
       "classes": ["btn", "btn-primary"],
@@ -34,6 +35,12 @@ contains one JSON object:
 
 Field notes:
 
+- `action` — `"review"` or `"fix"`, chosen per annotation in the overlay UI.
+  Governs handling: fix applies immediately, review proposes and waits for
+  approval. Default to `"review"` when the field is missing (older capture).
+- `updatedAt` — present only when the note was edited after first save (via
+  its pin). Ids are stable: an edited annotation keeps its number, and a
+  deleted one leaves a gap.
 - `selector` — verified unique at capture time. IDs are preferred; common
   generated class-name patterns (CSS modules, styled-components, hex hashes)
   are filtered out, though unusual schemes can slip through; falls back to a

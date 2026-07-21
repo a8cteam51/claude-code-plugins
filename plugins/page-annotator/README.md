@@ -30,27 +30,32 @@ vanilla JS and communicates through a hidden DOM node — nothing leaves the pag
 ## Usage
 
 ```bash
-/page-annotator:annotate            # review mode (default)
-/page-annotator:annotate fix        # apply fixes immediately
-/page-annotator:annotate report     # QA report only, no code changes
-/page-annotator:annotate review staging.example.com   # target a specific tab
+/page-annotator:annotate                        # annotate the active tab
+/page-annotator:annotate staging.example.com    # target a specific tab
 ```
 
 Natural-language triggers work too: "annotate the page", "let me point at
 elements on the page", "QA this page by pointing at elements".
 
-### Modes
+### Per-annotation actions
 
-| Mode | What Claude does with your annotations |
+Each note carries its own action, chosen right in the overlay's note panel —
+mix freely in one batch (one annotation on Review, the next on Fix):
+
+| Action | What Claude does with that annotation |
 |----------|--------------------------------------------|
-| `review` (default) | Maps each note to source, presents numbered findings with proposed fixes, asks before editing. |
-| `fix` | Treats every note as a fix instruction and edits the code immediately. |
-| `report` | Produces a QA report in the conversation; never touches code. |
+| **Review** (default) | Maps the note to source, presents the finding with a proposed fix, asks before editing. |
+| **Fix** | Treats the note as a fix instruction and edits the code immediately. |
 
 ### The overlay
 
 - **Annotate element** → hover highlights elements; click one, type a note,
-  **Save note** (or Cmd/Ctrl+Enter). Saved elements get numbered pins.
+  toggle **Review** or **Fix**, then **Save note** (or Cmd/Ctrl+Enter). Saved
+  elements get numbered pins — blue for Review, orange for Fix. The toggle is
+  sticky, so consecutive notes keep the last choice.
+- Click a numbered pin to re-open its note — edit the text, switch
+  Review/Fix, or delete it. Changing anything after a Send re-arms the
+  **Send to Claude** button as a new batch.
 - **Send to Claude** hands everything over. The overlay stays on the page, so
   you can keep annotating and send further batches.
 - **✕** cancels and removes the overlay; refreshing or closing the tab also

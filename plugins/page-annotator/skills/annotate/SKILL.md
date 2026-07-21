@@ -1,7 +1,7 @@
 ---
 name: annotate
-description: This skill should be used when the user asks to "annotate the page", "annotate this page", "open the annotation overlay", "let me point at elements on the page", "mark up the page for fixes", "QA this page by pointing at elements", or invokes /page-annotator:annotate. Injects an annotation overlay into the page open in Chrome via the Claude in Chrome extension; the user clicks elements and leaves notes, which flow back into the session for Claude to fix, review, or report on. For collaborative pointing by the user — not for autonomous browser testing or screenshot review.
-argument-hint: "[review|fix|report] [optional URL or tab hint]"
+description: This skill should be used when the user asks to "annotate the page", "annotate this page", "open the annotation overlay", "let me point at elements on the page", "mark up the page for fixes", "QA this page by pointing at elements", or invokes /page-annotator:annotate. Injects an annotation overlay into the page open in Chrome via the Claude in Chrome extension; the user clicks elements and leaves notes — each tagged Review or Fix in the overlay — which flow back into the session for Claude to act on. For collaborative pointing by the user — not for autonomous browser testing or screenshot review.
+argument-hint: "[optional URL or tab hint]"
 ---
 
 # Annotate a live web page
@@ -30,19 +30,20 @@ If the browser tools cannot be loaded or return connection errors, stop and
 tell the user to install/connect Claude in Chrome — do not fall back to
 Playwright, curl, or any other mechanism.
 
-## Step 1 — Determine the mode
+## Step 1 — Parse the arguments
 
-Parse the first argument. If it is `review`, `fix`, or `report`, use it as
-the mode and treat any remaining text as the tab/URL hint for Step 3.
-Otherwise default to `review` and treat the entire argument string as the
-tab hint (so `/page-annotator:annotate staging.example.com` targets that tab
-in review mode).
+The argument string, if present, is a hint for which tab/URL to target
+(Step 3) — there is no mode argument. If it begins with a legacy mode word
+(`review`, `fix`, or `report`), ignore that word and treat the rest as the
+tab hint.
 
-| Mode | Behavior after collecting annotations |
-|----------|-------------------------------------------|
-| `review` (default) | Map each annotation to source, present a numbered findings list with proposed fixes, and wait for approval before editing any file. |
-| `fix` | Treat every note as a fix instruction; map to source and apply the edits immediately, then summarize per annotation. |
-| `report` | Produce a QA report in the conversation only. Make no code changes; offer to save the report to a file. |
+Each annotation instead carries its own `action`, chosen per element in the
+overlay UI:
+
+| Action | Meaning |
+|----------|-------------|
+| `review` (default) | Map the annotation to source, present the finding with a proposed fix, and wait for approval before editing any file. |
+| `fix` | Treat the note as a fix instruction: map to source and apply the edit immediately. |
 
 ## Step 2 — Load the browser tools
 
@@ -84,8 +85,12 @@ Then tell the user, briefly:
 
 - A toolbar appeared in the top-right of the page.
 - Click **Annotate element**, click the element in question, type the note,
-  **Save note** (Cmd/Ctrl+Enter also saves). Repeat for as many elements as
-  needed; saved elements get numbered pins.
+  pick **Review** (Claude proposes, user approves) or **Fix** (Claude edits
+  immediately), then **Save note** (Cmd/Ctrl+Enter also saves). Repeat for as
+  many elements as needed; saved elements get numbered pins — blue for
+  review, orange for fix.
+- Click a numbered pin to re-open its note — edit the text, switch
+  Review/Fix, or delete it.
 - Click **Send to Claude** when finished, or **✕** to cancel.
 - Do not reload or navigate the tab — that removes the overlay.
 
@@ -129,7 +134,7 @@ scrubbing), do not retry the raw read. Fall back to scoped reads. First the
 core fields for every annotation:
 
 ```js
-(() => { const s = JSON.parse(document.getElementById('__claude_annotations__').textContent); return JSON.stringify(s.annotations.map(a => ({ id: a.id, note: a.note, selector: a.selector, tag: a.tag, classes: a.classes, text: a.text }))); })()
+(() => { const s = JSON.parse(document.getElementById('__claude_annotations__').textContent); return JSON.stringify(s.annotations.map(a => ({ id: a.id, note: a.note, action: a.action, selector: a.selector, tag: a.tag, classes: a.classes, text: a.text }))); })()
 ```
 
 Then, per annotation and only when mapping actually needs them, the visual
@@ -143,9 +148,12 @@ Parse the JSON (schema documented in `references/source-mapping.md`).
 
 Leave the overlay and the state node in place — never remove them. Cleanup
 belongs to the user: refreshing the page, closing the tab, or clicking **✕**.
-The overlay stays live after Send, so the user can annotate more elements and
-send another batch; the annotations array is cumulative, so on any later
-collection process only ids not already handled.
+The overlay stays live after Send, so the user can annotate more elements,
+edit or delete existing notes via their pins, and send another batch. The
+annotations array is cumulative: on any later collection, process ids not
+already handled, plus any already-handled annotation whose `updatedAt` (or
+note/action content) changed since it was processed. Deleted annotations
+simply disappear from the array.
 
 ## Step 7 — Map annotations to source
 
@@ -161,25 +169,28 @@ WordPress block themes, styled-components) are detailed in
 hashed or utility class names. State the mapped file for each annotation and
 flag any annotation that could not be confidently mapped rather than guessing.
 
-## Step 8 — Act according to mode
+## Step 8 — Act on each annotation
 
-**`review`** — Present a numbered list: the user's note, the element
-(selector + text), the mapped `file:line`, and the proposed fix. Ask which to
-apply (all, a subset, or none) and apply only the approved ones.
+Group the collected annotations by their `action` field and handle both
+groups in one pass. Annotations missing an `action` (captured by an older
+overlay) default to `review`.
 
-**`fix`** — Apply a fix for every mapped annotation immediately. For
-annotations that are observations rather than fix requests, or that could not
-be mapped, do not force an edit — list them separately at the end. Summarize
-every change as annotation → `file:line` → what changed.
+**`fix` annotations** — Apply the edit immediately for every one that maps
+cleanly. If a note reads as an observation rather than an instruction, or the
+element could not be mapped, do not force an edit — move it to the review
+group instead and say why. Summarize every change as annotation →
+`file:line` → what changed.
 
-**`report`** — Write a QA report in the conversation: one numbered finding per
-annotation with note, element, mapped source location, severity guess, and a
-suggested fix. Offer to save it as a markdown file; do not create the file
-unprompted.
+**`review` annotations** — Present a numbered list: the user's note, the
+element (selector + text), the mapped `file:line`, and the proposed fix. Ask
+which to apply (all, a subset, or none) and apply only the approved ones.
 
-After making code changes in any mode, run Step 9 so the user sees the result
-immediately. If no changes were made (report mode, or the user declined every
-fix), skip Step 9 — the overlay is still live for further batches.
+Deliver both in a single message: fixes applied first, then the review
+findings awaiting a decision.
+
+After making any code change, run Step 9 so the user sees the result
+immediately. If no changes were made (review-only batch with every proposal
+declined), skip Step 9 — the overlay is still live for further batches.
 
 ## Step 9 — Refresh and re-arm
 
