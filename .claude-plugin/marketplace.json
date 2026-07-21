@@ -120,6 +120,23 @@
       "skills": [
         "./skills/extract-figma-assets"
       ]
+    },
+    {
+      "name": "page-annotator",
+      "source": "./plugins/page-annotator",
+      "description": "Annotate the web page you're viewing in Chrome and send the annotations straight into Claude Code. Injects an overlay via the Claude in Chrome extension: click elements, leave notes, hit Send — Claude maps each note to source and fixes, reviews, or reports.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Automattic Special Projects"
+      },
+      "repository": "https://github.com/a8cteam51/claude-code-plugins",
+      "license": "MIT",
+      "keywords": ["browser", "annotation", "overlay", "qa", "front-end", "chrome", "claude-in-chrome", "design-review"],
+      "category": "development-tools",
+      "strict": true,
+      "skills": [
+        "./skills/annotate"
+      ]
     }
   ]
 }
