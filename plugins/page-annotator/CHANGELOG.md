@@ -21,6 +21,10 @@
 - Clickable pins: re-open a saved note to edit its text or Review/Fix action,
   or delete it; edited annotations carry `updatedAt` and re-arm the Send
   button as a new batch.
+- Faster injection: a committed minified build (`overlay.min.js`, generated
+  by `scripts/build-overlay.sh`) shrinks the first inject, and the overlay
+  caches its own source in sessionStorage so re-injections are a tiny
+  snippet.
 - `references/source-mapping.md`: annotation payload schema and DOM-to-source
   mapping strategies for common stacks (Tailwind, CSS modules, WordPress block
   themes, SPAs).

@@ -13,7 +13,8 @@ bug in words, the user points directly at the element in the real, logged-in,
 fully-rendered page.
 
 The overlay is a self-contained vanilla-JS script bundled at
-`assets/overlay.js`, relative to this skill's directory. It communicates
+`assets/overlay.js` and injected as the minified `assets/overlay.min.js`,
+both relative to this skill's directory. It communicates
 outward through a single hidden DOM node —
 `<script type="application/json" id="__claude_annotations__">` — which works
 regardless of the JavaScript world the extension executes in. There is no
@@ -72,11 +73,27 @@ Never reuse tab IDs remembered from an earlier session.
 
 ## Step 4 — Inject the overlay
 
-Read `assets/overlay.js` from this skill's directory and execute its full
-contents in the chosen tab with `javascript_tool`. Do not rewrite, minify, or
-partially inline the script — inject it verbatim. Re-injection replaces any
-previous overlay AND discards its saved annotations, so never re-inject over
-an active session without warning the user first.
+Injection is two-tier: every full injection caches the overlay's own source
+in the tab's sessionStorage, so most injections need only a tiny snippet.
+
+**Fast path — always try this first** (near-instant):
+
+```js
+(() => { try { const src = sessionStorage.getItem('__claude_annotator_src__'); if (!src) return 'NO_CACHE'; return (0, eval)('(' + src + ')')(); } catch (e) { return 'CACHE_FAILED: ' + (e && e.message); } })()
+```
+
+On success it returns the same ready string as a full injection. Exception:
+if the overlay assets were edited during this session, skip the fast path
+once — a full injection refreshes the cache.
+
+**Full path** — on `NO_CACHE` or `CACHE_FAILED`: read `assets/overlay.min.js`
+from this skill's directory and execute its full contents with
+`javascript_tool` (fall back to `assets/overlay.js` only if the min file is
+missing). Do not rewrite or partially inline it — inject verbatim.
+
+On both paths, re-injection replaces any previous overlay AND discards its
+saved annotations, so never re-inject over an active session without warning
+the user first.
 
 A successful run returns `[claude-page-annotator] ready on <url>` and logs
 `[claude-page-annotator] overlay ready` to the console.
@@ -209,9 +226,10 @@ annotation tool:
 4. Reload the tab by calling `navigate` with that URL (fall back to
    `location.reload()` via `javascript_tool` if `navigate` is unavailable).
    The refresh removes the overlay and state node.
-5. Re-inject the overlay (Step 4) so the tool persists across the refresh,
-   then tell the user the page is refreshed with their changes and resume
-   polling (Step 5) for a verification round or the next batch.
+5. Re-inject the overlay using the Step 4 fast path — the sessionStorage
+   cache survives the reload — so the tool persists across the refresh, then
+   tell the user the page is refreshed with their changes and resume polling
+   (Step 5) for a verification round or the next batch.
 
 ## Failure modes
 
@@ -228,6 +246,9 @@ annotation tool:
   full-payload read when captured markup resembles sensitive data. Switch to
   the scoped-read fallback in Step 6; never re-run a blocked raw read
   verbatim.
+- **`CACHE_FAILED` mentioning eval or CSP** — the site blocks `eval` in the
+  extension world (rare). Use the full injection path; everything else works
+  the same.
 - **Hashed class names** — selectors on CSS-modules/styled-components sites
   lean on structure and text instead; the overlay filters common generated
   class-name patterns out of selectors, though unusual schemes can slip
@@ -235,8 +256,12 @@ annotation tool:
 
 ## Additional resources
 
-- **`assets/overlay.js`** — the injected overlay (toolbar, element picker,
-  note panel, state serialization). Read it only when debugging the overlay
-  itself; inject it verbatim otherwise.
+- **`assets/overlay.js`** — the readable overlay source (toolbar, element
+  picker, note panel, state serialization). Read it only when debugging the
+  overlay itself.
+- **`assets/overlay.min.js`** — the minified build injected on the full
+  path. After editing `overlay.js`, regenerate it with
+  `scripts/build-overlay.sh` at the plugin root — the two files must stay in
+  sync.
 - **`references/source-mapping.md`** — annotation payload schema and
   strategies for mapping rendered DOM back to source across common stacks.

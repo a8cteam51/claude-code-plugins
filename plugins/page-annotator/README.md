@@ -17,8 +17,10 @@ problem instead of describing it.
 - The target page open in a Chrome tab. Because it's your real browser
   session, logged-in states, feature flags, and real data all work.
 
-No servers, no build step, no other dependencies. The overlay is dependency-free
-vanilla JS and communicates through a hidden DOM node — nothing leaves the page.
+No servers, no runtime dependencies. The overlay is dependency-free vanilla
+JS and communicates through a hidden DOM node — nothing leaves the page. (A
+dev-only script, `scripts/build-overlay.sh`, regenerates the minified copy
+that actually gets injected.)
 
 ## Installation
 
@@ -80,6 +82,11 @@ without re-querying the page.
 5. After applying changes, Claude refreshes the tab automatically and
    re-injects the overlay, so the page shows the fix and the annotation tool
    persists for the next round.
+
+Injection is fast after the first run: the overlay caches its own source in
+the tab's sessionStorage, so re-injections — including the automatic
+post-fix refresh — send a tiny snippet instead of the full script. The cache
+clears when the tab closes.
 
 ## Limitations
 

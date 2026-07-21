@@ -8,6 +8,9 @@
  * Claude polls from outside the page.
  *
  * Constraints:
+ * - Every full injection caches the overlay's own source in sessionStorage
+ *   ('__claude_annotator_src__') so later injections can re-evaluate it
+ *   from a tiny snippet instead of re-sending the whole file.
  * - The overlay persists after Send so the user can run further rounds;
  *   removal is user-initiated (the ✕ button, a refresh, or closing the
  *   tab) or happens implicitly on re-injection.
@@ -17,6 +20,7 @@
  * - The only page mutations are the overlay host element and the state node.
  */
 (() => {
+  const main = function () {
   'use strict';
 
   const STATE_ID = '__claude_annotations__';
@@ -491,4 +495,8 @@
 
   console.log('[claude-page-annotator] overlay ready');
   return `[claude-page-annotator] ready on ${location.href}`;
+  }; // end main
+
+  try { sessionStorage.setItem('__claude_annotator_src__', main.toString()); } catch (_) { /* ignore */ }
+  return main();
 })();
