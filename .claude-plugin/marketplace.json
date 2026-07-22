@@ -137,6 +137,24 @@
       "skills": [
         "./skills/annotate"
       ]
+    },
+    {
+      "name": "poseidon-local",
+      "source": "./plugins/poseidon-local",
+      "description": "Run the Poseidon plan and implement agents locally in your Claude Code session on the model you choose, instead of via GitHub Actions. Fetches the live upstream instructions from a8cteam51/poseidon-actions each run (always up to date) and swaps the OpsOasis MCP gateway for your local team51 MCP.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Automattic Special Projects"
+      },
+      "repository": "https://github.com/a8cteam51/claude-code-plugins",
+      "license": "MIT",
+      "keywords": ["poseidon", "github", "issue", "planning", "implementation", "wordpress", "a8c", "team51", "agent"],
+      "category": "development-tools",
+      "strict": true,
+      "skills": [
+        "./skills/poseidon-plan",
+        "./skills/poseidon-implement"
+      ]
     }
   ]
 }

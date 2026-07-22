@@ -38,6 +38,9 @@ All skills must have a `SKILL.md` file with YAML frontmatter:
 - **Optional frontmatter fields**:
   - `license`
   - `metadata` - custom key-value pairs
+  - `argument-hint` - usage hint shown for slash invocation (e.g. `"[owner/repo] <issue>"`)
+  - `allowed-tools` - restrict which tools the skill may use
+  - `model` - pin a model for the skill
 - **Body**: Markdown instructions, examples, and guidelines
 
 ## Using This Marketplace
