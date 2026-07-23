@@ -125,7 +125,7 @@
       "name": "page-annotator",
       "source": "./plugins/page-annotator",
       "description": "Annotate the web page you're viewing in Chrome and send the annotations straight into Claude Code. Injects an overlay via the Claude in Chrome extension: click elements, leave notes tagged Review or Fix, hit Send — Claude maps each note to source, applies Fix notes immediately, and proposes Review notes for approval.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": {
         "name": "Automattic Special Projects"
       },

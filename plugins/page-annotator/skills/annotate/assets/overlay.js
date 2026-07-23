@@ -18,14 +18,22 @@
  * - Never call alert()/confirm()/prompt() — modal dialogs freeze the
  *   Claude in Chrome extension bridge.
  * - The only page mutations are the overlay host element and the state node.
+ * - Runs only inside Chrome (the extension is Chrome-only), so modern
+ *   Chrome APIs (CSS.escape, system-ui) are safe without fallbacks.
  */
 (() => {
   const main = function () {
   'use strict';
 
+  const doc = document;
+  const TAG = '[claude-page-annotator]';
   const STATE_ID = '__claude_annotations__';
   const HOST_ID = '__claude_annotator_host__';
   const GLOBAL = '__claudePageAnnotator';
+  const now = () => new Date().toISOString();
+  const round = Math.round;
+  const rectOf = (el) => el.getBoundingClientRect();
+  const textOf = (el, n) => (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, n);
 
   // Re-injection tears down any previous instance first.
   if (window[GLOBAL] && typeof window[GLOBAL].destroy === 'function') {
@@ -43,28 +51,26 @@
     status: 'annotating', // annotating | sent | cancelled
     page: {
       url: location.href.replace(TOKEN_RE, '…'),
-      title: document.title,
+      title: doc.title,
       viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio },
-      capturedAt: new Date().toISOString(),
+      capturedAt: now(),
     },
     annotations: [],
   };
 
-  let stateEl = document.getElementById(STATE_ID);
+  let stateEl = doc.getElementById(STATE_ID);
   if (!stateEl) {
-    stateEl = document.createElement('script');
+    stateEl = doc.createElement('script');
     stateEl.type = 'application/json';
     stateEl.id = STATE_ID;
-    document.documentElement.appendChild(stateEl);
+    doc.documentElement.appendChild(stateEl);
   }
   const writeState = () => { stateEl.textContent = JSON.stringify(state); };
   writeState();
 
   /* ------------------- selector + capture helpers ------------------- */
 
-  const esc = (s) => (window.CSS && CSS.escape)
-    ? CSS.escape(s)
-    : s.replace(/([^a-zA-Z0-9_-])/g, '\\$1');
+  const esc = CSS.escape;
 
   // Filter out generated class names (CSS modules, styled-components, hashes)
   // that will not exist in the source tree.
@@ -75,24 +81,26 @@
     // survives because its suffix has no digits or uppercase.
     !/__(?=[a-zA-Z0-9]*[A-Z0-9])[a-zA-Z0-9]{4,10}$/.test(c);
 
+  const stableClasses = (el) => [...el.classList].filter(stableClass).slice(0, 2);
+
   const uniquelyMatches = (sel, el) => {
     try {
-      const found = document.querySelectorAll(sel);
+      const found = doc.querySelectorAll(sel);
       return found.length === 1 && found[0] === el;
     } catch (_) { return false; }
   };
 
+  // Same-tag siblings of a node, for :nth-of-type computation.
+  const sameTag = (node) =>
+    [...node.parentElement.children].filter((s) => s.localName === node.localName);
+
   function fullPath(el) {
     const parts = [];
     let node = el;
-    while (node && node.nodeType === 1 && node !== document.documentElement) {
-      const parent = node.parentElement;
-      let idx = 1;
-      if (parent) {
-        idx = [...parent.children].filter((s) => s.localName === node.localName).indexOf(node) + 1;
-      }
+    while (node && node.nodeType === 1 && node !== doc.documentElement) {
+      const idx = node.parentElement ? sameTag(node).indexOf(node) + 1 : 1;
       parts.unshift(`${node.localName}:nth-of-type(${idx})`);
-      node = parent;
+      node = node.parentElement;
     }
     return 'html > ' + parts.join(' > ');
   }
@@ -101,17 +109,16 @@
     if (el.id && uniquelyMatches('#' + esc(el.id), el)) return '#' + esc(el.id);
     const parts = [];
     let node = el;
-    while (node && node.nodeType === 1 && node !== document.body && node !== document.documentElement) {
+    while (node && node.nodeType === 1 && node !== doc.body && node !== doc.documentElement) {
       if (node.id) {
         parts.unshift('#' + esc(node.id));
         break;
       }
       let part = node.localName;
-      const classes = [...node.classList].filter(stableClass).slice(0, 2);
+      const classes = stableClasses(node);
       if (classes.length) part += '.' + classes.map(esc).join('.');
-      const parent = node.parentElement;
-      if (parent) {
-        const same = [...parent.children].filter((s) => s.localName === node.localName);
+      if (node.parentElement) {
+        const same = sameTag(node);
         if (same.length > 1) part += `:nth-of-type(${same.indexOf(node) + 1})`;
       }
       parts.unshift(part);
@@ -124,18 +131,16 @@
     return fullPath(el);
   }
 
-  const STYLE_PROPS = [
-    'display', 'position', 'z-index', 'width', 'height', 'margin', 'padding',
-    'font-family', 'font-size', 'font-weight', 'line-height', 'text-align',
-    'color', 'background-color', 'border', 'border-radius', 'opacity',
-    'overflow', 'flex-direction', 'justify-content', 'align-items', 'gap',
-  ];
+  const STYLE_PROPS = ('display,position,z-index,width,height,margin,padding,' +
+    'font-family,font-size,font-weight,line-height,text-align,' +
+    'color,background-color,border,border-radius,opacity,' +
+    'overflow,flex-direction,justify-content,align-items,gap').split(',');
 
   // Source mapping needs structure and stable attributes, not live values:
   // strip form values and inline handlers, drop URL query strings, redact
   // data: URIs and token-looking strings. class/id stay verbatim — they are
   // the mapping keys.
-  const URL_ATTRS = ['href', 'src', 'srcset', 'action', 'poster', 'formaction'];
+  const URL_ATTRS = 'href,src,srcset,action,poster,formaction'.split(',');
 
   function sanitizedOuterHTML(el) {
     const clone = el.cloneNode(true);
@@ -158,7 +163,7 @@
   }
 
   function capture(el, note, action) {
-    const rect = el.getBoundingClientRect();
+    const rect = rectOf(el);
     const cs = getComputedStyle(el);
     const styles = {};
     for (const p of STYLE_PROPS) styles[p] = cs.getPropertyValue(p);
@@ -169,29 +174,32 @@
       selector: selectorFor(el),
       tag: el.localName,
       classes: [...el.classList].filter((c) => !c.startsWith('__claude')),
-      text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 200),
+      text: textOf(el, 200),
       outerHTML: sanitizedOuterHTML(el),
       styles,
       rect: {
-        x: Math.round(rect.x + scrollX),
-        y: Math.round(rect.y + scrollY),
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
+        x: round(rect.x + scrollX),
+        y: round(rect.y + scrollY),
+        width: round(rect.width),
+        height: round(rect.height),
       },
-      createdAt: new Date().toISOString(),
+      createdAt: now(),
     };
   }
 
   /* ------------------------------ UI ------------------------------ */
 
-  const host = document.createElement('div');
+  const host = doc.createElement('div');
   host.id = HOST_ID;
   host.style.cssText = 'all:initial; position:fixed; top:0; left:0; width:0; height:0; z-index:2147483647;';
-  document.documentElement.appendChild(host);
+  doc.documentElement.appendChild(host);
   const root = host.attachShadow({ mode: 'open' });
+  // Whitespace in this template is collapsed at build time by
+  // scripts/build-overlay.sh; keep it readable here. Constraints: no
+  // backticks or ${} inside, and no text content spanning multiple lines.
   root.innerHTML = `
   <style>
-    * { box-sizing: border-box; margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    * { box-sizing: border-box; margin: 0; font-family: system-ui, sans-serif; }
     .toolbar { position: fixed; top: 16px; right: 16px; display: flex; gap: 8px; align-items: center;
       background: #1f1e1d; color: #faf9f5; padding: 8px 10px; border-radius: 10px;
       box-shadow: 0 4px 24px rgba(0,0,0,.35); font-size: 13px; pointer-events: auto; }
@@ -225,43 +233,41 @@
     textarea:focus { outline: 2px solid #d97757; border-color: transparent; }
     .mode { display: flex; gap: 6px; margin-top: 8px; }
     .mode button { flex: 1; background: #2b2a28; border: 1px solid #4a4947; color: #b8b5ad; }
-    #act-review.active { background: #5f7fbf; border-color: #5f7fbf; color: #fff; }
-    #act-fix.active { background: #d97757; border-color: #d97757; color: #fff; }
+    #actReview.active { background: #5f7fbf; border-color: #5f7fbf; color: #fff; }
+    #actFix.active { background: #d97757; border-color: #d97757; color: #fff; }
     .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
-    #delete { margin-right: auto; color: #e08b7d; }
-    #delete:hover { background: #4a2b25; color: #ffb4a5; }
+    #del { margin-right: auto; color: #e08b7d; }
+    #del:hover { background: #4a2b25; color: #ffb4a5; }
     [hidden] { display: none !important; }
   </style>
-  <div class="toolbar" part="toolbar">
+  <div class="toolbar">
     <span class="brand">Claude</span>
     <span class="count" id="count">0</span>
     <button id="pick">Annotate element</button>
     <button id="send" class="primary" disabled>Send to Claude</button>
-    <button id="cancel" class="ghost" title="Close without sending">&#10005;</button>
+    <button id="cancel" class="ghost" title="Close without sending">✕</button>
   </div>
-  <div class="hl" id="hl" hidden><span class="hl-label" id="hl-label"></span></div>
+  <div class="hl" id="hl" hidden><span class="hl-label" id="hlLabel"></span></div>
   <div id="pins"></div>
   <div class="panel" id="panel" hidden>
     <div class="target" id="target"></div>
     <textarea id="note" placeholder="What should Claude fix or check here?"></textarea>
     <div class="mode">
-      <button id="act-review" title="Claude proposes a fix and asks first">Review</button>
-      <button id="act-fix" title="Claude applies the fix immediately">Fix</button>
+      <button id="actReview" title="Claude proposes a fix and asks first">Review</button>
+      <button id="actFix" title="Claude applies the fix immediately">Fix</button>
     </div>
     <div class="actions">
-      <button id="delete" class="ghost" hidden>Delete</button>
+      <button id="del" class="ghost" hidden>Delete</button>
       <button id="discard" class="ghost">Discard</button>
       <button id="save" class="primary">Save note</button>
     </div>
   </div>`;
 
-  const $ = (id) => root.getElementById(id);
-  const ui = {
-    pick: $('pick'), send: $('send'), cancel: $('cancel'), count: $('count'),
-    hl: $('hl'), hlLabel: $('hl-label'), pins: $('pins'), panel: $('panel'),
-    target: $('target'), note: $('note'), save: $('save'), discard: $('discard'),
-    actReview: $('act-review'), actFix: $('act-fix'), del: $('delete'),
-  };
+  // Element ids double as the ui-map keys.
+  const ui = {};
+  for (const id of 'pick,send,cancel,count,hl,hlLabel,pins,panel,target,note,save,discard,actReview,actFix,del'.split(',')) {
+    ui[id] = root.getElementById(id);
+  }
 
   let picking = false;
   let hoverEl = null;
@@ -276,12 +282,14 @@
     ui.actFix.classList.toggle('active', a === 'fix');
   }
 
+  const pinClass = (ann) => 'pin ' + (ann.action === 'fix' ? 'fix' : 'review');
+
   const describe = (el) => {
     let d = el.localName;
     if (el.id) d += '#' + el.id;
-    const cls = [...el.classList].filter(stableClass).slice(0, 2);
+    const cls = stableClasses(el);
     if (cls.length) d += '.' + cls.join('.');
-    const text = (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+    const text = textOf(el, 40);
     return text ? `${d} — “${text}”` : d;
   };
 
@@ -293,7 +301,7 @@
   }
 
   function positionHl(el) {
-    const r = el.getBoundingClientRect();
+    const r = rectOf(el);
     Object.assign(ui.hl.style, {
       left: (r.left - 2) + 'px',
       top: (r.top - 2) + 'px',
@@ -313,7 +321,7 @@
     ui.save.textContent = existing ? 'Update note' : 'Save note';
     ui.del.hidden = !existing;
     ui.panel.hidden = false;
-    const r = el.getBoundingClientRect();
+    const r = rectOf(el);
     const pw = 320;
     const ph = 210;
     const left = Math.min(Math.max(8, r.left), Math.max(8, innerWidth - pw - 8));
@@ -338,10 +346,18 @@
     ui.send.disabled = state.annotations.length === 0;
   }
 
+  // Persist a mutation and resync the toolbar.
+  function commit() {
+    markDirty();
+    writeState();
+    ui.count.textContent = String(state.annotations.length);
+    closePanel();
+  }
+
   function layoutPins() {
     for (const { el, pin } of pinned) {
       if (!el.isConnected) { pin.hidden = true; continue; }
-      const r = el.getBoundingClientRect();
+      const r = rectOf(el);
       pin.hidden = false;
       pin.style.left = r.left + 'px';
       pin.style.top = r.top + 'px';
@@ -349,8 +365,8 @@
   }
 
   function addPin(el, ann) {
-    const pin = document.createElement('div');
-    pin.className = 'pin ' + (ann.action === 'fix' ? 'fix' : 'review');
+    const pin = doc.createElement('div');
+    pin.className = pinClass(ann);
     pin.textContent = ann.id;
     pin.title = 'Edit note';
     pin.addEventListener('click', (e) => {
@@ -369,18 +385,15 @@
     if (editingAnn) {
       editingAnn.note = note;
       editingAnn.action = pendingAction;
-      editingAnn.updatedAt = new Date().toISOString();
+      editingAnn.updatedAt = now();
       const entry = pinned.find((p) => p.ann === editingAnn);
-      if (entry) entry.pin.className = 'pin ' + (editingAnn.action === 'fix' ? 'fix' : 'review');
+      if (entry) entry.pin.className = pinClass(editingAnn);
     } else {
       const ann = capture(pendingEl, note, pendingAction);
       state.annotations.push(ann);
       addPin(pendingEl, ann);
     }
-    markDirty();
-    writeState();
-    ui.count.textContent = String(state.annotations.length);
-    closePanel();
+    commit();
   }
 
   function deleteNote() {
@@ -389,10 +402,7 @@
     if (idx !== -1) state.annotations.splice(idx, 1);
     const pIdx = pinned.findIndex((p) => p.ann === editingAnn);
     if (pIdx !== -1) { pinned[pIdx].pin.remove(); pinned.splice(pIdx, 1); }
-    markDirty();
-    writeState();
-    ui.count.textContent = String(state.annotations.length);
-    closePanel();
+    commit();
   }
 
   /* --------------------------- events --------------------------- */
@@ -401,8 +411,8 @@
 
   function onMove(e) {
     if (!picking || overlayTargeted(e)) return;
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    if (!el || el === host || el === document.documentElement || el === document.body) {
+    const el = doc.elementFromPoint(e.clientX, e.clientY);
+    if (!el || el === host || el === doc.documentElement || el === doc.body) {
       ui.hl.hidden = true;
       hoverEl = null;
       return;
@@ -412,18 +422,17 @@
   }
 
   // While picking, keep the page from reacting to the exploratory pointer
-  // activity (menus opening on mousedown, links navigating, etc.).
+  // activity (menus opening on mousedown, links navigating, etc.). Returns
+  // whether the event was ours to swallow.
   function suppress(e) {
-    if (!picking || overlayTargeted(e)) return;
+    if (!picking || overlayTargeted(e)) return false;
     e.preventDefault();
     e.stopPropagation();
+    return true;
   }
 
   function onClick(e) {
-    if (!picking || overlayTargeted(e)) return;
-    e.preventDefault();
-    e.stopPropagation();
-    if (!hoverEl) return;
+    if (!suppress(e) || !hoverEl) return;
     const el = hoverEl;
     setPicking(false);
     openPanel(el);
@@ -436,19 +445,19 @@
   }
 
   const listeners = [
-    [document, 'mousemove', onMove, true],
-    [document, 'pointerdown', suppress, true],
-    [document, 'mousedown', suppress, true],
-    [document, 'mouseup', suppress, true],
-    [document, 'click', onClick, true],
-    [document, 'keydown', onKey, true],
+    [doc, 'mousemove', onMove, true],
+    [doc, 'pointerdown', suppress, true],
+    [doc, 'mousedown', suppress, true],
+    [doc, 'mouseup', suppress, true],
+    [doc, 'click', onClick, true],
+    [doc, 'keydown', onKey, true],
     [window, 'scroll', layoutPins, true],
     [window, 'resize', layoutPins, false],
   ];
   for (const [t, ev, fn, cap] of listeners) t.addEventListener(ev, fn, cap);
 
   // Keep keystrokes typed into the note box away from page-level hotkeys.
-  for (const ev of ['keydown', 'keyup', 'keypress']) {
+  for (const ev of 'keydown,keyup,keypress'.split(',')) {
     host.addEventListener(ev, (e) => e.stopPropagation());
   }
 
@@ -465,9 +474,9 @@
   ui.send.addEventListener('click', () => {
     if (!state.annotations.length) return;
     state.status = 'sent';
-    state.page.title = document.title;
+    state.page.title = doc.title;
     writeState();
-    console.log(`[claude-page-annotator] sent ${state.annotations.length} annotation(s)`);
+    console.log(`${TAG} sent ${state.annotations.length} annotation(s)`);
     setPicking(false);
     closePanel();
     ui.send.textContent = 'Sent ✓';
@@ -477,7 +486,7 @@
   ui.cancel.addEventListener('click', () => {
     state.status = 'cancelled';
     writeState();
-    console.log('[claude-page-annotator] cancelled');
+    console.log(TAG + ' cancelled');
     destroy(false);
   });
 
@@ -485,7 +494,7 @@
     for (const [t, ev, fn, cap] of listeners) t.removeEventListener(ev, fn, cap);
     host.remove();
     if (removeState) {
-      const el = document.getElementById(STATE_ID);
+      const el = doc.getElementById(STATE_ID);
       if (el) el.remove();
     }
     delete window[GLOBAL];
@@ -493,8 +502,8 @@
 
   window[GLOBAL] = { destroy, version: 1 };
 
-  console.log('[claude-page-annotator] overlay ready');
-  return `[claude-page-annotator] ready on ${location.href}`;
+  console.log(TAG + ' overlay ready');
+  return `${TAG} ready on ${location.href}`;
   }; // end main
 
   try { sessionStorage.setItem('__claude_annotator_src__', main.toString()); } catch (_) { /* ignore */ }

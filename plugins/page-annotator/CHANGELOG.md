@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.1] - 2026-07-23
+
+### Changed
+
+- Smaller injection payload: `overlay.min.js` shrunk from 12,180 to 10,746
+  bytes (-12%) with no functional change.
+  - `build-overlay.sh` now collapses insignificant whitespace inside the
+    overlay's HTML/CSS template literal before minifying — esbuild never
+    touches string contents, so the template previously shipped with all its
+    indentation (a third of the payload).
+  - Deduplicated repeated logic in `overlay.js` into shared helpers
+    (timestamps, rects, sibling filtering, save/delete commit path) and
+    switched the UI lookup map to id-keyed iteration.
+  - Dropped the `CSS.escape` fallback and legacy font stack — the overlay
+    only ever runs in Chrome via the Claude in Chrome extension.
+
 ## [0.1.0] - 2026-07-21
 
 ### Added
