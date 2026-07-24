@@ -7,7 +7,8 @@ contains one JSON object:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
+  "script": "0.2.0",
   "status": "annotating | sent | cancelled",
   "page": {
     "url": "https://example.com/pricing",
@@ -35,6 +36,12 @@ contains one JSON object:
 
 Field notes:
 
+- `version` — payload schema version. `2` adds `script`; `1` payloads (from
+  the pre-userscript overlay) are otherwise identical.
+- `script` — the version of the installed userscript that produced this
+  payload. If it disagrees with the `@version` in the plugin's
+  `assets/page-annotator.user.js`, the browser is running a stale copy and
+  should be updated (SKILL.md Step 4a).
 - `action` — `"review"` or `"fix"`, chosen per annotation in the overlay UI.
   Governs handling: fix applies immediately, review proposes and waits for
   approval. Default to `"review"` when the field is missing (older capture).

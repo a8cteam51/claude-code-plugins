@@ -1,5 +1,49 @@
 # Changelog
 
+## [0.2.0] - 2026-07-24
+
+### Changed
+
+- **The overlay is now a Tampermonkey userscript, not an injected payload.**
+  Claude no longer sends the overlay's source into the page; it sets one
+  attribute (`<html data-claude-annotate="on">`) and reads the resulting DOM
+  node back. The ~10.7 KB that used to be read and re-emitted on every first
+  injection is gone from the conversation entirely.
+  - New canonical script: `skills/annotate/assets/page-annotator.user.js`.
+    The plugin owns its version; the script deliberately carries no
+    `@updateURL`, so Tampermonkey never updates it behind the plugin's back.
+  - The userscript stamps `<html data-claude-annotator="<version>">` at
+    document-start. Claude probes that, compares it against the `@version` the
+    plugin ships, and prompts for a reinstall when they diverge.
+  - New `scripts/serve-userscript.js` serves the script over loopback so
+    Tampermonkey's install page can pick it up, and fails loudly if the
+    `@version` metadata and the `VERSION` constant drift apart.
+  - Arming is now idempotent: re-arming an active overlay is a no-op instead
+    of destroying saved annotations, and the post-fix refresh in Step 9 just
+    re-arms rather than re-injecting.
+  - Works on pages with a strict Content-Security-Policy, which injection
+    could not: the userscript runs in Tampermonkey's sandbox, outside page
+    CSP. The DOM-node channel already crossed JavaScript worlds, so the
+    payload format is unchanged apart from the new `script` field.
+- Payload schema is now `version: 2`, adding `script` (the installed
+  userscript's version) so a stale browser copy is detectable from the data.
+- `plugin.json` version corrected — it still read `0.1.0` after the 0.1.1
+  release, while `marketplace.json` read `0.1.1`.
+
+### Removed
+
+- `skills/annotate/assets/overlay.js`, `overlay.min.js`, and
+  `scripts/build-overlay.sh` — the minified build and its whitespace-collapsing
+  pre-pass existed only to shrink the injection payload, and there is no
+  injection path any more.
+- The sessionStorage source cache, for the same reason.
+
+### Requires
+
+- [Tampermonkey](https://www.tampermonkey.net/) (or Violentmonkey) in addition
+  to the Claude in Chrome extension. The first run walks through installing
+  the userscript; there is no injected fallback.
+
 ## [0.1.1] - 2026-07-23
 
 ### Changed

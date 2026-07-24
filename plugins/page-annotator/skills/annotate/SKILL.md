@@ -1,30 +1,49 @@
 ---
 name: annotate
-description: This skill should be used when the user asks to "annotate the page", "annotate this page", "open the annotation overlay", "let me point at elements on the page", "mark up the page for fixes", "QA this page by pointing at elements", or invokes /page-annotator:annotate. Injects an annotation overlay into the page open in Chrome via the Claude in Chrome extension; the user clicks elements and leaves notes — each tagged Review or Fix in the overlay — which flow back into the session for Claude to act on. For collaborative pointing by the user — not for autonomous browser testing or screenshot review.
+description: This skill should be used when the user asks to "annotate the page", "annotate this page", "open the annotation overlay", "let me point at elements on the page", "mark up the page for fixes", "QA this page by pointing at elements", or invokes /page-annotator:annotate. Arms an annotation overlay in the page open in Chrome; the user clicks elements and leaves notes — each tagged Review or Fix in the overlay — which flow back into the session for Claude to act on. The overlay ships as a Tampermonkey userscript that this plugin installs and keeps up to date. For collaborative pointing by the user — not for autonomous browser testing or screenshot review.
 argument-hint: "[optional URL or tab hint]"
 ---
 
 # Annotate a live web page
 
-Inject an annotation overlay into the page the user is viewing in Chrome, wait
+Arm an annotation overlay in the page the user is viewing in Chrome, wait
 while they click elements and attach notes, then collect those annotations and
 act on them. This is a front-end QA companion: instead of describing a visual
 bug in words, the user points directly at the element in the real, logged-in,
 fully-rendered page.
 
-The overlay is a self-contained vanilla-JS script bundled at
-`assets/overlay.js` and injected as the minified `assets/overlay.min.js`,
-both relative to this skill's directory. It communicates
-outward through a single hidden DOM node —
-`<script type="application/json" id="__claude_annotations__">` — which works
-regardless of the JavaScript world the extension executes in. There is no
-server and no network traffic; polling that node is the only channel.
+The overlay lives in the browser as a **Tampermonkey userscript**, not as an
+injected payload. This plugin owns the canonical copy at
+`assets/page-annotator.user.js` (relative to this skill's directory) and is
+responsible for installing it and keeping the installed version in sync.
+
+Two facts drive everything below:
+
+- The userscript runs in Tampermonkey's **sandbox**; `javascript_tool` runs in
+  the page's **main world**. They share only the DOM. So every exchange is a
+  DOM read or a single attribute write — never a `window` global.
+- The userscript is **idle** on every page until armed. It stamps its version
+  on `<html>` at document-start and waits.
+
+| Marker | Meaning |
+|---|---|
+| `<html data-claude-annotator="0.2.0">` | Userscript installed, at that version |
+| `<html data-claude-annotate="on">` | Command: arm the overlay (Claude writes this) |
+| `<html data-claude-annotate="off">` | Command: tear the overlay down |
+| `<div id="__claude_annotator_host__">` | The overlay itself — present iff it is armed |
+| `<script id="__claude_annotations__">` | The payload; **outlives** the overlay on cancel |
+
+That last distinction matters: clicking **✕** removes the host but leaves the
+state node behind holding `status: "cancelled"`, so the node is not a reliable
+"is it armed" signal. Always test the host for that.
 
 ## Prerequisites
 
-- The **Claude in Chrome extension** must be installed and connected, with
-  permission for the target site. All browser access goes through the
+- The **Claude in Chrome extension**, installed and connected, with permission
+  for the target site. All browser access goes through the
   `mcp__claude-in-chrome__*` tools.
+- **Tampermonkey**, with this plugin's userscript installed (Step 4 handles
+  installing and updating it).
 - The target page must already be open in a Chrome tab.
 
 If the browser tools cannot be loaded or return connection errors, stop and
@@ -52,12 +71,12 @@ If the `mcp__claude-in-chrome__*` tools are deferred, load everything needed in
 ONE ToolSearch call:
 
 ```text
-select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__javascript_tool,mcp__claude-in-chrome__navigate,mcp__claude-in-chrome__read_console_messages
+select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__javascript_tool,mcp__claude-in-chrome__navigate,mcp__claude-in-chrome__tabs_create_mcp,mcp__claude-in-chrome__tabs_close_mcp,mcp__claude-in-chrome__read_console_messages
 ```
 
 `read_console_messages` is for diagnostics only: the overlay logs
 `[claude-page-annotator] overlay ready`, `... sent N annotation(s)`, and
-`... cancelled`, which confirm what happened when an injection or poll looks
+`... cancelled`, which confirm what happened when arming or a poll looks
 wrong.
 
 ## Step 3 — Choose the target tab
@@ -71,34 +90,87 @@ Call `tabs_context_mcp` and pick the tab:
 
 Never reuse tab IDs remembered from an earlier session.
 
-## Step 4 — Inject the overlay
+## Step 4 — Probe, then arm
 
-Injection is two-tier: every full injection caches the overlay's own source
-in the tab's sessionStorage, so most injections need only a tiny snippet.
-
-**Fast path — always try this first** (near-instant):
+**Probe** the target tab — one call, tells you both whether the userscript is
+installed and whether the overlay is already up:
 
 ```js
-(() => { try { const src = sessionStorage.getItem('__claude_annotator_src__'); if (!src) return 'NO_CACHE'; return (0, eval)('(' + src + ')')(); } catch (e) { return 'CACHE_FAILED: ' + (e && e.message); } })()
+JSON.stringify({ script: document.documentElement.dataset.claudeAnnotator || null, armed: !!document.getElementById('__claude_annotator_host__'), payload: !!document.getElementById('__claude_annotations__') })
 ```
 
-On success it returns the same ready string as a full injection. Exception:
-if the overlay assets were edited during this session, skip the fast path
-once — a full injection refreshes the cache.
+Compare `script` against the version this plugin ships:
 
-**Full path** — on `NO_CACHE` or `CACHE_FAILED`: read `assets/overlay.min.js`
-from this skill's directory and execute its full contents with
-`javascript_tool` (fall back to `assets/overlay.js` only if the min file is
-missing). Do not rewrite or partially inline it — inject verbatim.
+```bash
+grep -m1 '^// @version' "${CLAUDE_PLUGIN_ROOT}/skills/annotate/assets/page-annotator.user.js"
+```
 
-On both paths, re-injection replaces any previous overlay AND discards its
-saved annotations, so never re-inject over an active session without warning
-the user first.
+| Probe result | Action |
+|---|---|
+| `script` matches the plugin's version | Arm it (below). |
+| `script` is `null` | Not installed (or the page loaded before install) — run **4a**. |
+| `script` differs from the plugin's version | Installed copy is stale — run **4a** to update. |
+| `armed: true` | The overlay is already up; skip to Step 5 rather than re-arming. |
+| `armed: false, payload: true` | A previous session was cancelled or sent. Arming resets it to a fresh batch — if the payload might hold unprocessed annotations, read it (Step 6) before arming. |
 
-A successful run returns `[claude-page-annotator] ready on <url>` and logs
-`[claude-page-annotator] overlay ready` to the console.
+**Arm** the overlay. The userscript reacts to the attribute via a
+`MutationObserver`, which fires asynchronously — so confirm in the same call
+rather than assuming:
 
-Then tell the user, briefly:
+```js
+document.documentElement.setAttribute('data-claude-annotate', 'on');
+await new Promise((r) => setTimeout(r, 50));
+document.getElementById('__claude_annotator_host__') ? 'ARMED' : 'NO_RESPONSE'
+```
+
+`ARMED` means the toolbar is up. `NO_RESPONSE` means the attribute landed but
+nothing reacted — the userscript is not running on this page (check its
+`@match`, and that it is enabled in Tampermonkey).
+
+Arming is idempotent and never discards saved annotations, so a repeated arm
+is harmless — unlike the injection mechanism this replaced.
+
+### Step 4a — Install or update the userscript
+
+Never navigate the target tab for this; it would destroy the page state the
+user wants to annotate. Use a scratch tab.
+
+1. Start the local install server in the background and read its output:
+
+   ```bash
+   node "${CLAUDE_PLUGIN_ROOT}/scripts/serve-userscript.js"
+   ```
+
+   It prints `VERSION=<x.y.z>` and `INSTALL_URL=<url>`, then serves for five
+   minutes. It exits non-zero if the script's `@version` and `VERSION`
+   constant disagree — if that happens, fix the file rather than working
+   around it.
+
+2. `tabs_create_mcp`, then `navigate` **that** tab to the `INSTALL_URL`.
+   Tampermonkey intercepts the `.user.js` navigation and shows its own
+   install page.
+
+3. Tell the user to click **Install** (or **Reinstall**/**Update** if they
+   already have an older copy) on that page, and to say when they're done.
+   Do not click it for them — installing a userscript is the user's decision,
+   and the button lives in extension UI.
+
+4. When they confirm: close the scratch tab, kill the server, then **reload
+   the target tab** (`navigate` to its live `location.href`). The userscript
+   only attaches at document-start, so a page loaded before the install will
+   not have it until reloaded.
+
+5. Re-probe. If `script` is still `null`, the most likely causes are: the
+   install was not completed, Tampermonkey is disabled, or the script's
+   `@match` does not cover this URL. Report which and stop — do not fall back
+   to injecting the overlay.
+
+If Tampermonkey itself is not installed, its install page will not appear and
+the browser will offer to download the file instead. Say so and point the user
+at Tampermonkey (or Violentmonkey, which honours the same metadata); do not
+attempt to install a browser extension.
+
+### After arming, tell the user, briefly
 
 - A toolbar appeared in the top-right of the page.
 - Click **Annotate element**, click the element in question, type the note,
@@ -109,7 +181,11 @@ Then tell the user, briefly:
 - Click a numbered pin to re-open its note — edit the text, switch
   Review/Fix, or delete it.
 - Click **Send to Claude** when finished, or **✕** to cancel.
-- Do not reload or navigate the tab — that removes the overlay.
+- Reloading or navigating the tab clears saved notes (the overlay returns
+  idle, and Claude re-arms it).
+
+They can also arm it themselves from the Tampermonkey menu → **Annotate this
+page for Claude**, without asking Claude first.
 
 ## Step 5 — Poll until the user sends
 
@@ -127,8 +203,8 @@ to `sleep 15`. Do not perform unrelated work between polls.
 | `status: "annotating"` | Keep polling. |
 | `status: "sent"` | Proceed to Step 6. |
 | `status: "cancelled"` | Confirm cancellation with the user and stop; leave the page as-is. |
-| `MISSING` | The page reloaded/navigated, wiping the overlay. Tell the user and offer to re-inject (previous annotations are lost). |
-| `PARSE_ERROR` | Read the full node contents to diagnose; if unrecoverable, warn that re-injecting discards saved notes and re-inject only with the user's go-ahead. |
+| `MISSING` | The page reloaded/navigated, so the overlay went idle. Previous annotations are gone. Tell the user, then re-arm (Step 4) — no reinstall needed. |
+| `PARSE_ERROR` | Read the full node contents to diagnose. Re-arming will not help; a fresh state node only appears after a reload. |
 | Tool error | The tab may be closed or on a restricted page. Re-run `tabs_context_mcp` to check the tab still exists before telling the user anything. |
 
 After ~5 minutes total without `sent`, stop polling and end the turn: tell the
@@ -164,13 +240,13 @@ details (substitute the annotation id; shrink the slice if still blocked):
 Parse the JSON (schema documented in `references/source-mapping.md`).
 
 Leave the overlay and the state node in place — never remove them. Cleanup
-belongs to the user: refreshing the page, closing the tab, or clicking **✕**.
-The overlay stays live after Send, so the user can annotate more elements,
-edit or delete existing notes via their pins, and send another batch. The
-annotations array is cumulative: on any later collection, process ids not
-already handled, plus any already-handled annotation whose `updatedAt` (or
-note/action content) changed since it was processed. Deleted annotations
-simply disappear from the array.
+belongs to the user: refreshing the page, closing the tab, clicking **✕**, or
+the Tampermonkey menu → **Close annotator**. The overlay stays live after
+Send, so the user can annotate more elements, edit or delete existing notes
+via their pins, and send another batch. The annotations array is cumulative:
+on any later collection, process ids not already handled, plus any
+already-handled annotation whose `updatedAt` (or note/action content) changed
+since it was processed. Deleted annotations simply disappear from the array.
 
 ## Step 7 — Map annotations to source
 
@@ -225,43 +301,50 @@ annotation tool:
    refresh destroys them.
 4. Reload the tab by calling `navigate` with that URL (fall back to
    `location.reload()` via `javascript_tool` if `navigate` is unavailable).
-   The refresh removes the overlay and state node.
-5. Re-inject the overlay using the Step 4 fast path — the sessionStorage
-   cache survives the reload — so the tool persists across the refresh, then
-   tell the user the page is refreshed with their changes and resume polling
-   (Step 5) for a verification round or the next batch.
+5. Re-arm with the Step 4 arm snippet — the userscript reattaches on its own
+   at document-start, so no probe or reinstall is needed — then tell the user
+   the page is refreshed with their changes and resume polling (Step 5) for a
+   verification round or the next batch.
 
 ## Failure modes
 
 - **Browser tools unavailable / connection errors** — Claude in Chrome is not
   installed or connected. Stop and say so.
-- **Injection returns an error** — the site may block extension access or the
-  extension lacks permission for it; ask the user to grant the site permission
-  in the extension settings.
-- **Elements inside iframes** — the picker cannot cross iframe boundaries;
-  the user can only annotate the top document. Mention this only if relevant.
+- **Probe returns `script: null` after a confirmed install** — the page was
+  loaded before the userscript existed (reload it), Tampermonkey is disabled,
+  or the `@match` does not cover this URL.
+- **Arm returns `NO_RESPONSE`** — the attribute write landed but no userscript
+  reacted. Same causes as above; re-probe rather than retrying the arm.
+- **Version mismatch on every probe** — the user installed from somewhere
+  other than this plugin. Re-run Step 4a; the plugin's copy is canonical.
+- **Elements inside iframes** — the userscript declares `@noframes` and the
+  picker cannot cross iframe boundaries; the user can only annotate the top
+  document. Mention this only if relevant.
 - **Native dialogs** — never execute JavaScript that triggers
   `alert`/`confirm`/`prompt`; a modal dialog freezes the extension bridge.
 - **Blocked raw read** — the extension bridge's safety filters may block the
   full-payload read when captured markup resembles sensitive data. Switch to
   the scoped-read fallback in Step 6; never re-run a blocked raw read
   verbatim.
-- **`CACHE_FAILED` mentioning eval or CSP** — the site blocks `eval` in the
-  extension world (rare). Use the full injection path; everything else works
-  the same.
 - **Hashed class names** — selectors on CSS-modules/styled-components sites
   lean on structure and text instead; the overlay filters common generated
   class-name patterns out of selectors, though unusual schemes can slip
   through.
 
+A strict page CSP is *not* a failure mode here: the userscript runs in
+Tampermonkey's sandbox, outside the page's CSP, and the attribute write and
+DOM reads Claude performs are unaffected by CSP too.
+
 ## Additional resources
 
-- **`assets/overlay.js`** — the readable overlay source (toolbar, element
-  picker, note panel, state serialization). Read it only when debugging the
-  overlay itself.
-- **`assets/overlay.min.js`** — the minified build injected on the full
-  path. After editing `overlay.js`, regenerate it with
-  `scripts/build-overlay.sh` at the plugin root — the two files must stay in
-  sync.
+- **`assets/page-annotator.user.js`** — the canonical overlay userscript
+  (toolbar, element picker, note panel, state serialization, arming
+  plumbing). This plugin is the source of truth for its version; read it only
+  when debugging the overlay itself. After editing it, bump **both** the
+  `@version` metadata line and the `VERSION` constant, then reinstall via
+  Step 4a.
+- **`scripts/serve-userscript.js`** — serves the userscript over loopback so
+  Tampermonkey can install it, and guards the two version fields against
+  drift.
 - **`references/source-mapping.md`** — annotation payload schema and
   strategies for mapping rendered DOM back to source across common stacks.
