@@ -1,5 +1,61 @@
 # Changelog
 
+## [0.3.0] - 2026-07-27
+
+### Changed
+
+- **Annotations now become GitHub issues instead of code edits.** Each
+  annotation is filed as its own issue, carrying a screenshot of the element
+  ringed in context, the page URL, selector, visible text, trimmed markup and
+  computed styles, plus browser and environment details.
+  - The overlay gains an **owner/repo** field, remembered per origin in the
+    userscript manager's storage. Claude prefills it from the working
+    directory's git remote when it can, but never overwrites what the user
+    typed. Send stays disabled until it is valid.
+  - The note panel gains an optional **issue title**; left blank, Claude
+    writes one from the note.
+  - Filed pins turn green and show their issue number. Anything carrying an
+    `issue` is skipped by every later batch, so re-sending cannot duplicate.
+- Payload schema is now `version: 3`: adds `repo`, an `env` block (user agent,
+  platform, language, time zone, screen, colour scheme, reduced-motion),
+  `page.referrer`, and per-annotation `title`, `scroll` and `issue`. Removes
+  `action`. A new `filed` status joins `annotating`/`sent`/`cancelled`.
+- Annotation ids are monotonic and never reused. They previously came from
+  `annotations.length + 1`, which recycled an id after a delete — harmless
+  when ids were only labels, wrong now that they key issue numbers.
+- New `scripts/file-issues.mjs` renders and creates the issues via `gh`, with
+  `--dry-run` for the approval preview and `--only` for filing a subset. It
+  verifies the repository is reachable before publishing anything, skips
+  already-filed annotations, and prints the successes even on partial failure.
+- New capture mode (`data-claude-annotate="shot:<id>"`): the overlay scrolls
+  the element into view, hides its own toolbar and pins, and rings the element
+  so a plain viewport screenshot shows the page rather than the tool.
+  `shot:end` restores, including the user's original scroll position.
+- Two new protocol attributes: `data-claude-annotator-ack` (the overlay echoes
+  the last command it handled, so Claude confirms rather than guessing at
+  timing) and `data-claude-annotate-config` (repo prefill and filed issue
+  numbers, in JSON).
+
+### Removed
+
+- **The Review/Fix toggle**, and with it the source-mapping and code-editing
+  behaviour. The plugin no longer greps the codebase or edits files, and no
+  longer refreshes the tab after acting.
+- `skills/annotate/references/source-mapping.md`, replaced by
+  `references/github-issues.md` (payload schema, issue layout, and the
+  attachment-upload flow and its fallbacks).
+
+### Requires
+
+- The [`gh` CLI](https://cli.github.com), authenticated, with write access to
+  the target repository.
+- Claude in Chrome permission for **`github.com`** as well as the annotated
+  site. GitHub has no attachment API — its uploader accepts only a browser
+  session — so one GitHub tab is opened per batch to mint
+  `user-attachments` URLs, then closed. This is announced before it happens,
+  and it is the only URL form that renders inline in private repositories.
+  If the upload fails, issues are still filed without screenshots.
+
 ## [0.2.0] - 2026-07-24
 
 ### Changed

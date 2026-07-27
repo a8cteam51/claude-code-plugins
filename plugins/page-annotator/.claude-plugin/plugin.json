@@ -1,7 +1,7 @@
 {
   "name": "page-annotator",
-  "version": "0.2.0",
-  "description": "Annotate the web page you're viewing in Chrome and send the annotations straight into Claude Code. An overlay installed as a Tampermonkey userscript lets you click elements and leave notes tagged Review or Fix; hit Send — Claude maps each note to source, applies Fix notes immediately, and proposes Review notes for approval.",
+  "version": "0.3.0",
+  "description": "Annotate the web page you're viewing in Chrome and file each note as a GitHub issue. An overlay installed as a Tampermonkey userscript lets you name a repository, click elements and leave notes; hit Create GitHub issues — Claude screenshots each annotated element and opens one issue per note, with the screenshot, selector, markup and browser details attached.",
   "author": {
     "name": "Automattic Special Projects"
   },
@@ -9,13 +9,17 @@
   "license": "MIT",
   "keywords": [
     "annotation",
+    "bug-report",
     "browser",
     "chrome",
     "claude-in-chrome",
     "design-review",
     "front-end",
+    "github",
+    "issues",
     "overlay",
     "qa",
+    "screenshot",
     "tampermonkey",
     "userscript"
   ]
