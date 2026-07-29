@@ -1,0 +1,164 @@
+description: Does the html-to-block-theme skill beat an unaided agent on its three hardest rules
+
+prompts:
+  - label: Advise on an HTML to block theme conversion
+    raw: |
+      You are advising on converting a directory of static HTML/CSS designs into a
+      WordPress block theme on a local Studio site. If a relevant skill is available,
+      follow it and only open reference files it explicitly directs you to. Otherwise
+      answer from your own knowledge. Do not read files outside this working directory,
+      do not run commands, and do not modify files.
+
+      {{request}}
+
+      Answer briefly. Name exact file paths, PHP functions, block names, and settings.
+
+# working_dir points outside this repo, via an env var that scripts/run-eval.mjs sets.
+# Run this suite with `npm run eval`, not bare `promptfoo eval`, or the template below is
+# left unrendered. Workspaces used to live in evals/.workspaces, and the skill-off arm
+# walked up out of its working directory into the plugin's own references and answered
+# from the file under test. The baseline must have nothing to find.
+providers:
+  # Baseline. No skill is discovered here: no setting_sources, no skills.
+  # A case is only worth keeping if this arm fails it.
+  - id: anthropic:claude-agent-sdk
+    label: Claude Code with no skill
+    config:
+      working_dir: '{{ env.H2BT_WORKSPACES }}/skill-off'
+      model: claude-sonnet-5
+      permission_mode: dontAsk
+      apiKeyRequired: false
+      persist_session: false
+      max_turns: 12
+
+  - id: anthropic:claude-agent-sdk
+    label: Claude Code with html-to-block-theme
+    config:
+      working_dir: '{{ env.H2BT_WORKSPACES }}/skill-on'
+      model: claude-sonnet-5
+      setting_sources: ['project']
+      skills: ['html-to-block-theme']
+      permission_mode: dontAsk
+      apiKeyRequired: false
+      persist_session: false
+      max_turns: 12
+
+# With working_dir set, this provider allows only Read/Grep/Glob/LS. The skill's
+# `studio` preconditions cannot fire, so the eval has no side effects.
+
+defaultTest:
+  options:
+    bustCache: true
+
+tests:
+  - description: The homepage is a page, never front-page.html
+    vars:
+      request: >-
+        Our design set includes `index.html`, the homepage, which has a full-viewport hero
+        and no standard site header. The other files (`about.html`, `services.html`) share
+        one header and footer. Where should the homepage live in the theme, and how do we
+        make WordPress serve it at the site root?
+    assert:
+      # The discriminator. An unaided agent reaches for front-page.html almost every time.
+      # A bare not-icontains fails correct answers that name the file in order to reject it,
+      # so this checks for endorsement instead. See the grader for why.
+      - type: javascript
+        value: file://assertions/homepage-rule.cjs
+        metric: Avoids front-page.html
+      - type: regex
+        value: 'show_on_front'
+        metric: Reading settings
+      - type: regex
+        value: 'page_on_front'
+        metric: Reading settings
+      # This homepage has its own chrome, so it needs a custom page template, not page.html.
+      - type: regex
+        value: 'customTemplates'
+        metric: Custom page template
+
+  - description: Block style CSS is one file per block type, enqueued on demand
+    vars:
+      request: >-
+        Buttons in the designs use a recurring `.btn-ghost` class whose styling the core
+        button block's supports cannot express. Name the exact file the CSS belongs in, the
+        PHP function that registers the variation, and the PHP function that loads the CSS.
+    assert:
+      - type: contains
+        value: register_block_style
+        metric: Registers the variation
+      # The two rules an unaided agent misses: per-block file naming, and on-demand loading
+      # rather than a monolithic stylesheet.
+      - type: contains
+        value: assets/css/blocks/core-button.css
+        metric: One CSS file per block type
+      - type: contains
+        value: wp_enqueue_block_style
+        metric: Loads it on demand
+
+  - description: core/html policy rejects an anchor-wrapped SVG
+    vars:
+      request: >-
+        A section contains an `<a>` wrapping an inline `<svg>` icon, and a third-party
+        booking widget snippet that has no block equivalent. For each one, say whether
+        `core/html` is allowed under our policy, and what to use instead if it is not.
+    assert:
+      # Bare inline SVG is allowed; wrapping it in an anchor is not. Both orderings of the
+      # claim count. The regex assertion compiles with no flags, so case is spelled out and
+      # [\s\S] is used to cross line breaks.
+      - type: regex
+        value: '(([Ww]rapp|anchor|<a>)[\s\S]{0,240}([Nn]ot allowed|[Dd]isallow|[Rr]eject|[Ff]ail|[Nn]ot permitted)|([Nn]ot allowed|[Dd]isallow|[Rr]eject|[Ff]ail|[Nn]ot permitted)[\s\S]{0,240}([Ww]rapp|anchor|<a>))'
+        metric: Anchor-wrapped SVG rejected
+      - type: contains
+        value: core/social-links
+        metric: Names the replacement
+      # Guards the opposite regression: the policy must stay permissive for real embeds.
+      - type: regex
+        value: '(booking|widget|embed|third-party)[\s\S]{0,240}([Aa]llowed|[Pp]ermitted|[Aa]cceptable|exception)'
+        metric: Embed still allowed
+
+  # Progressive disclosure. The other cases test rules SKILL.md states directly; this one
+  # tests whether SKILL.md's *pointer* works. Every fact asserted below lives only in
+  # custom-blocks-guide.md — `viewScriptModule`, `editorScript`, and the no-JSX global-`wp`
+  # registration appear nowhere in SKILL.md, so the agent cannot answer from SKILL.md alone.
+  # `Opened the guide` measures the retrieval itself; read it together with the content
+  # metrics — see assertions/opened-reference.cjs for the four outcomes.
+  - description: Build-less custom block registration, retrieved from the reference
+    vars:
+      reference: custom-blocks-guide.md
+      request: >-
+        One section is an accordion that `core/details` cannot reproduce, so it needs a
+        custom block. This theme has no build step and no `node_modules`. Name the
+        `block.json` fields that point at the editor script and at the front-end module,
+        show how `index.js` registers the block without JSX, and give the `functions.php`
+        code that registers the theme's blocks.
+    assert:
+      - type: javascript
+        value: file://assertions/opened-reference.cjs
+        metric: Opened the guide
+      # The one content assertion that can actually discriminate. An unaided model writes
+      # an explicit register_block_type() per block; the glob loop is a house convention
+      # documented only in the guide. The other content metrics below turn out to be base
+      # knowledge — see the disclosure notes in README.md.
+      - type: contains
+        value: GLOB_ONLYDIR
+        metric: Theme registration convention
+      # The strongest content discriminator: viewScriptModule (rather than viewScript) is
+      # what the Interactivity API needs, and it is documented only in the guide.
+      - type: contains
+        value: viewScriptModule
+        metric: Front-end module field
+      - type: contains
+        value: editorScript
+        metric: Editor script field
+      # No-JSX registration through the globals WordPress already enqueues, not an npm build.
+      - type: regex
+        value: 'createElement'
+        metric: No-JSX registration
+      - type: regex
+        value: '(window\.wp\.|wp\.blocks)'
+        metric: Uses wp globals
+
+evaluateOptions:
+  maxConcurrency: 2
+
+outputPath: results/latest.json

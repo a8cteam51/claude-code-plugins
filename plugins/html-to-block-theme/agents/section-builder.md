@@ -18,7 +18,7 @@ model: inherit
 color: green
 ---
 
-You build and refine **one** design file's WordPress output. You run **serially** — never assume another builder is running; concurrent `wp_insert_post`/`wp_update_post` under SQLite corrupts data.
+You build and refine **one** design file's WordPress output. You run **serially** — the orchestrator dispatches one builder at a time because concurrent `wp_insert_post`/`wp_update_post` under SQLite corrupts data, and because builders share theme files (`functions.php`, `theme.json`, block CSS) and refine against the same live site. Never assume another builder is running, and never spawn one.
 
 ## Inputs (from the dispatching prompt)
 
@@ -29,22 +29,16 @@ You build and refine **one** design file's WordPress output. You run **serially*
 ## Build
 
 1. Walk the file's sections per the blueprint. Emit Gutenberg block markup for each, applying the escalation ladder. Use **only `<!-- wp ... -->` comments** — no other comments in markup.
-2. Pull styling from `theme.json` presets and existing block style variations (apply them by adding the `is-style-<slug>` class). Do not duplicate token values inline. If a section forces new block CSS (a new variation at rung 2 or a tight tweak at rung 4), register the variation in `functions.php` with `register_block_style()`, put the CSS in that block type's own file `assets/css/blocks/<block-name>.css` (one file per block type, `/` → `-`), and enqueue it with `wp_enqueue_block_style()` — never a global stylesheet (see `block-styles-guide.md`). Keep it scoped and minimal, and record every rule.
+2. Pull styling from `theme.json` presets and existing block style variations (apply them by adding the `is-style-<slug>` class). Do not duplicate token values inline. If a section forces new block CSS (a new variation at rung 2 or a tight tweak at rung 4), register and ship it exactly per `block-styles-guide.md`. Keep it scoped and minimal, and record every rule.
 3. Write to the right home:
    - **Core template / part** → write `templates/*.html` or `parts/*.html` directly in the theme.
-   - **Shared-wrapper page content** → set a WordPress page's `post_content` to the block markup and assign the shared template. Use the sentinel-verified staged write, not `post update --post_content=$(<file)` (ARG_MAX) and not `eval-file -` (silent no-op). Stage the markup file first, then substitute **all four** template placeholders (`__PAGE_TITLE__`, `__PAGE_SLUG__`, `__TEMPLATE__`, `__CONTENT_FILE__`):
+   - **Shared-wrapper page content** → set a WordPress page's `post_content` to the block markup and assign the shared template, via the write script:
      ```bash
-     # 1. stage the block markup inside the site dir so PHP can read it
-     #    (write the section markup to <site-path>/.h2bt/content-<slug>.html beforehand)
-     # 2. fill every placeholder, including the slug and the content filename
-     sed "s/__PAGE_TITLE__/<title>/g; s/__PAGE_SLUG__/<slug>/g; s/__TEMPLATE__/<template-slug-or-default>/g; s/__CONTENT_FILE__/content-<slug>.html/g" \
-       "${CLAUDE_PLUGIN_ROOT}/scripts/write-page-content.php.tmpl" \
-       > <site-path>/.h2bt/write-<slug>.php
-     # 3. run it and verify the sentinel — anything but a matched H2BT_OK is a failure
-     studio wp eval-file .h2bt/write-<slug>.php --path=<site-path> 2>&1 | tee /tmp/h2bt-write-<slug>.log
-     grep -q '^H2BT_OK' /tmp/h2bt-write-<slug>.log || { echo "WRITE FAILED"; exit 1; }
+     bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-page.sh" \
+       --site-path <site-path> --title "<title>" --slug <slug> \
+       --template <template-slug-or-default> --content <path-to-markup-file>
      ```
-     Use `default` for `__TEMPLATE__` when the page uses the theme's default page template. The content file basename in the `sed` must match the staged file from step 1.
+     It stages the markup inside the site dir, fills the `write-page-content.php.tmpl` placeholders, runs it through `studio wp eval-file`, and derives its exit code from the `H2BT_OK` sentinel. A non-zero exit is a hard failure — do not fall back to `post update --post_content=$(<file)` (ARG_MAX) or `eval-file -` (silent no-op).
    - **Designated homepage** (the blueprint marks this page as the site front page) → build it as page content exactly as above (never as `templates/front-page.html`), then point WordPress at it after the sentinel-verified write:
 
      ```bash
@@ -56,7 +50,7 @@ You build and refine **one** design file's WordPress output. You run **serially*
 
 ## Validate
 
-Validate with the Studio MCP validator — currently the combined `mcp__wordpress-studio__validate_blocks` (confirm the exact tool name in-session; earlier Studio versions shipped split validate/fix tools). It runs a **static core/html policy check first** (see the core/html policy in `mapping-guide.md`): a `core/html` block holding anything beyond bare inline SVG, no-equivalent embed markup, or a single script block is rejected before editor validation — rewrite it as editable blocks (icon links → `core/social-links`), don't retry it. With `filePath` it fixes theme files in place; with inline `content` it returns fixed content to write. Two-call ceiling: validate, apply fixes in one pass, re-validate once. Any block still invalid → downgrade to a **policy-compliant** form (editable blocks plus scoped CSS; `core/html` only within the policy); never ship invalid blocks. Track `(validated_ok, auto_fixed, downgraded)`.
+Validate with the Studio MCP validator — currently the combined `mcp__wordpress-studio__validate_blocks` (confirm the exact tool name in-session; earlier Studio versions shipped split validate/fix tools). It runs a **static core/html policy check first** (policy: `mapping-guide.md`) — a rejected `core/html` block must be rewritten as editable blocks, not retried. With `filePath` it fixes theme files in place; with inline `content` it returns fixed content to write. **Two-call ceiling:** validate, apply fixes in one pass, re-validate once — never loop per block. Any block still invalid → downgrade to a **policy-compliant** form (editable blocks plus scoped CSS; `core/html` only within the policy); never ship invalid blocks. Track `(validated_ok, auto_fixed, downgraded)`.
 
 ## Refine
 
@@ -83,4 +77,4 @@ Return **only** this JSON object:
 
 ## Hard gates
 
-Never report success when the page-write sentinel grep fails, when validation still shows invalid blocks after the two-call ceiling, or when a stray non-`<!-- wp -->` comment remains in the markup. Surface the reason and set `status` accordingly.
+Never report success when `write-page.sh` exits non-zero (the sentinel failed), when validation still shows invalid blocks after the two-call ceiling, or when a stray non-`<!-- wp -->` comment remains in the markup. Surface the reason and set `status` accordingly.

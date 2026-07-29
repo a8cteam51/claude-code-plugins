@@ -15,7 +15,7 @@ description: >
   <commentary>One read-only analyzer per file, run in parallel, to build the blueprint.</commentary>
   </example>
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: opus
 color: cyan
 ---
 

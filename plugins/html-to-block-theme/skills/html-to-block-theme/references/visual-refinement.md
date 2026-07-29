@@ -33,4 +33,4 @@ For each file, the drift list captures: the section, the unresolved difference, 
 
 ## JS-driven sections
 
-For interactivity (menus, accordions, carousels), drive the state in the browser before comparing — click the toggle, open the panel — so you are comparing equivalent states, not the original's open menu against WordPress's closed one. Reproduce the behaviour per `custom-blocks-guide.md`; do not enqueue the original JS.
+For interactivity (menus, accordions, carousels), drive the state in the browser before comparing — click the toggle, open the panel — so you are comparing equivalent states, not the original's open menu against WordPress's closed one. Reproduce the behaviour per `custom-blocks-guide.md`.
