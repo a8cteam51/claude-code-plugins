@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.3.0] - 2026-08-07
+
+### Added
+
+- `site-from-host` skill: build a local Studio mirror of a hosted Pressable or
+  WPCOM site — repo as wp-content via `scaffold.sh`, plugins and (optionally) the
+  database pulled with the team51 CLI (`*:download-site-plugins` /
+  `*:download-site-database`), a `<name>.local` domain, BE Media from Production
+  pointed at the source site for missing uploads, and a known local admin login.
+- Six supporting scripts under `scripts/`: `pull-site-plugins.sh` (Pressable-first
+  host detection), `merge-plugins.sh` (repo-tracked plugins win),
+  `set-local-domain.sh`, `setup-media-fallback.sh`, `pull-database.sh` (imports via
+  `studio import`, rewrites the source hostname, reactivates plugins the import
+  deactivated — notably safety-net), and `ensure-admin-user.sh`.
+
 ## [1.2.0] - 2026-05-20
 
 ### Added
