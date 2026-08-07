@@ -46,14 +46,14 @@
     {
       "name": "studio-repo-clone",
       "source": "./plugins/studio-repo-clone",
-      "description": "Back a local WordPress Studio site with a GitHub repo. Either scaffold a brand-new site whose wp-content is a fresh clone, or convert an existing site's wp-content into a clone while preserving uploads, SQLite database, and the SQLite drop-in.",
-      "version": "1.2.0",
+      "description": "Back a local WordPress Studio site with a GitHub repo. Scaffold a brand-new site whose wp-content is a fresh clone, convert an existing site's wp-content into a clone while preserving uploads and the SQLite database, or mirror a hosted Pressable/WPCOM site locally — plugins, database, and media fallback — via the team51 CLI.",
+      "version": "1.3.0",
       "author": {
         "name": "Automattic Special Projects"
       },
       "repository": "https://github.com/a8cteam51/claude-code-plugins",
       "license": "MIT",
-      "keywords": ["wordpress", "studio", "scaffold", "a8c", "local-development"],
+      "keywords": ["wordpress", "studio", "scaffold", "a8c", "local-development", "team51", "pressable", "site-mirror"],
       "category": "development-tools",
       "strict": true,
       "commands": [
@@ -61,7 +61,8 @@
       ],
       "skills": [
         "./skills/clone-new-site",
-        "./skills/clone-into-existing-site"
+        "./skills/clone-into-existing-site",
+        "./skills/site-from-host"
       ]
     },
     {
