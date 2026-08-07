@@ -71,8 +71,16 @@ if [[ ! -d "$abs_target/wp-content" ]]; then
   exit 1
 fi
 
-echo "==> installing $PLUGIN_SLUG"
-studio wp --path "$abs_target" plugin install "$PLUGIN_ZIP" --force --activate
+# wp-content is the cloned repo: if the plugin is already on disk it may be
+# repo-tracked, and repo-tracked plugins win - activate it as-is instead of
+# overwriting version-controlled files with upstream's latest.
+if [[ -d "$abs_target/wp-content/plugins/$PLUGIN_SLUG" ]]; then
+  echo "==> $PLUGIN_SLUG already present; activating without overwriting"
+  studio wp --path "$abs_target" plugin activate "$PLUGIN_SLUG"
+else
+  echo "==> installing $PLUGIN_SLUG"
+  studio wp --path "$abs_target" plugin install "$PLUGIN_ZIP" --activate
+fi
 
 echo "==> defining BE_MEDIA_FROM_PRODUCTION_URL as $prod_url"
 studio wp --path "$abs_target" config set BE_MEDIA_FROM_PRODUCTION_URL "$prod_url" --type=constant
