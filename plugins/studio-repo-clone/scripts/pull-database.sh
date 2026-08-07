@@ -165,11 +165,19 @@ echo "==> rewriting $source_host -> $local_domain"
 studio wp --path "$abs_target" search-replace "$source_host" "$local_domain" \
   --all-tables-with-prefix --skip-columns=guid >&2
 
-# The host-only pass maps http://<source> to http://<local>, but Studio serves the
-# custom domain over HTTPS, so plain-http links in content would be mixed content.
-echo "==> normalising http://$local_domain -> https://$local_domain"
-studio wp --path "$abs_target" search-replace "http://$local_domain" "https://$local_domain" \
-  --all-tables-with-prefix --skip-columns=guid >&2
+# The host-only pass maps http://<source> to http://<local>. When the site is served
+# over HTTPS - Studio's default, and the import stamps the real scheme into `home` -
+# plain-http content links would be mixed content, so normalise them. A site kept on
+# plain HTTP via set-local-domain.sh --no-https must be left alone: rewriting to a
+# scheme it does not serve would break the links the previous pass just fixed.
+local_scheme="$(studio wp --path "$abs_target" option get home 2>/dev/null | tr -d '\r' | grep -oE '^https?' | head -n 1 || true)"
+if [[ "$local_scheme" == "https" ]]; then
+  echo "==> normalising http://$local_domain -> https://$local_domain"
+  studio wp --path "$abs_target" search-replace "http://$local_domain" "https://$local_domain" \
+    --all-tables-with-prefix --skip-columns=guid >&2
+else
+  echo "==> site is not served over HTTPS (home scheme: ${local_scheme:-unknown}); skipping http->https normalisation"
+fi
 
 # The import replaced active_plugins with production's list. Restore anything
 # that was active locally and is not active now - notably safety-net.
