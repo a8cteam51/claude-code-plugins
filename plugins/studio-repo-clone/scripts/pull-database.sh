@@ -15,7 +15,7 @@
 # Usage:
 #   pull-database.sh --site <id-or-domain> --host <pressable|wpcom> \
 #     --target-dir <site-root> --source-host <production-hostname> \
-#     --local-domain <name.local> [--dump <path>] [--keep-dump]
+#     --local-domain <name.local> [--dump <path>]
 
 set -euo pipefail
 
@@ -23,7 +23,7 @@ usage() {
   cat <<EOF
 Usage: pull-database.sh --site <id-or-domain> --host <pressable|wpcom> \\
          --target-dir <site-root> --source-host <production-hostname> \\
-         --local-domain <name.local> [--dump <path>] [--keep-dump]
+         --local-domain <name.local> [--dump <path>]
 
   --site          Domain or numeric site ID on the host.
   --host          'pressable' or 'wpcom'. Use the host resolved by
@@ -32,9 +32,9 @@ Usage: pull-database.sh --site <id-or-domain> --host <pressable|wpcom> \\
   --source-host   Production hostname to rewrite, WITHOUT scheme, e.g.
                   example.com. Both http and https forms are caught.
   --local-domain  The site's local domain, e.g. example.local.
-  --dump          Where to write the .sql dump. Default: a temp file.
-  --keep-dump     Keep the dump after a successful import. Default: keep.
-                  Present for symmetry; the dump is never auto-deleted.
+  --dump          Where to write the .sql dump; reused without re-downloading
+                  when it already exists and is non-empty. Default: a temp
+                  file. The dump is never auto-deleted.
 
   -h, --help      Show this help.
 
@@ -74,7 +74,6 @@ while [[ $# -gt 0 ]]; do
     --dump)
       [[ $# -ge 2 ]] || { echo "pull-database.sh: --dump needs a value" >&2; exit 2; }
       dump="$2"; shift 2 ;;
-    --keep-dump) shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "pull-database.sh: unknown arg: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -123,19 +122,37 @@ case "$dump" in
 esac
 mkdir -p "$(dirname "$abs_dump")"
 
-# Capture which plugins are active locally BEFORE the import blows away
-# wp_options, so they can be restored afterwards.
+# Capture which plugins are active locally BEFORE the import blows away wp_options, so
+# they can be restored afterwards. A failed listing must abort rather than read as "no
+# plugins active": continuing without the snapshot would leave safety-net deactivated
+# after the import with nothing noticing - the exact outcome this guard exists to
+# prevent, on a site about to hold real production user accounts.
 echo "==> recording locally active plugins"
-pre_active="$(studio wp --path "$abs_target" plugin list --status=active --field=name 2>/dev/null \
-  | tr -d '\r' | grep -E '^[a-z0-9._-]+$' || true)"
-
-echo "==> downloading database from $host site $site"
-team51 --no-ansi -n "${host}:download-site-database" "$site" --destination="$abs_dump" >&2
-
-if [[ ! -s "$abs_dump" ]]; then
-  echo "pull-database.sh: team51 reported success but $abs_dump is missing or empty" >&2
+if ! pre_active_raw="$(studio wp --path "$abs_target" plugin list --status=active --field=name 2>&1)"; then
+  echo "pull-database.sh: could not list the site's active plugins; aborting before the import so the reactivation guard is not lost" >&2
+  printf '%s\n' "$pre_active_raw" >&2
   exit 1
 fi
+pre_active="$(printf '%s\n' "$pre_active_raw" | tr -d '\r' | grep -E '^[A-Za-z0-9._-]+$' || true)"
+
+if [[ -s "$abs_dump" ]]; then
+  # Recovery path: a re-run after a failed import reuses the dump instead of repeating
+  # a potentially multi-minute pull.
+  echo "==> reusing existing dump at $abs_dump"
+else
+  echo "==> downloading database from $host site $site"
+  team51 --no-ansi -n "${host}:download-site-database" "$site" --destination="$abs_dump" >&2
+
+  if [[ ! -s "$abs_dump" ]]; then
+    echo "pull-database.sh: team51 reported success but $abs_dump is missing or empty" >&2
+    exit 1
+  fi
+fi
+
+# Belt and braces for team51 builds that predate 0600 downloads: the dump holds
+# production emails and password hashes and stays on disk until the user deletes it.
+chmod 600 "$abs_dump" 2>/dev/null \
+  || echo "pull-database.sh: could not restrict permissions on $abs_dump" >&2
 echo "==> dump: $abs_dump ($(du -h "$abs_dump" | cut -f1))"
 
 echo "==> importing into $abs_target"
@@ -148,12 +165,18 @@ echo "==> rewriting $source_host -> $local_domain"
 studio wp --path "$abs_target" search-replace "$source_host" "$local_domain" \
   --all-tables-with-prefix --skip-columns=guid >&2
 
+# The host-only pass maps http://<source> to http://<local>, but Studio serves the
+# custom domain over HTTPS, so plain-http links in content would be mixed content.
+echo "==> normalising http://$local_domain -> https://$local_domain"
+studio wp --path "$abs_target" search-replace "http://$local_domain" "https://$local_domain" \
+  --all-tables-with-prefix --skip-columns=guid >&2
+
 # The import replaced active_plugins with production's list. Restore anything
 # that was active locally and is not active now - notably safety-net.
 reactivated=""
 if [[ -n "$pre_active" ]]; then
   post_active="$(studio wp --path "$abs_target" plugin list --status=active --field=name 2>/dev/null \
-    | tr -d '\r' | grep -E '^[a-z0-9._-]+$' || true)"
+    | tr -d '\r' | grep -E '^[A-Za-z0-9._-]+$' || true)"
   to_activate=""
   while IFS= read -r p; do
     [[ -n "$p" ]] || continue

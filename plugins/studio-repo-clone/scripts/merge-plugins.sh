@@ -92,8 +92,9 @@ for entry in "$src"/*; do
   name="$(basename "$entry")"
   dest="$plugins_dir/$name"
 
-  # WordPress' own silence stub, never a plugin — counting it as one is noise.
-  [[ "$name" == "index.php" ]] && continue
+  # WordPress' own silence stub and stray server dotfiles (.DS_Store, .htaccess) are
+  # never plugins — counting them as added is noise.
+  [[ "$name" == "index.php" || "$name" == .* ]] && continue
 
   if [[ -e "$dest" ]]; then
     if (( overwrite == 1 )); then

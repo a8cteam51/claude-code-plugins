@@ -24,7 +24,7 @@ If either is missing, ask once via AskUserQuestion (free-text via "Other"). Neve
 Preflight (one command, before anything else):
 
 ```bash
-for c in studio team51 git curl tar; do command -v "$c" >/dev/null 2>&1 || echo "MISSING: $c"; done
+for c in studio team51 git curl tar jq; do command -v "$c" >/dev/null 2>&1 || echo "MISSING: $c"; done
 ```
 
 Stop and tell the user if anything is missing. `team51` needs a loaded identity — if

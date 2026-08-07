@@ -137,6 +137,14 @@ fi
 site_id="$(parse_field 1)"
 site_url="$(parse_field 2)"
 
+# The caller derives the .local domain and the media-fallback origin from the URL, so an
+# unparseable announce line must fail here, not two steps later as an empty domain.
+if [[ -z "$site_id" || -z "$site_url" ]]; then
+  echo "pull-site-plugins.sh: could not parse the site ID/URL from team51's output; its announce-line format may have changed" >&2
+  echo "pull-site-plugins.sh: the plugin archive itself downloaded fine and is at $abs_archive" >&2
+  exit 1
+fi
+
 echo
 echo "RESULT_HOST=$resolved_host"
 echo "RESULT_SITE_ID=$site_id"
