@@ -1,0 +1,42 @@
+{
+  "project": "Acme Storefront Re-theme",
+
+  "before": {
+    "base": "https://staging.example.com",
+    "label": "Before",
+    "sublabel": "old-theme"
+  },
+  "after": {
+    "base": "https://www.example.com",
+    "label": "After",
+    "sublabel": "new-theme"
+  },
+
+  "viewports": [
+    { "id": "desktop", "width": 1440, "height": 1000, "mobile": false },
+    { "id": "mobile",  "width": 390,  "height": 844,  "mobile": true }
+  ],
+
+  "out": "/tmp/shots",
+  "scale": 1,
+  "min_height": 600,
+
+  "auth": {
+    "before": {
+      "basic": { "username": "staging-user", "password": "REPLACE_ME" },
+      "cookies": []
+    }
+  },
+
+  "pages": [
+    { "slug": "01-home",     "title": "Home",              "path": "/" },
+    { "slug": "02-shop",     "title": "Shop",              "path": "/shop/" },
+    { "slug": "03-product",  "title": "Product — Widget",  "path": "/product/blue-widget/",
+      "before_path": "/shop/blue-widget/" },
+    { "slug": "04-blog",     "title": "Blog Index",        "path": "/blog/" },
+    { "slug": "05-post",     "title": "Article",           "path": "/blog/how-we-rebuilt-the-site/" },
+    { "slug": "06-about",    "title": "About",             "path": "/about/" },
+    { "slug": "07-contact",  "title": "Contact",           "path": "/contact/" },
+    { "slug": "08-cart",     "title": "Cart",              "path": "/cart/" }
+  ]
+}

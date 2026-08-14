@@ -156,6 +156,23 @@
         "./skills/poseidon-plan",
         "./skills/poseidon-implement"
       ]
+    },
+    {
+      "name": "site-launch-comparison",
+      "source": "./plugins/site-launch-comparison",
+      "description": "Capture full-page before/after screenshots of two versions of a website and build a self-contained side-by-side HTML comparison report. For re-themes, redesigns, replatforms, and staging-vs-production design QA.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Automattic Special Projects"
+      },
+      "repository": "https://github.com/a8cteam51/claude-code-plugins",
+      "license": "MIT",
+      "keywords": ["screenshots", "before-after", "visual-regression", "site-launch", "redesign", "migration", "design-qa", "playwright", "wordpress"],
+      "category": "development-tools",
+      "strict": true,
+      "skills": [
+        "./skills/site-launch-comparison"
+      ]
     }
   ]
 }
