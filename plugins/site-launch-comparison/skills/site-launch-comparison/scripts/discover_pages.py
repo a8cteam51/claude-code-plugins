@@ -24,6 +24,11 @@ import urllib.request
 from collections import OrderedDict
 from urllib.parse import urljoin, urlparse
 
+# Discovered paths and titles can carry non-ASCII, and the progress log goes to
+# stderr — don't let a C/POSIX locale turn that into a crash.
+for _stream in (sys.stdout, sys.stderr):
+    _stream.reconfigure(encoding="utf-8", errors="replace")
+
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 TIMEOUT = 25
@@ -51,7 +56,7 @@ DEFAULT_PRIORITY = 100
 SKIP = re.compile(
     r"(\.(?:xml|json|css|js|png|jpe?g|gif|svg|webp|pdf|zip|ico|woff2?)$"
     r"|/wp-(?:admin|content|json|includes)/|/feed/?$|/comments/feed"
-    r"|^/(?:wp-login|xmlrpc)|/page/\d+|\?)", re.I)
+    r"|^/(?:wp-login|xmlrpc)|/page/\d+)", re.I)
 
 # Taxonomy archives and plugin-generated URLs match the "article" and "category"
 # shapes but are terrible comparison subjects — they're thin list pages, not real
@@ -75,13 +80,24 @@ def fetch(url, binary=False):
     return raw if binary else raw.decode("utf-8", "replace")
 
 
+def host_key(netloc):
+    """Host identity for same-site tests, ignoring a leading www.
+
+    Sites canonicalise between the apex domain and the www subdomain and then
+    emit the canonical host in every sitemap <loc>. Comparing raw netlocs means
+    invoking this script with the non-canonical form rejects every candidate and
+    reports "no overlap" — which reads as a broken site rather than a typo.
+    """
+    return netloc.lower().removeprefix("www.")
+
+
 def normalize(href, base):
     """Turn any href into a same-site absolute path, or None if off-site/junk."""
     if not href or href.startswith(("#", "mailto:", "tel:", "javascript:")):
         return None
     absolute = urljoin(base, href)
     parts = urlparse(absolute)
-    if parts.netloc and parts.netloc != urlparse(base).netloc:
+    if parts.netloc and host_key(parts.netloc) != host_key(urlparse(base).netloc):
         return None
     path = parts.path or "/"
     if SKIP.search(path):
@@ -149,14 +165,35 @@ def title_for(path, label, seen_labels):
 
 
 def check(base, path):
-    req = urllib.request.Request(base + path, headers={"User-Agent": UA})
-    try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
-            return r.status == 200
-    except urllib.error.HTTPError as e:
-        return e.code == 200
-    except Exception:
-        return False
+    """True only if the URL returns 200 *and* still serves that path.
+
+    urlopen follows redirects silently, so a retired page that now 301s to the
+    homepage would report 200. A relaunch is exactly where that happens, and the
+    result is a comparison row whose after-side screenshot is the homepage under
+    a misleading title — so compare the final URL too. Host canonicalisation
+    (apex <-> www) is not a real move, hence host_key.
+    """
+    target = base + path
+
+    def still_there(final):
+        got, want = urlparse(final), urlparse(target)
+        return (host_key(got.netloc) == host_key(want.netloc)
+                and got.path.rstrip("/") == want.path.rstrip("/"))
+
+    for method in ("HEAD", "GET"):
+        req = urllib.request.Request(target, headers={"User-Agent": UA}, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+                return r.status == 200 and still_there(r.url)
+        except urllib.error.HTTPError as e:
+            # Plenty of servers and WAFs refuse HEAD outright. Retry once with
+            # GET before concluding the page doesn't exist.
+            if method == "HEAD" and e.code in (403, 405, 501):
+                continue
+            return e.code == 200
+        except Exception:
+            return False
+    return False
 
 
 def main():
@@ -205,11 +242,14 @@ def main():
         cap = 1 if cat in ("home", "shop", "blog", "cart", "checkout") else args.max_per_category
         if per_cat.get(cat, 0) >= cap:
             continue
-        per_cat[cat] = per_cat.get(cat, 0) + 1
         # Only verify the ones we intend to keep — HEAD-ing 300 URLs is wasteful.
         if not (check(before, path) and check(after, path)):
             print(f"[discover] skip {path} (not 200 on both)", file=sys.stderr)
             continue
+        # Spend the category budget only once a path has actually resolved. The
+        # capped categories (home, shop, blog, cart, checkout) allow exactly one
+        # entry, so charging a dead URL would drop that template type entirely.
+        per_cat[cat] = per_cat.get(cat, 0) + 1
         chosen.append({"path": path, "category": cat,
                        "title": title_for(path, label, seen_labels)})
         seen_labels.add(label)
@@ -240,7 +280,7 @@ def main():
 
     text = json.dumps(config, indent=2)
     if args.out:
-        with open(args.out, "w") as f:
+        with open(args.out, "w", encoding="utf-8") as f:
             f.write(text + "\n")
         print(f"[discover] wrote {args.out} with {len(pages)} pages", file=sys.stderr)
         other = [p for p in shared if p not in {c["path"] for c in chosen}]

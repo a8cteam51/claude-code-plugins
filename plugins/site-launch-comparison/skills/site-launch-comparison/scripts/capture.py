@@ -11,7 +11,7 @@ cheap, safe ones.
 Run it in a loop until it prints "REMAINING 0".
 
 Usage:
-  python3 capture.py config.json            # BUDGET env var controls seconds, default 110
+  python3 capture.py config.json            # BUDGET env var controls seconds, default 90
 """
 import json
 import os
@@ -21,6 +21,12 @@ import time
 from contextlib import contextmanager
 
 from playwright.sync_api import sync_playwright
+
+# Progress lines carry em dashes, and a C/POSIX locale would make stdout ASCII —
+# turning a status message into a crash mid-run. capture_all.sh greps this
+# output, so it has to keep flowing.
+for _stream in (sys.stdout, sys.stderr):
+    _stream.reconfigure(encoding="utf-8", errors="replace")
 
 # Seconds of capture work per run. Agent shells often cap a single call at a
 # couple of minutes, so the default leaves headroom. Set BUDGET=0 for an
@@ -183,7 +189,8 @@ def is_done(out, slug, vp_id, side):
 
 
 def main():
-    cfg = json.load(open(sys.argv[1]))
+    with open(sys.argv[1], encoding="utf-8") as f:
+        cfg = json.load(f)
     out = cfg.get("out", "/tmp/shots")
     os.makedirs(out, exist_ok=True)
     pages = cfg["pages"]
@@ -191,10 +198,6 @@ def main():
     auth = cfg.get("auth") or {}
     sides = [("before", cfg["before"]["base"].rstrip("/")),
              ("after", cfg["after"]["base"].rstrip("/"))]
-
-    manifest_path = f"{out}/manifest.json"
-    manifest = json.load(open(manifest_path)) if os.path.exists(manifest_path) else []
-    have = {(m["slug"], m["viewport"], m["side"]) for m in manifest}
 
     start = time.time()
     budget_hit = False
@@ -251,13 +254,6 @@ def main():
                     # before_path lets you pair pages whose URL changed in the migration.
                     path = pgdef.get("before_path", pgdef["path"]) if side == "before" else pgdef["path"]
                     if is_done(out, slug, vp["id"], side):
-                        key = (slug, vp["id"], side)
-                        if key not in have:
-                            manifest.append({"slug": slug, "title": pgdef["title"], "path": path,
-                                             "side": side, "viewport": vp["id"],
-                                             "url": base + path, "height": 0,
-                                             "bytes": os.path.getsize(shot_path(out, slug, vp["id"], side))})
-                            have.add(key)
                         continue
                     if time.time() - start > BUDGET:
                         budget_hit = True
@@ -272,10 +268,6 @@ def main():
                                 h = capture(pg_obj, url, fn, cfg.get("min_height", 600))
                             kb = os.path.getsize(fn) // 1024
                             print(f"OK   {side:6s} {vp['id']:7s} {slug:26s} h={h:6d} {kb}KB", flush=True)
-                            manifest.append({"slug": slug, "title": pgdef["title"], "path": path,
-                                             "side": side, "viewport": vp["id"], "url": url,
-                                             "height": h, "bytes": os.path.getsize(fn)})
-                            have.add((slug, vp["id"], side))
                             break
                         except Exception as e:
                             print(f"RETRY{attempt} {side:6s} {vp['id']:7s} {slug:26s} "
@@ -287,15 +279,6 @@ def main():
                         print(f"FAIL {side:6s} {vp['id']:7s} {slug:26s} gave up", flush=True)
                 ctx.close()
         browser.close()
-
-    seen, dedup = set(), []
-    for m in manifest:
-        k = (m["slug"], m["viewport"], m["side"])
-        if k not in seen:
-            seen.add(k)
-            dedup.append(m)
-    with open(manifest_path, "w") as f:
-        json.dump(dedup, f, indent=2)
 
     remaining = [f"{pg['slug']}-{vp['id']}-{side}"
                  for vp in viewports for side, _ in sides for pg in pages

@@ -19,7 +19,16 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 for i in $(seq 1 "$MAX"); do
   echo "--- round $i ---"
   OUT="$(BUDGET="${BUDGET:-90}" python3 "$HERE/capture.py" "$CONFIG" 2>&1)"
+  rc=$?
   echo "$OUT" | grep -vE "^Skipping host"
+
+  # A traceback (missing playwright, unreadable config, hand-edited config with a
+  # bad key) matches neither pattern below, so without this the same failing
+  # command reruns $MAX times and scrolls the real error off screen.
+  if [ "$rc" -ne 0 ]; then
+    echo "capture.py exited with status $rc — stopping rather than retrying a hard failure."
+    exit 1
+  fi
 
   if echo "$OUT" | grep -q "^REMAINING 0"; then
     echo "All captures complete after $i round(s)."

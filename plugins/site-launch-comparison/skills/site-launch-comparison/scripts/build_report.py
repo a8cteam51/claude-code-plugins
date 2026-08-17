@@ -25,19 +25,34 @@ import html
 import json
 import os
 import shutil
+import sys
 
 from PIL import Image
+
+# The progress and summary lines carry em dashes. Under a C/POSIX locale stdout
+# defaults to ASCII, which would otherwise raise UnicodeEncodeError *after* every
+# PNG has been copied and downscaled — the most expensive possible moment to die.
+for _stream in (sys.stdout, sys.stderr):
+    _stream.reconfigure(encoding="utf-8", errors="replace")
 
 Image.MAX_IMAGE_PIXELS = None
 WEB_WIDTH = 900
 
 
+# A run packs 100-200MB of PNGs and hashes each one twice — once to fingerprint
+# duplicates, once to decide "unchanged". Cache so the second pass is free.
+_md5_cache = {}
+
+
 def md5(path):
-    h = hashlib.md5()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
+    key = os.path.abspath(path)
+    if key not in _md5_cache:
+        h = hashlib.md5()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        _md5_cache[key] = h.hexdigest()
+    return _md5_cache[key]
 
 
 def build(cfg, dest, include_full=True):
@@ -87,7 +102,13 @@ def build(cfg, dest, include_full=True):
             continue
         fingerprints[r["_fp"]] = r
         merged.append(r)
+    collapsed = {r["slug"] for r in rows} - {r["slug"] for r in merged}
     rows = merged
+
+    # Don't report a gap against a row that got collapsed into its twin — the
+    # reader can't find it on the page. Pages that captured nothing at all never
+    # entered `rows`, so they are untouched by this and still get reported.
+    missing = [m for m in missing if m.split("/", 1)[0] not in collapsed]
 
     # Copy full-res, generate web-size, note which pages are visually unchanged.
     for r in rows:
@@ -123,12 +144,14 @@ def build(cfg, dest, include_full=True):
         for v in vp_ids) if len(vp_ids) > 1 else ""
 
     def shot(a, side, alt):
-        img = f'<img loading="lazy" src="{a[side + "_web"]}" alt="{html.escape(alt)}">'
+        img = (f'<img loading="lazy" src="{html.escape(a[side + "_web"])}" '
+               f'alt="{html.escape(alt)}">')
         full = a[side + "_full"]
         # Only link to the full-res file when it was actually written — a dead
         # click-through is worse than no click-through.
         if full:
-            return f'<div class="shot"><a href="{full}" target="_blank" rel="noopener">{img}</a></div>'
+            return (f'<div class="shot"><a href="{html.escape(full)}" target="_blank" '
+                    f'rel="noopener">{img}</a></div>')
         return f'<div class="shot">{img}</div>'
 
     sections = []
@@ -147,7 +170,7 @@ def build(cfg, dest, include_full=True):
           <figcaption class="cap before">
             <span class="tag">{html.escape(b_label)}</span>
             {f'<span class="theme">{html.escape(b_sub)}</span>' if b_sub else ''}
-            <a class="src" href="{before_base}{r['before_path']}" target="_blank" rel="noopener">open ↗</a>
+            <a class="src" href="{html.escape(before_base + r['before_path'])}" target="_blank" rel="noopener">open ↗</a>
             <span class="dims">{bw}&times;{bh}</span>
           </figcaption>
           {shot(a, 'before', f"{b_label} — {r['title']}")}
@@ -156,7 +179,7 @@ def build(cfg, dest, include_full=True):
           <figcaption class="cap after">
             <span class="tag">{html.escape(a_label)}</span>
             {f'<span class="theme">{html.escape(a_sub)}</span>' if a_sub else ''}
-            <a class="src" href="{after_base}{r['paths'][0]}" target="_blank" rel="noopener">open ↗</a>
+            <a class="src" href="{html.escape(after_base + r['paths'][0])}" target="_blank" rel="noopener">open ↗</a>
             <span class="dims">{aw}&times;{ah}</span>
           </figcaption>
           {shot(a, 'after', f"{a_label} — {r['title']}")}
@@ -278,7 +301,9 @@ document.querySelectorAll('.vp-btn').forEach(btn => {{
 </html>"""
 
     path = os.path.join(dest, "comparison.html")
-    with open(path, "w") as f:
+    # Explicit utf-8: the document contains em dashes and ↗ glyphs, and the
+    # process locale is not something to gamble a finished run on.
+    with open(path, "w", encoding="utf-8") as f:
         f.write(doc)
     print(f"[report] wrote {path} — {len(rows)} rows, viewports: {', '.join(vp_ids)}")
     if notes:
@@ -294,7 +319,9 @@ def main():
                     help="Skip the full-resolution PNGs (roughly 10x smaller output). "
                          "The click-through link is omitted rather than left dangling.")
     args = ap.parse_args()
-    build(json.load(open(args.config)), args.dest, include_full=not args.no_full)
+    with open(args.config, encoding="utf-8") as f:
+        cfg = json.load(f)
+    build(cfg, args.dest, include_full=not args.no_full)
 
 
 main()

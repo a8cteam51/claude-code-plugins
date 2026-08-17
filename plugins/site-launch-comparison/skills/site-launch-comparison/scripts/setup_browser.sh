@@ -46,7 +46,9 @@ write_env() {
     echo 'export PATH="$PATH:$HOME/.local/bin"'
     echo 'export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1'
     if [ -n "${1:-}" ]; then
-      echo "export LD_LIBRARY_PATH=\"$1\""
+      # Append rather than replace: clobbering an inherited LD_LIBRARY_PATH
+      # breaks whatever else the caller's shell needed it for.
+      echo "export LD_LIBRARY_PATH=\"$1\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}\""
       echo "export FONTCONFIG_PATH=\"${PREFIX}/root/etc/fonts\""
     fi
   } > "$ENV_FILE"
@@ -87,12 +89,33 @@ fonts-liberation fonts-noto-color-emoji"
       DEPS=$(apt-cache depends --recurse --no-recommends --no-suggests --no-conflicts \
         --no-breaks --no-replaces --no-enhances $PKGS 2>/dev/null | grep "^\w" | sort -u)
       apt-get download $DEPS 2>&1 | tail -1
-      for f in *.deb; do dpkg-deb -x "$f" "$PREFIX/root/" 2>/dev/null; done
-      log "unpacked $(ls *.deb 2>/dev/null | wc -l) packages"
+      # Without this the loop runs once with f set to the literal "*.deb",
+      # dpkg-deb's error is swallowed by 2>/dev/null, and the failure only
+      # surfaces later at verification where the cause is no longer visible.
+      shopt -s nullglob
+      debs=(*.deb)
+      shopt -u nullglob
+      if [ "${#debs[@]}" -eq 0 ]; then
+        log "ERROR: apt-get downloaded no packages — cannot build a local library"
+        log "       prefix. Check network access and apt sources, then re-run."
+        exit 1
+      fi
+      for f in "${debs[@]}"; do dpkg-deb -x "$f" "$PREFIX/root/" 2>/dev/null; done
+      log "unpacked ${#debs[@]} packages"
     fi
-    ARCH_DIR="$(ls -d "$PREFIX"/root/usr/lib/*-linux-gnu 2>/dev/null | head -1)"
-    LIB_DIR="$(ls -d "$PREFIX"/root/lib/*-linux-gnu 2>/dev/null | head -1)"
-    write_env "${ARCH_DIR}:${LIB_DIR}:${PREFIX}/root/usr/lib"
+    # Empty elements in LD_LIBRARY_PATH mean "the current directory" to the
+    # dynamic loader, so drop any candidate that didn't resolve instead of
+    # leaving a "::" behind.
+    LIB_DIRS=()
+    for d in "$PREFIX"/root/usr/lib/*-linux-gnu "$PREFIX"/root/lib/*-linux-gnu "$PREFIX/root/usr/lib"; do
+      [ -d "$d" ] && LIB_DIRS+=("$d")
+    done
+    if [ "${#LIB_DIRS[@]}" -eq 0 ]; then
+      log "WARNING: no unpacked library directories found under $PREFIX"
+      write_env ""
+    else
+      write_env "$(IFS=:; echo "${LIB_DIRS[*]}")"
+    fi
   else
     log "WARNING: no root and no apt-get. If Chromium fails to launch, install"
     log "         its dependencies with your distro's package manager."

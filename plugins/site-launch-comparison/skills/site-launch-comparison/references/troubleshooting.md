@@ -211,5 +211,5 @@ Environment variables for `capture.py`:
 
 | Var | Default | Purpose |
 |---|---|---|
-| `BUDGET` | 110 | Seconds before the run exits cleanly. Keep under the shell's cap. |
+| `BUDGET` | 90 | Seconds before the run exits cleanly. Keep under the shell's cap. |
 | `PER_PAGE_LIMIT` | 100 | Hard ceiling per page, enforced with SIGALRM. |
