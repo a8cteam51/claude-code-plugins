@@ -32,6 +32,9 @@ for _stream in (sys.stdout, sys.stderr):
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 TIMEOUT = 25
+# Consecutive failed reachability checks before concluding the problem is the
+# host rather than the individual URLs.
+DEAD_STREAK_LIMIT = 10
 
 # (category, friendly label, regex, priority) — lower priority sorts first.
 # Ordered so one representative of each template type outranks a second of any.
@@ -192,6 +195,11 @@ def check(base, path):
                 continue
             return e.code == 200
         except Exception:
+            # Refusal at the connection level — a reset socket or a timeout — is
+            # the same story one layer down, and equally not evidence that the
+            # page is missing. Only a failed GET settles it.
+            if method == "HEAD":
+                continue
             return False
     return False
 
@@ -235,17 +243,35 @@ def main():
         scored.append((prio, quality, len(p), p, cat, label))
     scored.sort()
 
-    chosen, per_cat, seen_labels = [], {}, set()
+    chosen, per_cat, tried, seen_labels = [], {}, {}, set()
+    dead_streak = 0
     for prio, _, _, path, cat, label in scored:
         if len(chosen) >= args.limit:
+            break
+        # A host that blocks this IP fails every check. Because a failure no
+        # longer spends the category budget, nothing else would stop us probing
+        # every shared path at TIMEOUT seconds a piece, so bail once the pattern
+        # is unmistakable — and say why, since the config comes out empty.
+        if dead_streak >= DEAD_STREAK_LIMIT:
+            print(f"[discover] {dead_streak} candidates in a row failed to verify — "
+                  "the sites are probably blocking this IP, or the URLs changed "
+                  "wholesale. Stopping; ask the user for a path list.", file=sys.stderr)
             break
         cap = 1 if cat in ("home", "shop", "blog", "cart", "checkout") else args.max_per_category
         if per_cat.get(cat, 0) >= cap:
             continue
+        # Bound the probing per category as well as overall: the slot stays
+        # unspent on failure, so without this a single dead category could
+        # absorb the entire run on its own.
+        if tried.get(cat, 0) >= cap * 3:
+            continue
+        tried[cat] = tried.get(cat, 0) + 1
         # Only verify the ones we intend to keep — HEAD-ing 300 URLs is wasteful.
         if not (check(before, path) and check(after, path)):
             print(f"[discover] skip {path} (not 200 on both)", file=sys.stderr)
+            dead_streak += 1
             continue
+        dead_streak = 0
         # Spend the category budget only once a path has actually resolved. The
         # capped categories (home, shop, blog, cart, checkout) allow exactly one
         # entry, so charging a dead URL would drop that template type entirely.

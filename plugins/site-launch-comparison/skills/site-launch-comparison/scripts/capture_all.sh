@@ -24,9 +24,12 @@ for i in $(seq 1 "$MAX"); do
 
   # A traceback (missing playwright, unreadable config, hand-edited config with a
   # bad key) matches neither pattern below, so without this the same failing
-  # command reruns $MAX times and scrolls the real error off screen.
-  if [ "$rc" -ne 0 ]; then
-    echo "capture.py exited with status $rc — stopping rather than retrying a hard failure."
+  # command reruns $MAX times and scrolls the real error off screen. Requiring
+  # no progress as well keeps the resume path intact: Chromium being OOM-killed
+  # part way through a round is exactly what the next round is for.
+  if [ "$rc" -ne 0 ] && ! echo "$OUT" | grep -q "^OK"; then
+    echo "capture.py exited with status $rc without capturing anything — stopping"
+    echo "rather than retrying a hard failure."
     exit 1
   fi
 
