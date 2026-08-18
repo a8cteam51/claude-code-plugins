@@ -21,6 +21,7 @@ Add the marketplace once, then install whichever plugins you need:
 | [figma-extract](#figma-extract) | Pull images and design context out of the current Figma selection | `/figma-extract:extract` |
 | [page-annotator](#page-annotator) | Annotate a page in Chrome and file each note as a GitHub issue with a screenshot | `/page-annotator:annotate` |
 | [poseidon-local](#poseidon-local) | Run the Poseidon plan/implement agents locally instead of via GitHub Actions | `/poseidon-plan`, `/poseidon-implement` |
+| [site-launch-comparison](#site-launch-comparison) | Screenshot two versions of a site and build a side-by-side before/after report | Natural language |
 
 ## plugin-review
 
@@ -322,6 +323,49 @@ Run the [Poseidon](https://github.com/a8cteam51/poseidon-actions) **plan** and *
 
 # Implement the approved plan, from inside a clone of the repo
 /poseidon-implement 45
+```
+
+## site-launch-comparison
+
+Capture full-page **before/after screenshots of two versions of a website** and build a self-contained, side-by-side HTML report you can open, scroll, and hand to a client. Built for relaunches — re-themes, redesigns, replatforms — and equally useful for routine staging-vs-production design QA. Stack-agnostic: WordPress/WooCommerce, a static site, or anything else serving HTML.
+
+**What's included:**
+
+- **site-launch-comparison skill** - Natural-language trigger for phrases like "compare our staging and production sites" or "screenshot the before and after"
+- **scripts/setup_browser.sh** - Cross-platform headless Chromium install; falls back to unpacking Chromium's shared libraries into a local prefix when there's no root
+- **scripts/discover_pages.py** - Intersects both sites' sitemaps and nav, keeps only URLs that return 200 on both, and ranks them so you get one of each template type
+- **scripts/capture.py / capture_all.sh** - Resumable full-page capture at desktop and mobile viewports
+- **scripts/build_report.py** - Assembles the side-by-side HTML report
+- **references/troubleshooting.md** - Auth, bot blocks, mismatched URLs, output size
+
+**What it does:**
+
+- Proposes a page list for you to approve before spending time capturing anything
+- Captures each page full-height at 1440px and 390px, with a viewport toggle in the report
+- Waits out "Checking your browser" bot-check interstitials and validates page height before saving, so a challenge page never gets shipped as a screenshot
+- Suppresses cookie banners, chat widgets and newsletter modals, and pre-scrolls each page so lazy-loaded images actually render
+- Merges pages served at several URLs into one row (`/shop/` and `/products/`, `/cart/` and `/checkout/` when empty)
+- Flags pages whose before and after are pixel-identical — usually a page the migration missed
+- Resumable and budget-limited, so a long capture survives agent shells that cap each call at a couple of minutes
+
+**Requirements:**
+
+- Python 3.9+ and `pip install playwright pillow` (the setup script does this)
+- macOS, Linux, or WSL. On a rootless Linux sandbox `apt-get` is used to fetch Chromium's libraries without installing them system-wide
+- Roughly 10–20 seconds per screenshot. A 14-page, two-viewport run takes about 15 minutes and produces 100–200 MB of PNGs, so keep the output out of git or pass `--no-full`
+
+```bash
+# Install site-launch-comparison
+/plugin install site-launch-comparison@a8cteam51-claude-code-plugins
+
+# Then trigger the skill in natural language:
+# > We just re-themed the client's store. Old site is at https://staging.example.com,
+# > new one is live at https://www.example.com. Grab before/after screenshots of the
+# > main pages and put them in one page I can send the client.
+
+# Or name the pages yourself and it skips discovery:
+# > Compare https://staging.example.com against https://www.example.com on
+# > /, /shop/, and /about/. Desktop only.
 ```
 
 ## License
