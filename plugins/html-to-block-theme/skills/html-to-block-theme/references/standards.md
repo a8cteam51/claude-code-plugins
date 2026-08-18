@@ -45,6 +45,8 @@ blocks/              # build-less custom blocks (one dir each)
 
 `style.css` must carry the theme header (Theme Name, Version, Text Domain, etc.). `templates/index.html` must exist for the theme to be valid.
 
+**`style.css` is not auto-enqueued on block themes** (observed on WP 7.0.1/Studio): `functions.php` must enqueue it explicitly — `wp_enqueue_style( '<theme-slug>-style', get_stylesheet_uri(), … )` plus `add_editor_style( 'style.css' )` so the editor matches. Root `style.css` is exempt from the one-file-per-block-type rule and is where responsive token overrides live (`theme-json-guide.md`); a separate `assets/css/tokens.css` is flagged STRAY by the audit.
+
 The theme must **not** ship `templates/front-page.html` — the standards audit fails a theme containing it. The homepage is a WordPress page set as the static front page; see the homepage rule in `mapping-guide.md`.
 
 ## WordPress / PHP

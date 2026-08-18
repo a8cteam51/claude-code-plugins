@@ -121,6 +121,15 @@ store( 'theme/<slug>', {
 
 For trivial behaviour with no shared state, a plain vanilla `view.js` (`document.querySelectorAll(...).addEventListener(...)`) registered as `viewScript` is fine. Do not enqueue the design's original JS file wholesale — reproduce the behaviour.
 
+## Dynamic content from meta (bindings before blocks)
+
+For meta-driven text, exhaust these before writing a custom block — they keep the content in core blocks:
+
+- **Block Bindings** connect a core block's attribute to post meta with no custom block at all. For *formatted* meta (a composed "year • publisher" line, a bespoke date form), register a custom source with `register_block_bindings_source()` and do the formatting in its callback.
+- A paragraph bound to empty meta still renders an empty `<p>` — pair each bound optional field with a scoped `:empty { display: none; }` rule in the relevant block CSS file.
+- Sitewide date formatting belongs in a `render_block_core/post-date` filter, not per-instance markup.
+- When a custom block *is* justified for meta-driven output, `window.wp.serverSideRender` (see `index.js` above) gives a live PHP-rendered editor preview with no build step.
+
 ## Registering from the theme
 
 The scaffold script ensures `functions.php` registers every block directory:

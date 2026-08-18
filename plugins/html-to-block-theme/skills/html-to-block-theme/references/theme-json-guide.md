@@ -72,6 +72,8 @@ Read the linked CSS (and CSS custom properties / `:root` variables — designers
 - **Disable defaults you replace** (`defaultPalette: false`, `defaultFontSizes: false`) so the editor only offers the design's tokens.
 - **Slugs are an API.** Once a block references `var:preset|color|primary`, renaming the slug breaks it. Choose semantic slugs (`primary`, `accent`, `surface`) up front.
 - **Slugs are kebab-cased when WordPress generates CSS.** A slug like `type-h1` expands to `--wp--preset--font-size--type-h-1` (and the class `has-type-h-1-font-size`) — WordPress inserts a dash at letter/digit boundaries. Hand-written CSS referencing the un-expanded name (`var(--wp--preset--font-size--type-h1)`) silently resolves to nothing. Choose slugs already in fully-expanded kebab form (`type-h-1`, `heading-1`) so `theme.json`, generated classes, and `var(--wp--preset--…)` references all match verbatim.
+- **Variable-font condensed cuts need no CSS.** Register a second `fontFamilies` entry whose `fontFace` declares `"fontStretch": "75%"` (or the design's width) against the **same** woff2 — selecting that family renders the condensed cut at rung 1. Confirmed with Hubot Sans and Mona Sans.
+- **Fontsource filenames:** the multi-axis variable file is `<family>-latin-standard-normal.woff2` — a `-latin-full-normal.woff2` URL does not exist, even when a design handoff links it. Swap `full` → `standard` before downloading.
 
 ## styles
 
@@ -98,6 +100,21 @@ Global element and block defaults so individual blocks stay clean:
 ```
 
 Put a styling rule at the **most global level that is still correct**: element styles (`styles.elements.button`) over per-block, per-block (`styles.blocks.core/heading`) over per-instance. Only push values onto an individual block instance when that instance genuinely differs.
+
+## Responsive token overrides
+
+`theme.json` has no media queries. When the design's tokens change per breakpoint (a tighter spacing or type scale on mobile), override the generated custom properties in the theme's root `style.css`:
+
+```css
+@media (max-width: 781px) {
+	:root:root {
+		--wp--preset--spacing--80: 2.5rem;
+	}
+}
+```
+
+- Scope as **`:root:root`** — the doubled selector beats the global-styles `:root` block regardless of stylesheet print order; a bare `:root` override loses unpredictably.
+- Root `style.css` is the home for these overrides — it is exempt from the one-file-per-block-type audit rule, while a separate `assets/css/tokens.css` is flagged STRAY. Note `style.css` must be explicitly enqueued on block themes (`standards.md`).
 
 ## Unifying across the file set
 

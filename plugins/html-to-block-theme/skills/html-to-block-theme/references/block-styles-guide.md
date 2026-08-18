@@ -58,6 +58,7 @@ add_action( 'init', function () {
 Notes:
 
 - `handle` must be unique — name it `theme-block-<block-name>` so files and handles map 1:1.
+- **Enqueue each file literally, not via a glob loop.** The standards audit statically greps `functions.php` for each CSS file's basename **including the `.css` suffix** (`core-button.css`); a glob-based `wp_enqueue_block_style()` loop works at runtime but fails the audit, as does an enqueue map whose values omit `.css`.
 - Always pass `path` alongside `src`. It is what lets WordPress scope loading to pages where the block is present (and inline the file when appropriate). Without it the conditional loading benefit is lost.
 - `register_block_style()` only registers the variation's name and label — it does **not** carry styling. The look comes entirely from the block type's CSS file. (This is why every variation here is CSS-backed; the declarative `/styles/*.json` block-style mechanism is not used.)
 - Pull values from `var(--wp--preset--…)` so the CSS stays token-driven; never hard-code a value that already exists as a `theme.json` token.
@@ -65,6 +66,7 @@ Notes:
 ## Variation rules
 
 - **Selector must start with `.is-style-<slug>`** (or the block wrapper + that class). Never style by the original design class name.
+- **Check the block emits a wrapper class before scoping to it.** A block whose `block.json` sets `"className": false` never outputs a `wp-block-<name>` class — `core/paragraph` is the big one: `.wp-block-paragraph.is-style-x` matches nothing. Scope those variations as element + class instead (`p.is-style-x`).
 - One concern per variation; one slug per recurring design class. Choose slugs from design intent (`elevated`, `ghost`, `inverted`, `bordered`), not the original class string.
 - Apply a variation in block markup with the class and the attribute:
 

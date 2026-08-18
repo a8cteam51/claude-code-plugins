@@ -1,7 +1,7 @@
 {
   "name": "html-to-block-theme",
   "version": "0.2.0",
-  "description": "Convert a set of static Claude Design HTML/CSS/JS files into a standards-driven WordPress block theme on a local Studio site, using theme.json, block styles, patterns, and build-less custom blocks, refined to match via Playwright.",
+  "description": "Convert a set of static Claude Design HTML/CSS/JS files into a standards-driven WordPress block theme on a local Studio site, using theme.json, block styles, patterns, and build-less custom blocks, refined to match in the browser via Claude in Chrome.",
   "author": {
     "name": "Automattic Special Projects"
   },
@@ -15,6 +15,6 @@
     "html",
     "claude-design",
     "studio",
-    "playwright"
+    "claude-in-chrome"
   ]
 }
