@@ -48,7 +48,9 @@ Verify: `wp plugin list` shows both active, and `curl -s -o /dev/null -w "%{http
 
 ## Phase 4 — create scoped credentials
 
-Use a **dedicated Editor-role user**, not an administrator. Editor covers everything the tools check (`publish_pages`, `edit_post`, `upload_files`) and keeps the blast radius to content — the Application Password authenticates against the entire REST API, not just the AI-Canvas tools, so role choice is the real permission boundary.
+Use a **dedicated Editor-role user**, not an administrator. Editor covers everything the tools check (`publish_pages`, `edit_post`, `upload_files`, and `unfiltered_html` — writing canvas content requires it) and keeps the blast radius to content — the Application Password authenticates against the entire REST API, not just the AI-Canvas tools, so role choice is the real permission boundary.
+
+Two setups where Editor is not enough, both by core's design for unfiltered HTML: **multisite** grants `unfiltered_html` to super admins only, and a site defining **`DISALLOW_UNFILTERED_HTML`** grants it to no one. In either case canvas writes will return "Permission denied" — surface that to the user rather than working around it.
 
 ```bash
 wp user create ai-canvas-agent agent@example.com --role=editor
