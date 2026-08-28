@@ -7,6 +7,17 @@ description: Build and edit landing pages on a WordPress site through the connec
 
 You are writing three files per page — `index.html`, `style.css`, `script.js` — that the AI-Canvas plugin renders between the site's theme header and footer. The MCP tools are the only way in; there is no other filesystem access, and that is by design.
 
+## MCP tools only — no exceptions
+
+The only route to canvas content is the connected server's MCP tools, named `mcp__<server>__ai-canvas-*`. Never call the site's `/wp-json/ai-canvas/mcp` endpoint yourself — not with `curl`, not with a helper script, not with an HTTP library, and never by extracting the stored Authorization header from the MCP registration. The endpoint does speak MCP over plain HTTP; that is an implementation detail, not an invitation, and a plugin hook denies such attempts anyway. If the tools cannot be reached, that is a connection problem for the user to fix — never a gap for you to bridge.
+
+**Preflight — before the first canvas operation:**
+
+1. **Confirm the tools are present.** Deferred tools (listed by name, loadable via ToolSearch) count as present — load them. If no `ai-canvas-*` MCP tools exist in the session at all, the server was registered or changed after this session started — MCP servers load at session start. Stop and ask the user to run `/mcp` (reconnect) or restart the session; that is the entire fix, and there is no workaround for you to attempt in the meantime. `claude mcp list` in Bash may be used to diagnose what is registered, never to reach content.
+2. **Match the server to the site.** If more than one server exposes `ai-canvas-*` tools (say, a local Studio site and a staging site), determine which tool prefix points at the site the user named before writing anything — `claude mcp list` shows each registration's URL. Writes go live immediately on whichever site the tool targets, so never guess; if the mapping is ambiguous, ask the user.
+
+The same rule holds mid-task: if a tool call starts failing with auth or connection errors, report it and ask the user to run `/mcp` — do not downgrade to HTTP to keep the task moving.
+
 ## Ground rules for the files
 
 **index.html is a fragment, not a document.** It is injected into an already-complete page. Never include `<!DOCTYPE>`, `<html>`, `<head>`, `<body>`, `<title>`, meta tags, or `<link>`/`<script>` tags for the canvas's own CSS/JS — `style.css` and `script.js` are enqueued automatically with cache-busting. Inline `<style>`/`<script>` blocks work but belong in the dedicated files.
@@ -34,7 +45,7 @@ Vibe-coded pages become performance black holes through a handful of repeatable 
 2. **Read before you write.** `read-file` each file you are about to change — a human or another agent may have touched it since you last looked. `write-file` replaces the whole file; there are no partial edits, so always write complete contents.
 3. **Undo is one tool call.** Every `write-file` retains the file's outgoing contents as its single previous version (an identical write doesn't consume the slot). `rollback-file` instantly swaps a file with that previous version, and calling it again swaps back. When the user wants the last change undone, roll back every file you changed in that step. The slot reaches back exactly one write per file — anything older you rebuild from the conversation, so before a multi-step redesign keep the starting `read-file` contents in hand.
 4. **Images:** `list-media` to reuse existing assets; `upload-media` (URL or base64 + filename, plus `title`/`alt`) for new ones. Both return the image's dimensions and generated sizes — pick the appropriate size per "Keep pages fast" and reference its URL verbatim, never a guessed one. Set `alt` — it is the only accessibility the image will get.
-5. **Verify like a user.** After writing, check the live URL — in the browser via Claude in Chrome when its tools are available (next section), otherwise `curl`. Do not declare success from a 200 on `write-file` alone.
+5. **Verify like a user.** After writing, check the live URL — in the browser via Claude in Chrome when its tools are available (next section), otherwise `curl` on the public page URL (never the MCP endpoint). Do not declare success from a 200 on `write-file` alone.
 
 ## Check your own work with Claude in Chrome
 
@@ -47,7 +58,7 @@ When the `mcp__claude-in-chrome__*` tools are available, use them to review ever
 - On layout-heavy pages, resize to a phone-width viewport for at least one check: look for horizontal overflow and absolutely-positioned decorations overlapping content — pixel-positioned decoration should be percentage/edge-pinned so it scales, or stack below content on small screens.
 - Fixes found this way go through the normal loop: `read-file` → `write-file` → reload → re-screenshot. Stop when the screenshot matches what the user asked for, and report what you verified.
 
-Without browser tooling, fall back to `curl` on the live URL — that proves the markup is served, not that it renders correctly; say which level of verification you did when reporting.
+Without browser tooling, fall back to `curl` on the live page URL — that proves the markup is served, not that it renders correctly; say which level of verification you did when reporting. This fallback is for viewing the public page only, never for reaching the MCP endpoint.
 
 ## Working with a non-technical user
 
@@ -68,6 +79,8 @@ Assume the user is non-technical unless they show otherwise. That changes how yo
 
 | Error | Meaning |
 |---|---|
+| No `ai-canvas-*` tools in the session | Server registered or changed mid-session — user runs `/mcp` or restarts the session (see "MCP tools only"); never bypass with direct HTTP |
+| Tool calls fail with auth/connection errors | Connection went stale or credentials were revoked — ask the user to run `/mcp`; if it persists, route them to the setup skill |
 | "Post N is not an AI canvas" | Wrong `post_id` — `list-canvases` and re-check; regular pages can be converted only by assigning the "AI Canvas" template in wp-admin |
 | "Permission denied" | The connected user lacks capability for that tool (Editor role covers every tool) |
 | "File exceeds the … limit" | 2 MB cap — move assets to the Media Library |

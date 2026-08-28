@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.0] - 2026-08-28
+
+### Added
+
+- `PreToolUse` guard hook (`hooks/hooks.json` + `scripts/guard-mcp-endpoint.py`) that denies direct HTTP access to any `/wp-json/ai-canvas/mcp` endpoint — authenticated/protocol-level Bash commands (curl with auth, headers, bodies, method overrides, `jsonrpc`/`tools/call` payloads, HTTP-library one-liners) and Write/Edit of helper scripts embedding the endpoint plus call/auth material. The setup skill's unauthenticated status probe, `claude mcp …` commands, and Markdown docs are explicitly allowed; the deny message routes the agent to the real fix (user runs `/mcp` or restarts the session). Fails open on unexpected input; requires only `python3`.
+
+### Changed
+
+- `vibe` skill gains a "MCP tools only — no exceptions" section born from a real session where the agent, finding a mid-session-registered server's tools absent, started rebuilding the connection out of curl and stored credentials. New rules: canvas content moves only through `mcp__<server>__ai-canvas-*` tools; missing tools mean the user must run `/mcp` or restart (there is no workaround to attempt); a preflight matches the tool prefix to the intended site when multiple ai-canvas servers are registered (`claude mcp list` shows each URL — diagnosis only, never a content route); mid-task auth/connection failures are reported, not downgraded to HTTP. The `curl` verification fallback is now explicitly scoped to the public page URL, and the failure-mode table covers missing tools and stale connections.
+- `setup` skill: B4 now pre-checks `claude mcp list` for existing ai-canvas registrations and resolves naming with the user (replace, or site-suffixed name) so server names map unambiguously to sites; after registration the Application Password / `Authorization` header never appears in conversation again; B5 states plainly that tools will not appear mid-session (expected, not a failure — user runs `/mcp` or restarts) and forbids bridging the gap over HTTP; A4 forbids hunting for missing inputs through other tooling instead of asking the user. Troubleshooting table covers both new symptoms.
+
 ## [1.2.0] - 2026-08-28
 
 ### Added

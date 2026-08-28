@@ -46,7 +46,7 @@ Two setups where Editor is not enough, both by core's design for unfiltered HTML
 
 ### A4. Collect the three inputs
 
-Ask for: **site URL**, **username**, **Application Password**. The Application Password is the only credential involved — never ask for, or accept, their WordPress login password; if they paste it, tell them to change it and use the Application Password instead. Reassure them in plain terms: the password is stored on this computer so the connection keeps working next time, and they can cut off access whenever they want by revoking it on the same profile screen where they created it.
+Ask for: **site URL**, **username**, **Application Password**. If any of the three is missing or garbled, ask the user for it — do not go looking for it yourself through other tooling (host APIs, wp-cli, team tools); the user just created these values and is the only authoritative source. The Application Password is the only credential involved — never ask for, or accept, their WordPress login password; if they paste it, tell them to change it and use the Application Password instead. Reassure them in plain terms: the password is stored on this computer so the connection keeps working next time, and they can cut off access whenever they want by revoking it on the same profile screen where they created it.
 
 ## Phase B — automated verification and registration (you act)
 
@@ -82,6 +82,8 @@ Check the `capabilities` map in the response for `publish_pages`, `upload_files`
 
 ### B4. Register the MCP server
 
+First check `claude mcp list` for existing registrations. If an ai-canvas server is already registered pointing at a **different** site (a local Studio site is common), do not silently invent a new name or overwrite it — tell the user what exists and decide together: replace it, or keep both with the new one named for its site (e.g. `ai-canvas-mysite`). End state must leave no ambiguity about which server name serves which site, because the vibe skill writes live to whichever server its tools point at.
+
 **Option A — direct HTTP (Claude Code):**
 
 ```bash
@@ -89,20 +91,23 @@ claude mcp add ai-canvas https://SITE/wp-json/ai-canvas/mcp \
   -s user -t http -H "Authorization: Basic $(echo -n 'USERNAME:APP_PASSWORD' | base64)"
 ```
 
-Run it yourself with the real values — do not hand a non-technical user a command to run.
+Run it yourself with the real values — do not hand a non-technical user a command to run. After this command, the credential never appears in conversation again: no echoing the Application Password or the `Authorization: Basic …` value in summaries, notes, or "here's how to re-add it later" snippets. If a registration is ever needed again, re-run this phase from the stored config or fresh credentials instead of quoting the secret.
 
 **Option B — stdio proxy** (Claude Desktop, or hosts that fail B2's header check): configure `@automattic/mcp-wordpress-remote` via `npx` in the client's MCP config with `WP_API_URL`, `WP_API_USERNAME`, `WP_API_PASSWORD`.
 
 ### B5. Verify end to end
 
-1. `claude mcp list` → `ai-canvas ✓ Connected`. New MCP servers load on session start — tell the user to restart the session if the tools aren't visible yet.
-2. In the new session, call the `list-canvases` tool: an empty list is success; an auth error means B2/B3 needs revisiting.
-3. Offer a smoke test: create a canvas titled "Hello Canvas", write a one-line `index.html`, open the returned URL. Remind the user this publishes a live page; permanently deleting the post afterwards also removes its files (trash alone does not).
+1. `claude mcp list` → `ai-canvas ✓ Connected`. That is the last direct check this skill makes against the site — B1–B3 were the only sanctioned HTTP calls, and they are done.
+2. **The tools will not appear in this session, and that is expected, not a failure.** MCP servers load at session start, so a server registered mid-session contributes no tools until the user runs `/mcp` (reconnect) or restarts the session. Tell them that plainly ("one last step: restart me, or type `/mcp`, and I'll be connected to your site") and stop there. Never fill the gap by calling the endpoint directly with the credentials — canvas operations go through the MCP tools only, ever; a plugin hook blocks the HTTP route regardless.
+3. In the new session, call the `list-canvases` tool: an empty list is success; an auth error means B2/B3 needs revisiting.
+4. Offer a smoke test: create a canvas titled "Hello Canvas", write a one-line `index.html`, open the returned URL. Remind the user this publishes a live page; permanently deleting the post afterwards also removes its files (trash alone does not).
 
 ## Troubleshooting quick reference
 
 | Symptom | Cause → fix |
 |---|---|
+| Tools not visible right after registration | Expected — servers load at session start; user runs `/mcp` or restarts the session. Never bypass with direct HTTP in the meantime |
+| Two ai-canvas registrations, unclear which site the tools hit | Re-run the B4 pre-check: `claude mcp list` shows each URL; rename/remove with the user until names map unambiguously to sites |
 | `claude mcp list` shows failed | Endpoint URL typo, or B2 header failure — re-run the curl checks |
 | Tools connect but writes return "Permission denied" | Missing `unfiltered_html` (role below Editor, multisite, or `DISALLOW_UNFILTERED_HTML`) — see B3 |
 | Tools missing from the list | mcp-adapter ≤ 0.4.x — user updates to ≥ 0.6.1 |

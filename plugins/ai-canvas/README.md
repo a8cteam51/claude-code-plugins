@@ -27,11 +27,21 @@ The Application Password is the only credential involved — stored in the local
 
 Page building with the guardrails that keep canvas pages healthy:
 
+- **MCP tools only, enforced** — canvas content moves exclusively through the connected server's MCP tools; if they're missing (a server registered mid-session doesn't load until `/mcp` or a restart), the skill stops and asks the user to reconnect rather than improvising, and a preflight matches the tool prefix to the intended site when multiple ai-canvas servers are registered
 - **Fragment and scoping ground rules** — `index.html` is injected into a complete page, so everything is wrapped in one distinctively-classed root and every selector is prefixed with it; canvas CSS never restyles the theme's header/footer
 - **Performance rules applied on the first write** — reference right-sized image variants (the media tools return dimensions and generated sizes), explicit `width`/`height` on every image, below-fold-only lazy-loading with an eager `fetchpriority="high"` hero, `preload="none"` + IntersectionObserver video, literal HTML over client-side templating, IntersectionObserver sentinels instead of layout-reading scroll handlers, `<button>`-based ARIA widgets
 - **Instant undo** — every `write-file` retains the previous version; `rollback-file` swaps it back live, and swapping again re-does
 - **Self-verification in the browser** — with Claude in Chrome available, the agent opens the live URL, screenshots the render between the theme header and footer, exercises interactions, reads the console, and checks a phone-width viewport for overflow before reporting; `curl` is the fallback, reported as markup-only verification
 - **Media Library workflow** — reuse existing assets via `list-media`, upload via URL or base64 with `alt` text, reference returned URLs verbatim
+
+## Safeguard hook
+
+The plugin ships a `PreToolUse` hook (`scripts/guard-mcp-endpoint.py`) that deterministically blocks the one dangerous fallback an agent might reach for when the MCP tools are unavailable: talking to the site's `/wp-json/ai-canvas/mcp` endpoint directly over HTTP. It denies:
+
+- Bash commands that hit an ai-canvas MCP endpoint with credentials, custom headers, request bodies, method overrides, or MCP protocol payloads (`jsonrpc`, `tools/call`) — including HTTP-library one-liners
+- Writing or editing helper scripts that embed the endpoint alongside anything that would call or authenticate against it
+
+It deliberately allows the setup skill's unauthenticated status probe, all `claude mcp …` registration/management commands, and Markdown files (docs quote these commands). The deny message tells the agent the actual fix: ask the user to run `/mcp` or restart the session so the tools load. The hook fails open on unexpected input and requires only `python3` on PATH.
 
 ## Requirements
 
