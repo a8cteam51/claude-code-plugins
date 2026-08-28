@@ -17,12 +17,23 @@ You are writing three files per page — `index.html`, `style.css`, `script.js` 
 
 **Limits:** 2 MB per file. Images do not belong inline as data URIs — put them in the Media Library.
 
+## Keep pages fast
+
+Vibe-coded pages become performance black holes through a handful of repeatable mistakes. Apply these on the first write, not as an afterthought:
+
+- **Right-size every image.** `upload-media` and `list-media` return each image's pixel dimensions and its generated smaller sizes — reference the smallest size that covers the display area. A full-size photo rendered into a 600px column is the single most common way these pages balloon.
+- **Every `<img>` gets explicit `width` and `height`** matching the referenced size, so the layout doesn't shift as images load.
+- **Lazy-load below the fold only.** `loading="lazy" decoding="async"` on below-fold images; the hero/LCP image stays eager with `fetchpriority="high"`. Don't lazy-load anything that could be visible on first paint on a tall screen.
+- **Video is opt-in.** `preload="none"` (with `muted playsinline` for ambient video), started and paused by an IntersectionObserver as it enters and leaves the viewport. Upload a modest encode sized ~1.5× its display area, never a camera original.
+- **JS ships literal HTML.** No frameworks and no client-side templating — the markup in `index.html` is what the browser renders. Never read layout in a scroll handler; sticky bars and reveal effects use IntersectionObserver sentinels.
+- **Interactive widgets are `<button>`-based** with the matching ARIA state (`aria-expanded` on accordions/tabs, one item open at a time), and you prove them working in the browser — a widget that renders can still be one that never toggles.
+
 ## Workflow
 
 1. **Find or create the page.** `list-canvases` first; only `create-canvas` (title, optional slug, `post_type` page|post) when the user wants a new page. It returns `post_id` (needed by every file tool) and the live `url`.
 2. **Read before you write.** `read-file` each file you are about to change — a human or another agent may have touched it since you last looked. `write-file` replaces the whole file; there are no partial edits, so always write complete contents.
 3. **Undo is one tool call.** Every `write-file` retains the file's outgoing contents as its single previous version (an identical write doesn't consume the slot). `rollback-file` instantly swaps a file with that previous version, and calling it again swaps back. When the user wants the last change undone, roll back every file you changed in that step. The slot reaches back exactly one write per file — anything older you rebuild from the conversation, so before a multi-step redesign keep the starting `read-file` contents in hand.
-4. **Images:** `list-media` to reuse existing assets; `upload-media` (URL or base64 + filename, plus `title`/`alt`) for new ones. Reference the returned attachment URL verbatim in the HTML/CSS. Set `alt` — it is the only accessibility the image will get.
+4. **Images:** `list-media` to reuse existing assets; `upload-media` (URL or base64 + filename, plus `title`/`alt`) for new ones. Both return the image's dimensions and generated sizes — pick the appropriate size per "Keep pages fast" and reference its URL verbatim, never a guessed one. Set `alt` — it is the only accessibility the image will get.
 5. **Verify like a user.** After writing, check the live URL — in the browser via Claude in Chrome when its tools are available (next section), otherwise `curl`. Do not declare success from a 200 on `write-file` alone.
 
 ## Check your own work with Claude in Chrome
@@ -33,7 +44,7 @@ When the `mcp__claude-in-chrome__*` tools are available, use them to review ever
 - Call `tabs_context_mcp` once at the start of the browser session, open the canvas `url` in a new tab, and reuse that tab across iterations — reload after each `write-file` (the plugin cache-busts CSS/JS, so a reload always shows the latest write).
 - Screenshot and actually look at it: the content sits between the theme header and footer, your styles are applied, and nothing from your CSS has restyled the theme's own header/footer — a changed site header means a scoping violation (see Ground rules), not a theme quirk.
 - If `script.js` does anything, exercise the interaction in the browser instead of assuming it ran, and check `read_console_messages` for errors.
-- On layout-heavy pages, resize to a phone-width viewport for at least one check.
+- On layout-heavy pages, resize to a phone-width viewport for at least one check: look for horizontal overflow and absolutely-positioned decorations overlapping content — pixel-positioned decoration should be percentage/edge-pinned so it scales, or stack below content on small screens.
 - Fixes found this way go through the normal loop: `read-file` → `write-file` → reload → re-screenshot. Stop when the screenshot matches what the user asked for, and report what you verified.
 
 Without browser tooling, fall back to `curl` on the live URL — that proves the markup is served, not that it renders correctly; say which level of verification you did when reporting.
