@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Guide a user through connecting Claude Code to a WordPress site running the AI-Canvas plugin — walk them through the wp-admin steps (plugin installs, connection user, Application Password), then automatically verify the site and register the MCP server once the URL and credentials exist. Use when the user asks to "set up AI-Canvas", "connect my site to AI-Canvas", "install AI-Canvas on <site>", "hook Claude up to my WordPress site for landing pages", "add the ai-canvas MCP server", or describes wanting an AI to build vibe-coded landing pages on their WordPress site and it is not connected yet.
+description: Guide a user through connecting Claude Code to a WordPress site running the AI-Canvas plugin — walk them through the wp-admin steps (plugin installs, connection user, Application Password), then automatically verify the site and register the MCP server once the URL and credentials exist. Use when the user asks to "set up AI-Canvas", "connect Claude to my website", "let Claude edit my site", "connect my site to AI-Canvas", "install AI-Canvas on <site>", "hook Claude up to my WordPress site for landing pages", "add the ai-canvas MCP server", or describes wanting an AI to build vibe-coded landing pages on their WordPress site and it is not connected yet.
 argument-hint: "[site-url]"
 ---
 
@@ -10,7 +10,7 @@ Goal: end state is `claude mcp list` showing an `ai-canvas` server connected to 
 
 **Role split — this is the core of the skill.** The user performs every step that changes their site (installing plugins, creating the user, creating the Application Password) with you explaining exactly what to do and waiting; you never run wp-cli against their site, install anything, or create users/credentials yourself, even if tooling for it is available. Once you hold the three inputs — site URL, username, Application Password — you automate everything that remains: verification, diagnosis, and MCP registration.
 
-AI-Canvas serves AI-written HTML/CSS/JS to visitors **unsanitized** (XSS by design). Before anything else, confirm the user understands this is for development/trusted sites, not sites with real users or customer data. If they hesitate, stop.
+**Assume a non-technical user from the start.** One step at a time, waiting after each; exact click paths using wp-admin's literal labels (the words on their screen are how they find things); credentials explained in plain terms ("an Application Password is a separate password created just for this connection — your normal login is untouched"); no jargon — "MCP", "endpoint", "curl", and HTTP status codes stay out of user-facing text, and every failed check is reported as what happened plus what to do next. If the user turns out to be technical, condense; never the reverse.
 
 ## Phase A — guided manual setup (the user acts, you instruct)
 
@@ -40,13 +40,13 @@ wp-admin path: Plugins → Add New Plugin → Upload Plugin → upload and activ
 Have the user:
 
 1. Create a dedicated user, Users → Add New User, role **Editor** — not an administrator account. Editor covers everything the tools check (`publish_pages`, `edit_post`, `upload_files`, `unfiltered_html`) while keeping the credential's blast radius to content.
-2. Open that user's profile → **Application Passwords** → name it (e.g. `claude-code`) → Add New → copy the generated password now (it is shown once).
+2. Open that user's profile → **Application Passwords** → name it (e.g. `claude-code`) → Add New → copy the generated password now (it is shown once). It looks like groups of letters separated by spaces — copy the whole thing, spaces included.
 
 Two setups where Editor is not enough, both by core's design for unfiltered HTML: **multisite** grants `unfiltered_html` to super admins only, and a site defining **`DISALLOW_UNFILTERED_HTML`** grants it to no one. Warn the user now if either applies — canvas writes will be refused later otherwise (Phase B3 verifies this concretely).
 
 ### A4. Collect the three inputs
 
-Ask for: **site URL**, **username**, **Application Password**. Note for the user: the password ends up stored in their local Claude Code MCP config — that is its purpose — but if they prefer it never appear in the chat transcript, offer the alternative of you preparing the final registration command with a placeholder for them to run themselves (the `!` prefix runs it in-session). Everything in Phase B except B4 works with the password supplied either way, since B1 is unauthenticated and they can run the B2/B3 curl themselves too.
+Ask for: **site URL**, **username**, **Application Password**. The Application Password is the only credential involved — never ask for, or accept, their WordPress login password; if they paste it, tell them to change it and use the Application Password instead. Reassure them in plain terms: the password is stored on this computer so the connection keeps working next time, and they can cut off access whenever they want by revoking it on the same profile screen where they created it.
 
 ## Phase B — automated verification and registration (you act)
 
@@ -70,7 +70,7 @@ curl -s -o /dev/null -w "%{http_code}" -u 'USERNAME:APP_PASSWORD' https://SITE/w
 (Spaces WordPress displays in the password are fine — validation strips them.)
 
 - **200** → proceed.
-- **401** → either wrong credentials, or the host strips the `Authorization` header before PHP sees it. Distinguish by having the user re-check the password first; if credentials are right, it's the header. On Apache the user adds to `.htaccess`: `SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1`. If the host config is untouchable, fall back to the stdio proxy (B4, option B).
+- **401** → either wrong credentials, or the host strips the `Authorization` header before PHP sees it. Distinguish by having the user re-check the password first; if credentials are right, it's the header. That is host configuration, not something to walk a non-technical user through: draft a short message they can send to their hosting support asking to pass the Authorization header through to PHP (on Apache it's one `.htaccess` line: `SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1`). Meanwhile, or if the host won't change it, fall back to the stdio proxy (B4, option B).
 
 ### B3. The user has the required capabilities
 
@@ -89,7 +89,7 @@ claude mcp add ai-canvas https://SITE/wp-json/ai-canvas/mcp \
   -s user -t http -H "Authorization: Basic $(echo -n 'USERNAME:APP_PASSWORD' | base64)"
 ```
 
-Run it with the real values if the user shared the password; otherwise hand them the command with a placeholder to run via `!`.
+Run it yourself with the real values — do not hand a non-technical user a command to run.
 
 **Option B — stdio proxy** (Claude Desktop, or hosts that fail B2's header check): configure `@automattic/mcp-wordpress-remote` via `npx` in the client's MCP config with `WP_API_URL`, `WP_API_USERNAME`, `WP_API_PASSWORD`.
 
