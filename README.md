@@ -21,6 +21,7 @@ Add the marketplace once, then install whichever plugins you need:
 | [figma-extract](#figma-extract) | Pull images and design context out of the current Figma selection | `/figma-extract:extract` |
 | [page-annotator](#page-annotator) | Annotate a page in Chrome and file each note as a GitHub issue with a screenshot | `/page-annotator:annotate` |
 | [poseidon-local](#poseidon-local) | Run the Poseidon plan/implement agents locally instead of via GitHub Actions | `/poseidon-plan`, `/poseidon-implement` |
+| [ai-canvas](#ai-canvas) | Connect to a site running the AI-Canvas WordPress plugin and vibe-code landing pages through its MCP file tools | Natural language |
 
 ## plugin-review
 
@@ -322,6 +323,40 @@ Run the [Poseidon](https://github.com/a8cteam51/poseidon-actions) **plan** and *
 
 # Implement the approved plan, from inside a clone of the repo
 /poseidon-implement 45
+```
+
+## ai-canvas
+
+Set up and drive the [AI-Canvas](https://github.com/a8cteam51/ai-canvas) WordPress plugin: connect Claude Code to a site's `ai-canvas` MCP endpoint once, then build vibe-coded landing pages through per-page HTML/CSS/JS file tools. Each canvas is a normal WordPress page whose body is a file trio the plugin renders between the theme header and footer (or on a fully blank template); writes are live immediately, every write keeps the file's previous version for one-call undo, and the agent verifies its own work in the browser. Both skills are written for non-technical users.
+
+**What's included:**
+
+- **setup skill** - Guided connection with a strict role split: the user performs every site-changing step in wp-admin (plugin installs, dedicated Editor user, Application Password) with beginner-level click-path instructions; Claude then automates verification — endpoint check, `Authorization`-header passthrough, capability check including `unfiltered_html` — and registers the MCP server via `claude mcp add`, finishing with an end-to-end smoke test
+- **vibe skill** - Page building against the seven MCP tools: fragment/scoping ground rules so canvas CSS never bleeds into the theme, performance rules applied on the first write (right-sized image variants, explicit dimensions, fold-aware lazy-loading, IntersectionObserver over scroll handlers, literal HTML over client-side templating), instant undo via `rollback-file`, a Claude-in-Chrome verification loop, and plain-language reporting (link + screenshot, never file talk)
+
+**What it does:**
+
+- Finds or creates canvas pages (`theme` or `blank` template), reads before writing, and writes complete files — the WordPress plugin retains each file's previous version so "undo that" is a single swap call
+- Uploads and reuses Media Library assets; the media tools return image dimensions and generated sizes so pages reference right-sized variants instead of full-size originals
+- Verifies like a user: opens the live URL in Chrome, screenshots the render, exercises interactions, reads the console, and checks a phone-width viewport for overflow before reporting (`curl` fallback, reported as markup-only verification)
+- Translates every error into plain language and routes fixable setup problems (missing capabilities, header stripping) back through the setup skill or the host's support
+
+**Requirements:**
+
+- A WordPress site with **6.9+**, a **block theme**, and HTTPS (local Studio sites excepted)
+- [AI-Canvas](https://github.com/a8cteam51/ai-canvas) WordPress plugin **≥ 0.2.0** and [WordPress MCP Adapter](https://github.com/WordPress/mcp-adapter) **≥ 0.6.1** on the site — the setup skill walks the user through installing both
+- Optional: [Claude in Chrome](https://claude.com/chrome) for visual self-verification
+
+```bash
+# Install ai-canvas
+/plugin install ai-canvas@a8cteam51-claude-code-plugins
+
+# Connect a site (guided, one-time)
+# > set up AI-Canvas on https://example.com
+
+# Then build in natural language
+# > build me a landing page for our spring launch
+# > undo that change
 ```
 
 ## License

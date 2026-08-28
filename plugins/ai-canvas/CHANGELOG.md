@@ -2,6 +2,10 @@
 
 ## [1.2.0] - 2026-08-28
 
+### Added
+
+- Plugin README covering both skills, the non-technical-user posture, and site requirements; ai-canvas section added to the marketplace README.
+
 ### Changed
 
 - `vibe` skill now directs the agent to check its own work with Claude in Chrome when the browser tools are available: open the canvas URL in a dedicated tab, screenshot and inspect the render between the theme header/footer (catching CSS scoping violations), exercise `script.js` interactions and read the console for errors, do a phone-width check on layout-heavy pages, and iterate read → write → reload → re-screenshot. `curl` remains the fallback, reported as markup-only verification.
