@@ -156,6 +156,24 @@
         "./skills/poseidon-plan",
         "./skills/poseidon-implement"
       ]
+    },
+    {
+      "name": "ai-canvas",
+      "source": "./plugins/ai-canvas",
+      "description": "Set up and drive the AI-Canvas WordPress plugin: connect Claude Code to a site's ai-canvas MCP endpoint (plugin installs, scoped Application Password, host checks), then build vibe-coded landing pages through its per-page HTML/CSS/JS file tools and Media Library access.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Automattic Special Projects"
+      },
+      "repository": "https://github.com/a8cteam51/claude-code-plugins",
+      "license": "MIT",
+      "keywords": ["wordpress", "ai-canvas", "mcp", "landing-page", "vibe-coding", "abilities-api", "application-passwords", "block-theme"],
+      "category": "development-tools",
+      "strict": true,
+      "skills": [
+        "./skills/setup",
+        "./skills/vibe"
+      ]
     }
   ]
 }
