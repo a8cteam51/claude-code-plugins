@@ -160,8 +160,8 @@
     {
       "name": "ai-canvas",
       "source": "./plugins/ai-canvas",
-      "description": "Set up and drive the AI-Canvas WordPress plugin: connect Claude Code to a site's ai-canvas MCP endpoint (plugin installs, scoped Application Password, host checks), then build vibe-coded landing pages through its per-page HTML/CSS/JS file tools and Media Library access.",
-      "version": "1.0.0",
+      "description": "Set up and drive the AI-Canvas WordPress plugin: guide a user through connecting Claude Code to a site's ai-canvas MCP endpoint (plugin installs, scoped Application Password, automated host checks and registration), then build vibe-coded landing pages through its per-page HTML/CSS/JS file tools and Media Library access.",
+      "version": "1.1.0",
       "author": {
         "name": "Automattic Special Projects"
       },
