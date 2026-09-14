@@ -1,0 +1,23 @@
+{
+  "name": "site-launch-comparison",
+  "version": "1.0.0",
+  "description": "Capture full-page before/after screenshots of two versions of a website and build a self-contained side-by-side HTML comparison report. Built for re-themes, redesigns and replatforms, and for routine staging-vs-production design QA. Handles bot-check interstitials, cookie banners, lazy-loaded images, and agent shell time limits.",
+  "author": {
+    "name": "Automattic Special Projects"
+  },
+  "repository": "https://github.com/a8cteam51/claude-code-plugins",
+  "license": "MIT",
+  "keywords": [
+    "before-after",
+    "design-qa",
+    "migration",
+    "playwright",
+    "redesign",
+    "relaunch",
+    "screenshots",
+    "site-launch",
+    "staging",
+    "visual-regression",
+    "wordpress"
+  ]
+}
