@@ -1,116 +1,104 @@
 ---
 name: setup
-description: Guide a user through connecting Claude Code to a WordPress site running the AI-Canvas plugin — walk them through the wp-admin steps (plugin installs, connection user, Application Password), then automatically verify the site and register the MCP server once the URL and credentials exist. Use when the user asks to "set up AI-Canvas", "connect Claude to my website", "let Claude edit my site", "connect my site to AI-Canvas", "install AI-Canvas on <site>", "hook Claude up to my WordPress site for landing pages", "add the ai-canvas MCP server", or describes wanting an AI to build vibe-coded landing pages on their WordPress site and it is not connected yet.
+description: Guide a beginner through connecting Claude Code to their WordPress site so it can build pages and posts — walk them through wp-admin (install the visual HTML editor plugin, create a connection user, create an Application Password), then verify the connection and save the credentials automatically. Use when the user asks to "set up AI-Canvas", "connect Claude to my website", "let Claude edit my site", "connect my WordPress site", "add my site", "install AI-Canvas on <site>", or wants an AI to build pages on their WordPress site and no site is connected yet, or when the vibe skill reports that no site is set up.
 argument-hint: "[site-url]"
 ---
 
-# Set up AI-Canvas on a WordPress site
+# Connect a WordPress site
 
-Goal: end state is `claude mcp list` showing an `ai-canvas` server connected to the user's site.
+End state: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wp.sh" sites` lists the user's site, and `wp.sh me <site>` reports `missing: none`.
 
-**Role split — this is the core of the skill.** The user performs every step that changes their site (installing plugins, creating the user, creating the Application Password) with you explaining exactly what to do and waiting; you never run wp-cli against their site, install anything, or create users/credentials yourself, even if tooling for it is available. Once you hold the three inputs — site URL, username, Application Password — you automate everything that remains: verification, diagnosis, and MCP registration.
+The script needs only `bash` and `curl`, which macOS, Linux, and Git Bash on Windows all include. Nothing else has to be installed on the user's computer.
 
-**Assume a non-technical user from the start.** One step at a time, waiting after each; exact click paths using wp-admin's literal labels (the words on their screen are how they find things); credentials explained in plain terms ("an Application Password is a separate password created just for this connection — your normal login is untouched"); no jargon — "MCP", "endpoint", "curl", and HTTP status codes stay out of user-facing text, and every failed check is reported as what happened plus what to do next. If the user turns out to be technical, condense; never the reverse.
+**Role split.** The user does everything that changes their site (installing a plugin, creating a user, creating an Application Password) with you telling them exactly what to click and waiting. You never install anything, create users, or make credentials yourself, even if other tools could. Once you hold the three inputs — site address, username, Application Password — you do everything else: verification and saving the connection.
 
-## Phase A — guided manual setup (the user acts, you instruct)
+**Assume a beginner.** One step at a time, wait for confirmation after each. Use the exact words wp-admin shows on screen. Explain what an Application Password is in plain terms ("a separate password made just for this connection — your normal login is untouched, and you can switch it off any time"). Keep "REST", "API", "curl", "JSON", and HTTP codes out of user-facing text. Every failed check is reported as what happened plus what to do next. If the user turns out to be technical, condense; never the reverse.
 
-Present each step, then wait for the user to confirm before moving on. Adapt the instructions if they mention having wp-cli/SSH — give them commands to run themselves, never run the commands for them.
+## Phase A — guided manual steps (the user acts)
 
-### A1. Confirm the site qualifies
+### A1. Check the site qualifies
 
-Ask the user to verify, telling them where to look:
+Ask the user to check, telling them where to look:
 
-- **WordPress 6.9+** — wp-admin Dashboard → Updates shows the current version (or `wp core version` if they have shell).
-- **A block theme is active** — Appearance shows an **Editor** entry (block themes) rather than **Customize** (classic). All bundled default themes since Twenty Twenty-Two qualify.
-- **HTTPS** — Application Passwords are disabled over plain HTTP (local Studio sites excepted).
+- **Site address.** The address they type to reach their site, starting with `https://`. Application Passwords only work over `https://` (local test sites such as `http://localhost:…` are the exception).
+- **They can log in to wp-admin as an administrator.** They will need that to install a plugin and create a user.
+- **A block theme is active.** Appearance shows **Editor** (block theme) rather than **Customize** (classic theme). Required: the page templates this plugin creates only exist on block themes. If the theme is classic, stop and explain that the site needs a block theme first (all default WordPress themes since Twenty Twenty-Two qualify).
 
-If any check fails, stop and explain what to change first — the plugin does not degrade gracefully on classic themes or older WordPress.
+### A2. Install the visual HTML editor plugin
 
-### A2. Install the two WordPress plugins
+This plugin lets the user edit text and pictures on the pages you build by clicking on them in wp-admin, and it is what makes full-width sections possible.
 
-Neither is on WordPress.org — point the user at the release zips, not the plugin directory search:
+Have them go to **Plugins → Add New Plugin**, search for **Jamie's Visual HTML Editor**, click **Install Now**, then **Activate**. Plugin page for reference: https://wordpress.org/plugins/jamies-visual-html-editor/
 
-1. **MCP Adapter** (must be ≥ 0.6.1): `https://github.com/WordPress/mcp-adapter/releases/latest/download/mcp-adapter.zip`
-2. **AI-Canvas**: the latest zip from the a8cteam51/ai-canvas releases page. If there is no release or the link 404s, ask the user where their copy of the plugin lives rather than guessing.
-
-wp-admin path: Plugins → Add New Plugin → Upload Plugin → upload and activate **mcp-adapter first**, then ai-canvas. (AI-Canvas declares `Requires Plugins: mcp-adapter`, so activating it first fails with a clear message — that error means "activate mcp-adapter first", not a broken install.)
+Do not proceed past this step on the user's word alone; A2 is verified in B5 on the first page you build.
 
 ### A3. Create the connection user and Application Password
 
-Have the user:
+1. **Users → Add New User.** Username something like `claude`, any email they control, role **Administrator**. Administrator is needed because the plugin creates two page templates on the site (one with the site header and footer, one completely blank), and only administrators can manage templates. Say this plainly, and add the safeguard: the Application Password created next is the only thing this computer holds, and clicking **Revoke** on it later cuts the access off completely.
+2. **Open that user's profile** (Users → All Users → click the name) → scroll to **Application Passwords** → in **New Application Password Name** type `claude-code` → click **Add New Application Password**. Copy the password shown — it appears once. It looks like groups of letters and numbers separated by spaces; copy the whole thing, spaces included.
 
-1. Create a dedicated user, Users → Add New User, role **Editor** — not an administrator account. Editor covers everything the tools check (`publish_pages`, `edit_post`, `upload_files`, `unfiltered_html`) while keeping the credential's blast radius to content.
-2. Open that user's profile → **Application Passwords** → name it (e.g. `claude-code`) → Add New → copy the generated password now (it is shown once). It looks like groups of letters separated by spaces — copy the whole thing, spaces included.
+If the **Application Passwords** section is missing from the profile: the site is on plain `http://` (see A1), or a security plugin has switched them off. Ask which security plugins are active and point them to that plugin's settings for "Application Passwords" or "REST API".
 
-Two setups where Editor is not enough, both by core's design for unfiltered HTML: **multisite** grants `unfiltered_html` to super admins only, and a site defining **`DISALLOW_UNFILTERED_HTML`** grants it to no one. Warn the user now if either applies — canvas writes will be refused later otherwise (Phase B3 verifies this concretely).
+Two setups where even an administrator cannot publish the HTML blocks this plugin writes: **multisite networks** (only network admins can) and sites with **`DISALLOW_UNFILTERED_HTML`** set. B2 detects both. Do not attempt a workaround; explain that the site's configuration blocks it and who can change that (the network admin or whoever hosts the site).
 
 ### A4. Collect the three inputs
 
-Ask for: **site URL**, **username**, **Application Password**. If any of the three is missing or garbled, ask the user for it — do not go looking for it yourself through other tooling (host APIs, wp-cli, team tools); the user just created these values and is the only authoritative source. The Application Password is the only credential involved — never ask for, or accept, their WordPress login password; if they paste it, tell them to change it and use the Application Password instead. Reassure them in plain terms: the password is stored on this computer so the connection keeps working next time, and they can cut off access whenever they want by revoking it on the same profile screen where they created it.
+Ask for **site address**, **username**, and **Application Password**. If any is missing or garbled, ask again — never go looking for them through other tools. Never accept the user's normal WordPress login password; if they paste it, tell them to change it and create an Application Password instead.
 
-## Phase B — automated verification and registration (you act)
+Reassure them: the Application Password is saved in a private file on this computer so the connection keeps working next time, and they can cut it off any time by clicking **Revoke** next to it on the same profile screen.
 
-Run these yourself; report each result as you go. Stop at the first failure, explain the fix (which may be another manual step for the user), and re-run.
+## Phase B — automated verification (you act)
 
-### B1. Endpoint exists (no auth needed)
+Run these yourself and report each result in plain language. Stop at the first failure, explain the fix, and re-run.
 
-```bash
-curl -s -o /dev/null -w "%{http_code}" https://SITE/wp-json/ai-canvas/mcp
-```
-
-- **401** → correct (endpoint live, wants auth). Proceed.
-- **404** → plugins inactive, or stale permalinks (user: Settings → Permalinks → Save, or `wp rewrite flush`).
-
-### B2. Credentials work and the host passes Authorization through
+### B1. Save the connection
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}" -u 'USERNAME:APP_PASSWORD' https://SITE/wp-json/wp/v2/users/me
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/wp.sh" add-site https://SITE USERNAME 'APP PASSWORD'
 ```
 
-(Spaces WordPress displays in the password are fine — validation strips them.)
+This writes a private file under `~/.claude/ai-canvas/sites/` (readable only by the user's account). After this command the password never appears in conversation again — not in summaries, not in "how to re-add it later" snippets. If it is ever needed again, re-run this phase with fresh credentials.
 
-- **200** → proceed.
-- **401** → either wrong credentials, or the host strips the `Authorization` header before PHP sees it. Distinguish by having the user re-check the password first; if credentials are right, it's the header. That is host configuration, not something to walk a non-technical user through: draft a short message they can send to their hosting support asking to pass the Authorization header through to PHP (on Apache it's one `.htaccess` line: `SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1`). Meanwhile, or if the host won't change it, fall back to the stdio proxy (B4, option B).
+If `sites` already lists this host, `add-site` replaces that entry. If it lists a different site, keep both; the vibe skill asks which site to use when more than one is saved.
 
-### B3. The user has the required capabilities
+### B2. Credentials and permissions
 
 ```bash
-curl -s -u 'USERNAME:APP_PASSWORD' 'https://SITE/wp-json/wp/v2/users/me?context=edit'
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/wp.sh" me SITE
 ```
 
-Check the `capabilities` map in the response for `publish_pages`, `upload_files`, and `unfiltered_html`. A missing `unfiltered_html` with an Editor role means multisite or `DISALLOW_UNFILTERED_HTML` (see A3) — surface it now, since canvas writes would return "Permission denied" later; do not attempt a workaround.
+- **Reports the user and `missing: none`** → proceed.
+- **"rejected the username or Application Password"** → have the user re-check the password first (a fresh one is fastest: Revoke, then Add New). If a correct password still fails, the hosting company is dropping the login information before WordPress sees it. Draft a short message the user can send to their host's support: "Please allow the HTTP Authorization header to reach PHP for WordPress REST API requests." Non-technical users should not edit server files themselves.
+- **`missing` contains `unfiltered_html`** → multisite or `DISALLOW_UNFILTERED_HTML` (A3). Pages would save with the styling and interactivity stripped out. Explain and stop; this needs the site owner or host.
+- **`missing` contains `edit_theme_options`** → the role is below Administrator, so templates cannot be created. Have them change it (Users → click the name → Role → Administrator → Update User).
+- **`missing` contains `publish_pages`/`publish_posts`/`upload_files`** → the role is below Administrator; same fix.
+- **Could not reach the site** → typo in the address, or the site blocks automated requests (some security plugins do). Check the address in a browser first.
 
-### B4. Register the MCP server
-
-First check `claude mcp list` for existing registrations. If an ai-canvas server is already registered pointing at a **different** site (a local Studio site is common), do not silently invent a new name or overwrite it — tell the user what exists and decide together: replace it, or keep both with the new one named for its site (e.g. `ai-canvas-mysite`). End state must leave no ambiguity about which server name serves which site, because the vibe skill writes live to whichever server its tools point at.
-
-**Option A — direct HTTP (Claude Code):**
+### B3. Create the two page templates
 
 ```bash
-claude mcp add ai-canvas https://SITE/wp-json/ai-canvas/mcp \
-  -s user -t http -H "Authorization: Basic $(echo -n 'USERNAME:APP_PASSWORD' | base64)"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/wp.sh" template-ensure SITE
 ```
 
-Run it yourself with the real values — do not hand a non-technical user a command to run. After this command, the credential never appears in conversation again: no echoing the Application Password or the `Authorization: Basic …` value in summaries, notes, or "here's how to re-add it later" snippets. If a registration is ever needed again, re-run this phase from the stored config or fresh credentials instead of quoting the secret.
+This reads the theme's own page template, copies whichever header and footer parts it uses, and creates two templates on the site: **AI Canvas (with header and footer)** and **AI Canvas (blank)**. It is safe to run again; existing templates are left alone. The owner sees them in the Site Editor under Templates and in the page editor's Template dropdown. Report `header_parts: 0` or `footer_parts: 0` to the user: the theme's page template has no such part, so the framed template will match the theme in that respect.
 
-**Option B — stdio proxy** (Claude Desktop, or hosts that fail B2's header check): configure `@automattic/mcp-wordpress-remote` via `npx` in the client's MCP config with `WP_API_URL`, `WP_API_USERNAME`, `WP_API_PASSWORD`.
+### B4. Confirm the browser tool, if present
 
-### B5. Verify end to end
+If `mcp__claude-in-chrome__*` tools are available in this session, tell the user you will be able to look at pages in their browser to check your work. If not, mention that installing Claude in Chrome is optional and lets you check pages visually; otherwise you verify that the page is served correctly.
 
-1. `claude mcp list` → `ai-canvas ✓ Connected`. That is the last direct check this skill makes against the site — B1–B3 were the only sanctioned HTTP calls, and they are done.
-2. **The tools will not appear in this session, and that is expected, not a failure.** MCP servers load at session start, so a server registered mid-session contributes no tools until the user runs `/mcp` (reconnect) or restarts the session. Tell them that plainly ("one last step: restart me, or type `/mcp`, and I'll be connected to your site") and stop there. Never fill the gap by calling the endpoint directly with the credentials — canvas operations go through the MCP tools only, ever; a plugin hook blocks the HTTP route regardless.
-3. In the new session, call the `list-canvases` tool: an empty list is success; an auth error means B2/B3 needs revisiting.
-4. Offer a smoke test: create a canvas titled "Hello Canvas", write a one-line `index.html`, open the returned URL. Remind the user this publishes a live page; permanently deleting the post afterwards also removes its files (trash alone does not).
+### B5. First page
 
-## Troubleshooting quick reference
+Offer a smoke test now: build a small page titled "Hello" through the vibe skill. It publishes a live page (unlinked from menus, so visitors will not find it unless told the address). The vibe skill's `check` step reports whether the full-width wrapper is present; if not, the plugin from A2 is not active — go back to A2. Trash the test page afterwards if the user wants.
+
+## Troubleshooting
 
 | Symptom | Cause → fix |
 |---|---|
-| Tools not visible right after registration | Expected — servers load at session start; user runs `/mcp` or restarts the session. Never bypass with direct HTTP in the meantime |
-| Two ai-canvas registrations, unclear which site the tools hit | Re-run the B4 pre-check: `claude mcp list` shows each URL; rename/remove with the user until names map unambiguously to sites |
-| `claude mcp list` shows failed | Endpoint URL typo, or B2 header failure — re-run the curl checks |
-| Tools connect but writes return "Permission denied" | Missing `unfiltered_html` (role below Editor, multisite, or `DISALLOW_UNFILTERED_HTML`) — see B3 |
-| Tools missing from the list | mcp-adapter ≤ 0.4.x — user updates to ≥ 0.6.1 |
-| `/wp-json/ai-canvas/mcp` 404s | Plugins inactive, or stale permalinks → Settings → Permalinks → Save |
-| MCP `initialize` returns 403 | Connection user below Contributor — the transport requires `edit_posts`; use an Editor |
-| Page renders without header/footer styling | Theme is classic, not block — A1 was skipped |
+| `add-site` succeeds but `me` reports rejected credentials | Wrong password, or the host strips the Authorization header — see B2 |
+| `me` works but `missing` lists `unfiltered_html` | Multisite or `DISALLOW_UNFILTERED_HTML` — site owner or host must change it |
+| Application Passwords section absent from the profile | Site is on `http://`, or a security plugin disabled them |
+| Page publishes but `check` shows no `alignfull_wrapper` | Jamie's Visual HTML Editor not active (A2) |
+| `template-ensure` says the connection user cannot manage templates | Role below Administrator — B2 |
+| `template-ensure` says the theme has no `page` template | Classic theme — A1 |
+| Page publishes but `script_was_escaped` is true | Connection user lacks `unfiltered_html` — multisite, or the constant above |
+| Two saved sites, unclear which to use | `wp.sh sites` shows both; name the site in each request, or `remove-site` the stale one |
