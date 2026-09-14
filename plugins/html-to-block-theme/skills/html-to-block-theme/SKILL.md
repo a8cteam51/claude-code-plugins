@@ -21,16 +21,16 @@ These will silently corrupt output if missed (inherited from the Studio environm
 1. **Use `studio wp ... --path=<site>`, never bare `wp`.** Studio sites use SQLite; the Studio-managed `wp` wrapper handles that connection. Bare `wp` from the host shell connects to nothing useful.
 2. **Studio's `wp` runs in a sandbox that cannot see the host `/tmp/`.** Any file PHP must read inside `studio wp eval-file` must live **inside the site directory**. This skill stages such files at `<site-path>/.h2bt/` and cleans them up.
 3. **`studio wp eval-file -` (stdin heredoc) can silently no-op** — exit 0, no output, database unchanged. Always pass a real file path and have the PHP echo a sentinel line the caller greps for. Trust nothing without the sentinel.
-4. **Build files serially — all of them, not just page-content writes.** Concurrent `wp_update_post`/`wp_insert_post` under SQLite trips Yoast indexable errors and corrupts results, and every builder also mutates shared theme files (`functions.php`, `theme.json`, block CSS) and refines against the same live site — a parallel builder would screenshot another's half-applied changes. So template-only files are serial too. One `section-builder` at a time.
+4. **Build files serially — all of them, not just page-content writes.** Concurrent `wp_update_post`/`wp_insert_post` under SQLite trips Yoast indexable errors and corrupts results, and every builder also mutates shared theme files (`functions.php`, `theme.json`, block CSS) and refines against the same live site — a parallel builder would screenshot another's half-applied changes. So template-only files are serial too. One `section-builder` at a time — and "no file writes for a while" is **not** a completion signal (builders go quiet for long stretches during browser refinement); wait for the agent's completion notification before dispatching the next.
 
 ## Tooling
 
-This skill uses two MCP servers plus the `studio` CLI.
+This skill uses two MCP tool sets plus the `studio` CLI.
 
-- **Playwright MCP** — bundled with this plugin via `.mcp.json` (runs `npx -y @playwright/mcp@latest`). Used to load the original HTML (served locally) and the WordPress output, screenshot both at matched viewports, and inspect DOM/computed styles. See `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/visual-refinement.md`.
+- **Claude in Chrome** — the Claude in Chrome browser extension's MCP tools (`mcp__claude-in-chrome__*`); the extension must be installed, connected to the session, and granted access to `localhost`/`127.0.0.1` sites. Used to load the original HTML (served locally) and the WordPress output in real Chrome tabs, screenshot both at matched viewports, and inspect DOM/computed styles. If the tools are deferred in-session, load the whole needed set in a **single** ToolSearch call. See `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/visual-refinement.md`.
 - **Studio MCP** — ships with the `studio` CLI; register once at user scope: `claude mcp add --scope user wordpress-studio -- studio mcp`. Relevant tools (confirm exact names in-session before relying on them — the validator has been renamed across Studio versions, e.g. earlier split `validate_html_blocks` / `validate_and_fix_blocks` tools):
   - `mcp__wordpress-studio__validate_blocks` — the combined validator: a static core/html policy check (policy: `mapping-guide.md`) followed by validation in the site's real block editor. Usage rules — argument forms, the two-call ceiling, what to do with rejects — live in the `section-builder` agent, which is what calls it.
-  - `mcp__wordpress-studio__take_screenshot` — fallback screenshotter if Playwright is unavailable.
+  - `mcp__wordpress-studio__take_screenshot` — fallback screenshotter for the WordPress side if the Claude in Chrome extension is unavailable.
   - `mcp__wordpress-studio__scaffold_theme` — scaffold a minimal block theme if the site has none.
 
 ## Preconditions to verify
@@ -42,7 +42,7 @@ Run these in parallel before any work. If any fails, stop and report — do not 
 3. **Site is running.** If stopped, `studio site start --path=<site-path>` and wait. If start fails, stop.
 4. **WP-CLI works.** `studio wp core is-installed --path=<site-path>` exits zero.
 5. **Theme scaffold present, and bind `<theme-dir>`.** Confirm the active theme is a block theme with at least `style.css`, `theme.json`, and `templates/index.html`. If absent, offer to scaffold via `mcp__wordpress-studio__scaffold_theme` and proceed only once it exists. Capture its absolute path once and reuse it as `<theme-dir>` for the rest of the run: `studio wp theme path <active-theme-slug> --dir --path=<site-path>` (or the scaffold tool's reported path).
-6. **MCP tools and subagents exposed.** Confirm the Playwright tools and the Studio validator (`validate_blocks`, or whatever name the installed Studio version exposes — see Tooling) are available in the session, and that the `html-to-block-theme:blueprint-analyzer` and `html-to-block-theme:section-builder` subagent types resolve (they ship with this plugin). If a subagent type is unavailable, fall back to dispatching a `general-purpose` subagent with the same instructions.
+6. **MCP tools and subagents exposed.** Confirm the Claude in Chrome browser tools (`mcp__claude-in-chrome__*` — if deferred, load them with one ToolSearch call) and the Studio validator (`validate_blocks`, or whatever name the installed Studio version exposes — see Tooling) are available in the session, and that the `html-to-block-theme:blueprint-analyzer` and `html-to-block-theme:section-builder` subagent types resolve (they ship with this plugin). If a subagent type is unavailable, fall back to dispatching a `general-purpose` subagent with the same instructions.
 7. **Design directory exists** and contains at least one `.html` file. Glob the linked assets so later phases know what to route.
 8. **Clean working dir, read prior lessons.** Create `<site-path>/.h2bt/` and remove leftover staged files from any prior aborted run — but keep `lessons.md` and read it if present: it holds lessons recorded by previous runs against this site and environment, and they apply to this run.
 
@@ -92,7 +92,7 @@ Process the files **one at a time** (serial — see quirk 4). For each file, dis
 - For core templates: writes `templates/*.html` / `parts/*.html`.
 - For shared-wrapper pages: creates/updates a WordPress page whose `post_content` is the block markup, assigned to the shared template, via the sentinel-verified `${CLAUDE_PLUGIN_ROOT}/scripts/write-page.sh`.
 - Validates the markup with the Studio validator (`validate_blocks` — policy check + editor validation, two-call ceiling).
-- Refines against the original in Playwright per `visual-refinement.md`: screenshot original vs WP output at matched viewports, compare per section, apply the ladder for mismatches, converge in ~3 rounds max, and record residual drift rather than looping. Ends with a `1900px` wide-desktop sanity check pass on the WordPress output.
+- Refines against the original in Chrome per `visual-refinement.md`: screenshot original vs WP output at matched viewports, compare per section, apply the ladder for mismatches, converge in ~3 rounds max, and record residual drift rather than looping. Ends with a `1900px` wide-desktop sanity check pass on the WordPress output.
 
 Collect each subagent's JSON result (target built, validation summary, drift list, custom CSS used, TODOs) before starting the next file.
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # serve-html.sh — serve a directory of static design files over HTTP so a real
-# browser (Playwright) can load them with relative CSS/JS/asset paths resolving.
+# browser (Claude in Chrome) can load them with relative CSS/JS/asset paths resolving.
 # Serving over HTTP (not file://) avoids broken relative URLs and CORS quirks.
 #
 # Start:  serve-html.sh --dir <design-dir>

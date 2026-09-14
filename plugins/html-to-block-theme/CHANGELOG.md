@@ -5,8 +5,20 @@
 ### Added
 - `scripts/write-page.sh` — wraps the whole sentinel-verified page write (stage markup inside the site dir, fill the `write-page-content.php.tmpl` placeholders, run `studio wp eval-file`, grep for `H2BT_OK`) in one command; its exit code is derived from the sentinel. Replaces the inline sed recipe in the `section-builder` agent.
 - Run lessons: the skill now reads `<site-path>/.h2bt/lessons.md` at the start of a run and appends corrections/confirmed approaches at the end, so lessons persist across runs (Fable 5 memory-system pattern).
+- Ported field-tested lessons from the first three full conversion runs (July 2026) into the reference guides:
+  - `mapping-guide.md`: `blockGap` accepts only preset form (raw custom vars silently fall back to 24px); attribute `minHeight` is un-overridable inline style; a **Layout traps** section (root/template-part/stacked-columns default-gap drift, constrained-layout clamping of oversized absolute children); **core/navigation notes** (navigation-link `className` styling, portable path-based active state, logo/CTA in the native mobile overlay); native `<details name>` accordion groups; a **Forms (Jetpack)** section (offline module availability on Studio, composed field blocks, the `is-style-default` label-suppression quirk).
+  - `theme-json-guide.md`: variable-font condensed cuts via a second `fontStretch` fontFamily; Fontsource `standard` (not `full`) multi-axis filenames; a **Responsive token overrides** section (`:root:root` in `style.css` beats global styles).
+  - `block-styles-guide.md`: the audit requires literal per-file enqueues incl. the `.css` suffix (no glob loops); variations for blocks with `supports.className: false` scope as `p.is-style-x`, not `.wp-block-paragraph.is-style-x`.
+  - `standards.md`: block themes don't auto-enqueue `style.css` — explicit `wp_enqueue_style()` + `add_editor_style()` required.
+  - `custom-blocks-guide.md`: **Dynamic content from meta** (Block Bindings custom sources, the empty-`<p>` trap, `render_block_core/post-date` filter, ServerSideRender preview).
+  - `visual-refinement.md`: lazy-image capture race (`document.images[].complete`); re-assert window size after navigation.
+  - Skill quirk 4: quiet file activity is not a section-builder completion signal — wait for the agent notification.
 
 ### Changed
+- Browser checks now use the **Claude in Chrome** extension's MCP tools (`mcp__claude-in-chrome__*`) instead of a bundled Playwright MCP:
+  - Removed the `.mcp.json` Playwright server; Node.js/`npx` is no longer a prerequisite — Chrome with the Claude in Chrome extension (connected, with `localhost`/`127.0.0.1` site permission) is, plus `python3` for `serve-html.sh`.
+  - Rewrote `visual-refinement.md` for the Chrome tools: two dedicated tabs in one shared window (a single `resize_window` matches both viewports), viewport-only screenshots (scroll each section into view; no full-page capture), `javascript_tool` for computed-style spot-checks, `read_console_messages` for `view.js` errors, and tab cleanup when a file is done.
+  - Updated the skill's Tooling/preconditions, the `section-builder` refine phase, the README, and the plugin/marketplace descriptions accordingly. The refine phase now drives the user's real browser, so tabs visibly open and close during a run.
 - Prompt-fit pass for Claude Fable 5:
   - Deduplicated rules across the skill, references, and agents — each rule (core/html policy, one-CSS-file-per-block, homepage rule, validation ceiling) now has one canonical statement with pointers elsewhere.
   - The blueprint review gate is explicit: present the blueprint, ask for approval, and end the turn (or proceed and flag it when the user asked for an unattended run).
@@ -14,7 +26,7 @@
   - `blueprint-analyzer` runs on Opus (`model: opus`) instead of pinning Sonnet — the blueprint is the build contract and warrants the stronger model.
 
 ### Fixed
-- Two leftover references to the old split validator names (`validate_html_blocks` / `validate_and_fix_blocks`) in the skill's precondition check and `mapping-guide.md` — a literal precondition check against those names would fail on current Studio versions.
+- Leftover references to the old split validator names (`validate_html_blocks` / `validate_and_fix_blocks`) in the skill's precondition check, `mapping-guide.md`, and the README — a literal precondition check against those names would fail on current Studio versions.
 - The homepage is never built as `templates/front-page.html`. It is now a WordPress page (block markup in `post_content`) set as the static front page through the Reading settings (`show_on_front=page`, `page_on_front`), assigned to the shared page template or a custom page template registered in `theme.json` `customTemplates`. Updated `mapping-guide.md` (new homepage rule), `standards.md`, the skill, and both subagents.
 - `standards-audit.sh` fails (`front_page=1`) when the theme ships `templates/front-page.html`.
 - Documented the **core/html policy** the Studio validator enforces (`mapping-guide.md`, `standards.md`, skill, `section-builder`): `core/html` is allowed only for bare inline SVG, third-party embed markup with no block equivalent, or a single script block; icon links are `core/social-links` with a block style variation for bespoke glyphs.

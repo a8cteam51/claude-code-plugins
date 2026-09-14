@@ -39,12 +39,13 @@ Never invent block attribute names. Use documented globals (`className`, `anchor
 Translate computed CSS to attributes, pulling values from `theme.json` presets wherever a preset exists (use the `var:preset|...` form so styles stay token-driven):
 
 - **padding / margin** → `style.spacing.padding` / `style.spacing.margin`. Prefer preset spacing: `"padding":{"top":"var:preset|spacing|40"}`.
-- **gap** → `style.spacing.blockGap` (and the block's `layout`).
+- **gap** → `style.spacing.blockGap` (and the block's `layout`). **blockGap accepts only the preset form** (`var:preset|spacing|40`) — the style engine rejects raw `var(--wp--custom--*)` strings and silently falls back to the 24px default. Raw custom-property vars are fine in padding/margin (serialized inline verbatim).
 - **background-color / color** → `backgroundColor`/`textColor` (named preset) or `style.color.background`/`style.color.text` (raw). Prefer named presets.
 - **background-image** → `core/cover` background, or `style.background.backgroundImage`.
 - **font-size / line-height / weight / letter-spacing** → `fontSize` (preset) or `style.typography.*`.
 - **font-family** → `fontFamily` (preset defined in `theme.json`).
 - **border / radius** → `style.border.*` (`width`, `color`, `radius`, `style`).
+- **min-height** → the `minHeight` dimension support renders as an **inline style no media query can override** — a height that changes per breakpoint (e.g. a 900px stage dropping to 640px on mobile) must live in the block's CSS file (rung 4), not the attribute.
 - **max-width container** → constrained `layout` + `contentSize`/`wideSize` in `theme.json`, not a CSS `max-width`.
 - **flex/grid alignment & direction** → the block's `layout` object (`justifyContent`, `orientation`, `flexWrap`, `minimumColumnWidth`).
 
@@ -57,6 +58,29 @@ If a declaration has no support and no preset path, escalate one rung — do not
 - **Two/three/four column row** → `core/columns`; set per-column `width` only when the design is asymmetric.
 - **Auto-fit card grid** → `core/group` `layout:{"type":"grid","minimumColumnWidth":"16rem"}`.
 - **Hero** → `core/cover` (background) with heading/paragraph/buttons inside.
+
+### Layout traps (defaults that fight the design)
+
+WordPress applies a default 24px flow gap wherever `blockGap` is unset; at page scale it shows up as ~25–35px of drift in the shared chrome. Handle these up front:
+
+- **Root layout:** theme.json root `blockGap` applies via `.wp-site-blocks > * + *`, inserting a gap between the header part, `main`, and the footer on every page. Zero it with `.wp-site-blocks > header.wp-block-template-part + *, .wp-site-blocks > * + footer.wp-block-template-part { margin-block-start: 0; }`.
+- **Template parts:** a part's root-level children each pick up `margin-block-start` from the default flow gap — zero margins on main/footer wrappers explicitly.
+- **Stacked columns:** `core/columns` stacked at ≤781px inherit a 24px vertical gap. Set `blockGap.top` explicitly — a literal px value when the design's mobile gap differs from the preset's mobile remap.
+- **Constrained-layout clamp:** a constrained parent clamps an oversized absolutely-positioned child (e.g. a decorative backdrop image wider than the content column) to content width, and the parent's `overflow: hidden` then crops it — give that child's figure `max-width: none`.
+
+### core/navigation notes
+
+- `core/navigation-link` accepts `className` — registered block styles render on the `<li>`, enabling overlay-only items and bespoke glyphs (e.g. a CSS-mask external-link arrow) without a custom block.
+- **Active state, portably:** core only sets `aria-current`/`current-menu-item` when the link carries a post `id` matching the queried object — which bakes site-specific IDs into the theme. Match on URL **path** instead via a `render_block_core/navigation-link` filter using `WP_HTML_Tag_Processor`; the active style then needs specificity above core's own nav-link colour rules.
+- **Logo/CTA in the mobile overlay:** nesting `core/site-logo`, fill spacers, and `core/buttons` *inside* `core/navigation` places them in the native mobile overlay for free — but the logo then disappears from the collapsed bar, so add a second compact-only site-logo (gated by an `is-style-*` visibility variation) outside the nav. Pinning the overlay CTA to the bottom needs `flex-grow` on `.wp-block-navigation__responsive-close` **and** `__responsive-dialog`, not just `__responsive-container-content`.
+
+## Forms (Jetpack)
+
+When the design includes a contact or newsletter form and Jetpack is available, `jetpack/contact-form` is the mapping (a one-field form covers newsletter signups):
+
+- On local Studio sites the `contact-form` module works offline; the `subscriptions` module cannot activate without a WordPress.com connection — do not map newsletter signups to subscription blocks locally.
+- Field blocks are **composed** (Jetpack Forms 16.x): a self-closing `<!-- wp:jetpack/field-email /-->` fails validation. The required shape is the field's wrapping `<div>` + `wp:jetpack/label` + `wp:jetpack/input` inner blocks.
+- Any non-default `is-style-*` on `jetpack/contact-form` suppresses field labels (16.0.1) — apply `"className":"is-style-default is-style-<custom>"` together.
 
 ## File classification: template vs part vs page vs pattern
 
@@ -90,7 +114,7 @@ This keeps the homepage editable in WordPress like every other page instead of h
 
 Static JS in the design (sliders, accordions, mobile menus, scroll effects) has no home in static block markup. Route it by rung:
 
-- **Core block already does it** (e.g. `core/navigation` mobile menu, `core/details` accordion) → use the core block; drop the bespoke JS.
+- **Core block already does it** (e.g. `core/navigation` mobile menu, `core/details` accordion) → use the core block; drop the bespoke JS. Native `<details name="group">` (same `name` on siblings) gives one-open-at-a-time accordion groups with zero JS — also usable inside a custom block's `render.php`.
 - **Needs custom behaviour** → a build-less custom block whose `view.js` (or the Interactivity API) reproduces it (see `custom-blocks-guide.md`). This is the home the user wants for "functionality beyond core."
 - **Purely decorative scroll/animation** → reproduce with CSS where cheap; otherwise drop it and note it in the report. Do not enqueue the original JS file wholesale.
 

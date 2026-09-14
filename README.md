@@ -21,6 +21,7 @@ Add the marketplace once, then install whichever plugins you need:
 | [figma-extract](#figma-extract) | Pull images and design context out of the current Figma selection | `/figma-extract:extract` |
 | [page-annotator](#page-annotator) | Annotate a page in Chrome and file each note as a GitHub issue with a screenshot | `/page-annotator:annotate` |
 | [poseidon-local](#poseidon-local) | Run the Poseidon plan/implement agents locally instead of via GitHub Actions | `/poseidon-plan`, `/poseidon-implement` |
+| [ai-canvas](#ai-canvas) | Connect a WordPress site once, then vibe-code pages and posts as a full-width Custom HTML block through the REST API, verified in the browser | Natural language |
 | [site-launch-comparison](#site-launch-comparison) | Screenshot two versions of a site and build a side-by-side before/after report | Natural language |
 
 ## plugin-review
@@ -323,6 +324,41 @@ Run the [Poseidon](https://github.com/a8cteam51/poseidon-actions) **plan** and *
 
 # Implement the approved plan, from inside a clone of the repo
 /poseidon-implement 45
+```
+
+## ai-canvas
+
+Vibe-code pages and posts on any WordPress site. Connect a site once with an Application Password, then describe the page you want; Claude writes it as a single full-width Custom HTML block (markup, CSS, and JS), publishes it through the site's built-in REST API, and checks the result in your browser. The site needs only [Jamie's Visual HTML Editor](https://wordpress.org/plugins/jamies-visual-html-editor/) from the plugin directory, which gives the block full-width alignment and lets the site owner click text and images on the finished page to edit them in wp-admin. Both skills are written for non-technical users.
+
+**What's included:**
+
+- **setup skill** - Guided connection with a strict role split: the user performs every site-changing step in wp-admin (plugin install, dedicated Administrator user, Application Password) with beginner-level click-path instructions; Claude then saves the connection and verifies credentials and capabilities, including `unfiltered_html` and `edit_theme_options`, then creates the two AI Canvas page templates (site header and footer, or blank) by copying the theme's own header and footer parts
+- **vibe skill** - Page and post building as one scoped HTML block: read-before-write, "undo that" through WordPress revisions, right-sized Media Library images, performance rules on the first write, a Claude-in-Chrome verification loop, and plain-language reporting (link plus screenshot, never file or API talk)
+- **scripts/wp.sh** - REST client that needs only bash and curl; credentials live in a private per-site file under `~/.claude/ai-canvas/sites/` so the Application Password never appears on a command line after setup
+
+**What it does:**
+
+- Finds or creates pages and posts, writes complete `<!-- wp:html {"align":"full"} -->` blocks, and keeps the markup human-editable (plain text elements, `<img>` tags, `data-vc-bg` hero backgrounds)
+- Uploads and reuses Media Library assets, referencing right-sized generated variants instead of full-size originals
+- Verifies like a user: opens the live URL in Chrome, screenshots, exercises the JS, reads the console, checks phone width; without the browser, `wp.sh check` confirms the page is served with style and script intact and whether the full-width wrapper is present
+- Translates every error into plain language and routes setup problems (missing capabilities, stripped Authorization header) back through the setup skill or the host's support
+
+**Requirements:**
+
+- A WordPress site over HTTPS (local Studio sites excepted) with [Jamie's Visual HTML Editor](https://wordpress.org/plugins/jamies-visual-html-editor/) active; a block theme is required
+- A dedicated Administrator user with an Application Password (templates need `edit_theme_options`) — the setup skill walks the user through it
+- Optional: [Claude in Chrome](https://claude.com/chrome) for visual self-verification
+
+```bash
+# Install ai-canvas
+/plugin install ai-canvas@a8cteam51-claude-code-plugins
+
+# Connect a site (guided, one-time)
+# > connect Claude to my website https://example.com
+
+# Then build in natural language
+# > build me a landing page for our spring launch
+# > undo that change
 ```
 
 ## site-launch-comparison
