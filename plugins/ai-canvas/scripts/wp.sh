@@ -19,8 +19,8 @@
 #   me SITE                                 verify credentials and capabilities
 #   find SITE [--type page|post] [--search TERM] [--limit N]
 #   get SITE ID [--type page|post] [--out FILE]   fetch the block content
-#   create SITE --title T --content-file F [--type page|post] [--status publish|draft|private] [--slug S] [--template T]
-#   update SITE ID [--content-file F] [--title T] [--status S] [--slug S] [--template T] [--type page|post]
+#   create SITE --title T --content-file F [--type page|post] [--status publish|draft|private] [--slug S] [--template T] [--parent ID]
+#   update SITE ID [--content-file F] [--title T] [--status S] [--slug S] [--template T] [--parent ID] [--type page|post]
 #   revisions SITE ID [--type page|post]    list WordPress revisions (newest first)
 #   restore SITE ID --revision RID [--type page|post]   put a revision's content back
 #   trash SITE ID [--type page|post]
@@ -161,7 +161,7 @@ urlencode() {
 
 # --- argument parsing helper ------------------------------------------------
 
-TYPE=page; SEARCH=""; LIMIT=20; OUT=""; TITLE=""; CONTENT_FILE=""; STATUS=""; SLUG=""; TEMPLATE=""; ALT=""
+TYPE=page; SEARCH=""; LIMIT=20; OUT=""; TITLE=""; CONTENT_FILE=""; STATUS=""; SLUG=""; TEMPLATE=""; ALT=""; PARENT=""
 parse_opts() {
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -175,6 +175,7 @@ parse_opts() {
       --slug) SLUG="$2"; shift 2;;
       --template) TEMPLATE="$2"; shift 2;;
       --alt) ALT="$2"; shift 2;;
+      --parent) PARENT="$2"; shift 2;;
       *) die "Unknown option: $1";;
     esac
   done
@@ -227,6 +228,7 @@ cmd_create() {
   [ -f "$CONTENT_FILE" ] || die "No such file: $CONTENT_FILE"
   set -- -F "title=$TITLE" -F "status=${STATUS:-publish}" -F "content=<$CONTENT_FILE"
   [ -n "$SLUG" ] && set -- "$@" -F "slug=$SLUG"
+  [ -n "$PARENT" ] && set -- "$@" -F "parent=$PARENT"
   [ -n "$TEMPLATE" ] && set -- "$@" -F "template=$TEMPLATE"
   local body; rest "$(collection "$TYPE")&$ITEM_FIELDS" "$@"; body="$BODY"; fail_if_error "$body" "$HTTP"
   print_item "$body"
@@ -243,8 +245,8 @@ cmd_update() {
   [ -n "$TITLE" ] && set -- "$@" -F "title=$TITLE"
   [ -n "$STATUS" ] && set -- "$@" -F "status=$STATUS"
   [ -n "$SLUG" ] && set -- "$@" -F "slug=$SLUG"
-  [ -n "$TEMPLATE" ] && set -- "$@" -F "template=$TEMPLATE"
-  [ $# -gt 0 ] || die "Nothing to update: pass --content-file, --title, --status, --slug, or --template."
+  [ -n "$PARENT" ] && set -- "$@" -F "parent=$PARENT"
+  [ $# -gt 0 ] || die "Nothing to update: pass --content-file, --title, --status, --slug, --template, or --parent."
   local body; rest "$(collection "$TYPE")/${id}&$ITEM_FIELDS" "$@"; body="$BODY"; fail_if_error "$body" "$HTTP"
   print_item "$body"
 }
