@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.1.0] - 2026-09-17
+
+### Added
+
+- `vibe` skill gains a "Build accessible pages" section, distilled from the Special Projects designer handbook's accessibility guidelines and QA checklist and filtered to what a single HTML block controls. Target is WCAG 2.1 AA on the first write (AAA only on request, and stated): computed contrast for every pairing (4.5:1 text, 3:1 large text and UI boundaries), no information or state by color alone, a scrim under text on swappable hero photos, 16px body text at 1.5 line height in 50–80 character measures, no justified text or text-as-image, one `<h1>` per page (posts start at `<h2>`), DOM order as reading order, descriptive link text and new-tab labelling, alt text in the block and on `wp.sh upload --alt`, `prefers-reduced-motion` on every animation with no parallax or flashing, 44px targets 8px apart, a `:focus-visible` ring restated per section, keyboard behaviour and no-JS-true ARIA state on widgets, and labelled forms with associated, announced errors. Landmarks are template-aware: the framed template already provides `<main>` and the theme's skip link, while the blank template's content is a bare Post Content block, so the block supplies `<header>`, `<main>`, `<footer>`, and a skip link itself.
+- Browser verification now includes an accessibility pass: tab through the page checking order and focus visibility, read the accessibility tree for heading order, names, and duplicate `main`, check target size at phone width, and run an automated audit when the session offers one. Without browser tools the skill reports keyboard and focus as untested and checks the rest from source.
+
+- `wp.sh contrast FG BG [FG BG ...]`: WCAG contrast ratio for hex color pairs in bash and awk, no site needed. Reports the ratio (truncated, so 4.499 never reads as 4.5) and pass/FAIL against 4.5 (text), 3 (large text and UI), and 7 (AAA text). The skill runs the whole palette through it instead of estimating.
+- When a color the user asked for fails contrast, the skill flags it in plain words and offers options (nearest passing shade, brand color for large text and decoration only, or as asked) rather than silently changing it; the user decides, once.
+
+### Changed
+
+- The `<button>`-based widget rule moved from "Keep pages fast" into the new section.
+
 ## [2.0.0] - 2026-09-10
 
 ### Changed

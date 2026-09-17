@@ -32,6 +32,7 @@
 #   template-ensure SITE                    create ai-canvas-framed and ai-canvas-blank if missing,
 #                                           copying header/footer parts from the theme's page template
 #   template-delete SITE SLUG               delete a custom template
+#   contrast FG BG [FG BG ...]              WCAG contrast ratio for hex color pairs (no site needed)
 #
 # SITE is a saved host, or any unique part of a saved host or URL.
 
@@ -413,6 +414,33 @@ cmd_template_delete() {
   echo "deleted: $slug"
 }
 
+# --- contrast ---------------------------------------------------------------
+
+cmd_contrast() {
+  [ $# -ge 2 ] && [ $(( $# % 2 )) -eq 0 ] || die "usage: contrast FG BG [FG BG ...] (hex colors: #rgb or #rrggbb)"
+  local c
+  for c in "$@"; do
+    case "${c#\#}" in *[!0-9a-fA-F]*|"") die "Not a hex color: $c (use #rgb or #rrggbb; flatten transparent colors onto their background first)";; esac
+    case "${#c}${c}" in 4\#*|7\#*|3[!#]*|6[!#]*) ;; *) die "Not a hex color: $c (use #rgb or #rrggbb; flatten transparent colors onto their background first)";; esac
+  done
+  printf '%s\n' "$@" | awk '
+    function hex(h,  i, n) { h = tolower(h); n = 0; for (i = 1; i <= length(h); i++) n = n * 16 + index("0123456789abcdef", substr(h, i, 1)) - 1; return n }
+    function lin(v) { v /= 255; return (v <= 0.04045) ? v / 12.92 : exp(2.4 * log((v + 0.055) / 1.055)) }
+    function lum(c) {
+      sub(/^#/, "", c)
+      if (length(c) == 3) c = substr(c,1,1) substr(c,1,1) substr(c,2,1) substr(c,2,1) substr(c,3,1) substr(c,3,1)
+      return 0.2126 * lin(hex(substr(c,1,2))) + 0.7152 * lin(hex(substr(c,3,2))) + 0.0722 * lin(hex(substr(c,5,2)))
+    }
+    function verdict(ok) { return ok ? "pass" : "FAIL" }
+    NR % 2 == 1 { fg = $0; next }
+    {
+      a = lum(fg); b = lum($0); if (b > a) { t = a; a = b; b = t }
+      # Truncate, never round up: 4.499 must not read as 4.5.
+      r = int((a + 0.05) / (b + 0.05) * 100) / 100
+      printf "%s on %s: %.2f:1  text %s (4.5)  large-text/ui %s (3)  aaa-text %s (7)\n", fg, $0, r, verdict(r >= 4.5), verdict(r >= 3), verdict(r >= 7)
+    }'
+}
+
 # --- dispatch ---------------------------------------------------------------
 
 cmd="${1:-}"; shift || true
@@ -435,6 +463,7 @@ case "$cmd" in
   template-get) cmd_template_get "$@";;
   template-ensure) cmd_template_ensure "$@";;
   template-delete) cmd_template_delete "$@";;
-  -h|--help|help|"") sed -n '2,36p' "$0" | sed 's/^# \{0,1\}//';;
+  contrast) cmd_contrast "$@";;
+  -h|--help|help|"") sed -n '2,37p' "$0" | sed 's/^# \{0,1\}//';;
   *) die "Unknown command: $cmd (try: wp.sh help)";;
 esac

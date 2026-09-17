@@ -161,7 +161,7 @@
       "name": "ai-canvas",
       "source": "./plugins/ai-canvas",
       "description": "Vibe-code pages and posts on a WordPress site: guide a beginner through connecting the site (Jamie's Visual HTML Editor plugin, Editor user, Application Password), then build and update content as a single full-width Custom HTML block through the site's REST API, with browser verification and undo.",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "author": {
         "name": "Automattic Special Projects"
       },

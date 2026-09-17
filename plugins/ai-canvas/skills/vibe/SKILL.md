@@ -105,10 +105,11 @@ When `mcp__claude-in-chrome__*` tools are available, review every meaningful cha
 - Screenshot and actually look. The content sits between the theme header and footer, your styles are applied, and the header and footer look untouched. A changed site header means a scoping violation, not a theme quirk.
 - If the block has JS, exercise it (click the tabs, open the accordion, advance the slides) and read the console for errors. A widget that renders can still be one that never toggles.
 - Resize to phone width for at least one check on layout-heavy pages: look for horizontal overflow and pixel-positioned decoration overlapping content.
+- Check accessibility once per page and again after any change to colors, structure, or widgets (rules in "Build accessible pages"). Tab through the page from the top: every link and control is reached in reading order, the focus ring is visible on each one, including on dark sections, and every widget works with Enter, Space, and Escape. Read the page's accessibility tree with `read_page`: one `<h1>`, heading levels without gaps, every image and icon-only control named, no second `main`. Look at the phone-width screenshot for targets that are too small or too close together. If the session offers an automated audit (Lighthouse, axe), run its accessibility category and clear every error; it catches contrast and missing names, not reading order, link text, or motion, so it never replaces the pass above.
 - Once per page with JS-driven states, open the wp-admin edit link too (the user's browser is normally logged in). Every section must be visible in the "Edit content" view with no JS running; blank space where a section belongs means a state was not gated on `.is-js`. Skip the editor check when the browser is not logged in, and say so.
 - Fix → `update` → reload → re-screenshot. Stop when the screenshot matches what the user asked for, and report what you verified.
 
-Without the browser tools, `wp.sh check` is the verification; say that it confirms the page is served correctly rather than how it looks.
+Without the browser tools, `wp.sh check` is the verification; say that it confirms the page is served correctly rather than how it looks, and that keyboard use and focus visibility were not tested. Contrast, headings, alt text, and link text can still be checked from the source; do that.
 
 ## Keep pages fast
 
@@ -119,8 +120,49 @@ Apply on the first write, not as an afterthought:
 - **Lazy-load below the fold only.** `loading="lazy" decoding="async"` below the fold; the hero image stays eager with `fetchpriority="high"`.
 - **Video is opt-in.** `preload="none"`, `muted playsinline` for ambient video, started and paused by an IntersectionObserver.
 - **No frameworks, no client-side templating.** The markup in the block is what renders. Never read layout in a scroll handler; use IntersectionObserver for reveals and sticky states.
-- **Interactive widgets are `<button>`-based** with matching ARIA state (`aria-expanded`, `aria-selected`) and proven working in the browser.
 - **No data-URI images.** Put them in the Media Library.
+
+## Build accessible pages
+
+The target is WCAG 2.1 Level AA on every page, applied on the first write. You pick the palette, the type, and the markup in one pass, so there is no later design review to catch a miss. Go stricter (AAA: 7:1 text contrast, no text under 16px) only when the user asks or the audience calls for it, and say that you did.
+
+**Color and contrast**
+
+- **Check every pairing you choose** before writing it: 4.5:1 for normal text, 3:1 for large text (24px and up, or 18.66px and up when bold), 3:1 for UI boundaries against what they sit on (button and field borders, icons, focus rings). Run `wp.sh contrast FG BG [FG BG ...]` with the whole palette in one call (hex colors, no site argument) and fix every `FAIL` that applies to how the pair is used; never eyeball it. Flatten a transparent color onto its background first. Light-weight large text gets the 4.5:1 rule.
+- **Never color alone**, for information or for state. Hover, focus, current, visited, and error each pair the color change with a second cue: underline, border, icon, or a contrast-checked background. Inline links in running text stay underlined. Not bold on `:hover`; it changes the text's width and reflows the line.
+- **Text over a photo** only with a solid or gradient scrim behind it that holds the ratio across the whole image, since the owner can swap the photo (`data-vc-bg`) for a lighter one.
+
+**Type**
+
+- Body text 16px or larger, nothing anywhere at 12px or under, `line-height` 1.5 or more on body copy, paragraph spacing at least the font size twice over, text blocks held to about 50–80 characters (`max-width: 65ch`).
+- No `text-align: justify`. Uppercase only on short UI labels, set with `text-transform` so the stored text stays in normal case. Never text baked into an image, logos aside.
+- Plain, legible faces for body and UI text; display faces for headings only. The block takes no external references, so stay on the theme's fonts or a system stack, and use only the weights and italics that face really has: the browser fakes a missing one. When unsure, set `font-synthesis: none` on the root during the browser check and see whether the bold or italic survives.
+
+**Structure**
+
+- **One `<h1>` per page**, and it lives in the block because the AI Canvas templates print no title. In a **post** the theme normally prints the title as the `<h1>`, so the block starts at `<h2>`; confirm it in the browser check. Levels follow the outline, never the wanted size; size is CSS. A section's heading comes before its image or video in the markup even when it displays after it (`order`, grid placement).
+- **Landmarks depend on the template.** Framed: the theme already wraps the block in `<main>` and supplies the header, footer, and skip link, so use `<section>` with headings inside the root and never a second `<main>`. Blank: nothing surrounds the block, so the root holds its own `<header>`, `<main id="…">`, and `<footer>`, a `<nav aria-label="…">` if the page has its own navigation, and a styled skip link to the `<main>` as the first element when there is anything to skip.
+- **DOM order is reading order.** Do not rearrange content with `order`, absolute positioning, or `flex-direction: row-reverse` in a way that changes what comes first.
+- **Links say where they go.** No "click here", "read more", or "learn more" on their own; link the title or name the destination. A link with `target="_blank"` says so in its text or in visually hidden text ("opens in a new tab").
+- **Nothing essential behind hover.** Whatever hover reveals is also reachable by focus and visible on touch.
+
+**Images and media**
+
+- Every `<img>` has `alt`. Write what the image says in this context, not "image of"; `alt=""` only for decoration. Pass the same text to `wp.sh upload --alt` so the Media Library carries it. An image reused from `wp.sh media` with an empty `alt_text` still needs alt in the block.
+- Icons are inline SVG: `aria-hidden="true"` beside a text label, or `role="img"` with `aria-label` when the icon is the only content of a control.
+- Video never autoplays with sound. Ambient muted video gets a visible pause button; real video gets `controls` and, when it carries speech, captions or a transcript. Ask the user for them rather than skipping it.
+
+**Motion**
+
+- Every animation and transition sits behind `@media (prefers-reduced-motion: no-preference)`, or is cancelled under `reduce`; JS reveals and auto-advancing check `matchMedia('(prefers-reduced-motion: reduce)')` and show the end state at once.
+- No flashing, no parallax, no looping attention effects: a bounce or pulse repeats three times at most. Anything that moves on its own for more than five seconds (carousel, ticker) has a pause control and does not advance while focused or hovered.
+
+**Controls and forms**
+
+- **Targets at least 44 × 44px with 8px between them**, on phone width too. Pad small icon buttons and inline nav links up to size.
+- **A visible focus style on every focusable element**: `:focus-visible` with a 2px or thicker outline that holds 3:1 against its background, drawn with `outline` and `outline-offset` so nothing shifts. Restate it on light and dark sections. Never `outline: none` without a replacement; block themes differ, so do not count on the theme's.
+- **Interactive widgets are `<button>`-based** (`type="button"`), never a clickable `<div>` or an `<a>` without `href`, with matching ARIA state (`aria-expanded` plus `aria-controls`, `aria-selected`, `aria-current` on the active nav item) updated by the script, and keyboard behaviour to match: Enter and Space everywhere, arrow keys between tabs, Escape to close anything that opens. Write ARIA state in the no-JS default so it is true without the script (all panels shown means no `aria-expanded="false"` in the markup; the script sets it as it collapses them under `.is-js`).
+- **Forms:** a visible `<label for>` outside every field, never a placeholder as the only label; required fields marked in text or with an asterisk the form explains; field borders 2px or at 3:1; placeholder visibly fainter than typed text but still readable. Errors appear as text next to the field, tied to it with `aria-describedby` and `aria-invalid`, and announced (`role="alert"` or an `aria-live` region), without moving the layout. The block's JS sends data nowhere, so a working form is normally the site's own form block or an embed; apply the same rules to whatever you place.
 
 ## Working with a non-technical user
 
@@ -130,6 +172,7 @@ Assume the user is non-technical unless they show otherwise. That changes how yo
 - **Translate every error.** "unfiltered_html missing" becomes "the connection to your site isn't allowed to publish interactive pages — that's a WordPress setting; want me to walk you through it?" and routes to the setup skill.
 - **Vague brief: one round of questions, then build.** Ask at most once — what the page is for, must-have sections, brand colors — after checking the Media Library for logos and photos. A visible first draft beats a questionnaire.
 - **Infer content; never lorem ipsum.** Write real copy from the brief, the site's existing pages, and media titles. Flag invented specifics (prices, dates, addresses, quotes) as guesses for the user to correct.
+- **A requested color that fails contrast: flag and ask, never quietly swap.** When the user's brand color or chosen pairing fails `wp.sh contrast` for how it would be used, say so in plain words before building with it ("your light green is hard to read as text on white for people with low vision") and offer the concrete options: the nearest shade that passes, shown next to theirs; keeping the brand color for large headings, backgrounds, and decoration with a darker shade for text; or using it as asked. It is their brand and their call. If they keep it, build it as asked and do not raise it again. Same for other accessibility needs only they can meet: ask once for captions or a transcript for a video with speech, and for what a photo shows when you cannot tell.
 - **Say once, early:** changes go live right away, and "undo that" always brings the previous version back. Mention the wp-admin edit link so they know they can tweak text and images themselves.
 
 ## Failure modes
