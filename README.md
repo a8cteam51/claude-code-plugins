@@ -421,7 +421,8 @@ Turn a folder of downloaded plugin zips into **one pull request per plugin** aga
 **What it does:**
 
 - Opens one PR per plugin, never a batch, so a plugin that breaks the site is one revert
-- Stops for a decision on downgrades, plugins that are not vendored yet, and updates that would delete files someone patched by hand in the vendored copy
+- Treats the branch as the authority on what gets updated: a zip with no counterpart tracked on that branch is skipped, never added, and "tracked" is asked of git rather than inferred from a directory sitting on disk
+- Stops for a decision on downgrades and on updates that would delete files someone patched by hand in the vendored copy
 - Recovers versions that a script cannot parse — `@@VERSION@@` build placeholders, missing headers — from version constants, `readme.txt`'s `Stable tag`, `composer.json` or the zip name, without ever editing the vendor's files
 - Follows the repo's own process docs where they differ from the skill's defaults, and reads production-branch guard workflows before the production pass instead of running into a red required check
 - Hands back after each pass — it never merges a PR, pushes to a base branch, or claims the site was tested

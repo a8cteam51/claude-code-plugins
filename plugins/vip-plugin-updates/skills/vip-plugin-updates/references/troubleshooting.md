@@ -52,12 +52,35 @@ name, and WordPress will load both. If a PR ever shows a whole plugin added
 rather than modified, that is what happened - close it, delete the branch
 (`git push origin --delete <branch>`), and redo it.
 
-## The plugin is not vendored yet (`new-plugin`)
+## The plugin is not on this branch (`not-on-branch`)
 
-Installing a plugin is not the same job as updating one: it needs a decision
-about whether the site should run it at all, and usually a VIP code review. Stop
-and ask. If the answer is yes, it is still one PR, but say plainly in the body
-that this adds a new plugin rather than updating one.
+Skip it. This workflow updates what a branch already carries; installing a
+plugin is a different job, with a decision behind it about whether the site
+should run it at all, and usually a VIP code review.
+
+Two different situations produce this status, and the note says which:
+
+- **Git tracks no plugin of that name here.** Usually an extra zip in the drop
+  folder, or a plugin that lives on the other branch. Ordinary - report and move
+  on.
+- **A directory of that name is on disk but nothing in it is tracked.** A
+  leftover from a checkout of another branch. `store.a8c.com` has exactly this:
+  `plugins/redirection/` exists in a `develop` working copy holding a single
+  stray `.DS_Store`, because the plugin is vendored on `master` only. Worth
+  telling the user so they can delete it, since it makes `ls` lie about what the
+  branch contains.
+
+Check it yourself the same way the tooling does - ask git, not the filesystem:
+
+```bash
+git -C <repo> ls-tree -r --name-only origin/<branch> -- plugins/<slug> | head -3
+```
+
+Empty output means the plugin is not on that branch, whatever `ls` shows.
+
+`open_plugin_pr.sh` refuses these too, reporting `skipped-not-on-branch`. Its
+`--allow-new-plugin` flag exists only for a human who has explicitly decided to
+add a plugin; do not reach for it to make a batch look complete.
 
 ## The new version is lower than the vendored one (`downgrade`)
 
@@ -120,6 +143,7 @@ not - report it rather than editing `.gitignore` yourself.
 | `could not add label` | Label does not exist in this repo | The script retries without it; pick a real label from `detect_repo.sh` output or leave it off |
 | `a pull request for branch ... already exists` | Re-run of a completed plugin | Check the existing PR covers this version, then move on |
 | `RESULT pushed-no-pr` | Push worked, PR did not | `gh pr create --base <base> --head <branch> --title ... --body ...`; the commit is safe |
+| `skipped-not-on-branch` | The plugin is not vendored on the base branch | Correct behaviour - report the skip; never `--allow-new-plugin` to force it |
 | `Branch ... already exists on origin` | An earlier run, or last month's | Look at the PR for that branch first; `--reuse-branch` only if you mean to add to it |
 | `Protected branch update failed` | Pushing at a base branch | Never push to the base branch - the script does not; check your `--base-branch` |
 | `Working tree has uncommitted tracked changes` | Modified tracked files would ride along on the update branch | Show `git status --short` and ask. Do not stash for them |

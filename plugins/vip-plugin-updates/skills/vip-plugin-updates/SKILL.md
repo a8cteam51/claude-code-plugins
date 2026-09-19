@@ -29,6 +29,18 @@ push, open one pull request per plugin, and sort out whatever is malformed.
 **One pull request per plugin.** Never batch them together unless explicitly
 asked. A plugin that breaks the site is then one revert, not an unpicking job.
 
+**The branch decides what gets updated, not the drop folder.** The zips are
+candidates; the list of plugins is whatever the target branch already carries.
+A staged plugin the branch does not track is skipped - not added, not offered as
+a new install. Branches legitimately carry different plugin sets, so the same
+drop folder produces different work against the testing branch and production.
+
+"Already there" means **git tracks files for it on that branch**, not that a
+directory of that name exists on disk. A checkout of another branch leaves
+directories behind - on `store.a8c.com`, `plugins/redirection/` sits on disk
+while on `develop` holding nothing but a stray `.DS_Store`, because the plugin
+lives on `master` only. The tooling asks git; so should you.
+
 ## What you need before starting
 
 1. **The drop folder** - zips and/or already-unpacked plugin folders. Ask for
@@ -118,10 +130,24 @@ Statuses, and what each one means for you:
 | `upgrade` | New version is higher | Open a PR |
 | `same` | Already at this version | Skip silently |
 | `downgrade` | New version is **lower** | Stop, ask - see below |
-| `new-plugin` | Nothing vendored matches | Stop, ask - installing a plugin is not an update |
+| `not-on-branch` | Git tracks no such plugin on this branch | **Skip it.** Do not add it, and do not ask whether to |
 | `unknown-new-version` | Could not read the new version | Resolve it yourself - see below |
 | `unknown-old-version` | Could not read the vendored version | Resolve it yourself |
 | `unknown-both-versions` | Neither readable | Resolve, or hand back |
+
+`not-on-branch` is a skip, not a question. Report it in the summary - "X was in
+the folder but is not on this branch, skipped" - and move on. Someone routinely
+downloads a few more zips than the branch needs, and a plugin that is on
+production but not on the testing branch (or the reverse) is ordinary. Adding a
+plugin to a site is a different job with a different decision behind it, usually
+a VIP code review; it is not part of this workflow. `open_plugin_pr.sh` refuses
+it as well, and its `--allow-new-plugin` flag exists only for a human who has
+explicitly asked for that - never reach for it on your own.
+
+The inventory also lists directories that are on disk but untracked on this
+branch, under "On disk but untracked here, ignored". Those are checkout
+leftovers. Mention them once so the user can clean them up; never treat one as a
+vendored plugin.
 
 A line prefixed `!` needs review even when the status looks fine - most often
 because the update would **delete files that exist in the vendored copy**. Check
@@ -211,9 +237,10 @@ process first (Step 1), because this is where repos differ most:
   `store.a8c.com`): repeat Step 5 with `--base-branch <production-branch>`.
   Branch names pick up the base branch, so they will not collide with the
   testing ones. Check out the production branch and re-run the inventory before
-  opening anything (Step 3): production may be behind on plugins the testing
-  branch already has, so its "old" versions differ and some plugins that were
-  skipped as `same` on the testing pass are real updates here.
+  opening anything (Step 3) - do not reuse the testing pass's results. The two
+  branches carry different plugin sets and different versions, so a plugin
+  skipped as `same` or `not-on-branch` on the testing pass can be a real update
+  here, and vice versa.
 - **Promotion PR** (repos whose guard workflow requires it): open a single PR
   from the testing branch into production, for example
   `gh pr create --base <prod> --head <testing> --title "Release: <testing> to <prod>"`.
@@ -227,12 +254,14 @@ Then hand back again and stop. The user merges and checks production.
 
 - **Never merge a PR**, never push to a testing or production branch directly,
   never force-push.
-- **Only touch plugins in the drop folder.** Do not update anything else you
-  notice is out of date; mention it instead.
+- **Only touch plugins that are in the drop folder *and* already on the branch.**
+  Do not update anything else you notice is out of date, and never add a plugin
+  the branch does not carry - mention both instead.
 - **Never "fix" a plugin's code** to make a version parse. Correct the value you
   pass to the script; leave the vendor's files byte-for-byte as shipped.
-- **Stop and ask** on: downgrades, plugins that are not vendored yet, vendored
-  copies with local patches, and anything the repo's own docs contradict.
+- **Stop and ask** on: downgrades, vendored copies with local patches, and
+  anything the repo's own docs contradict. Plugins the branch does not carry are
+  skipped rather than asked about.
 - Prefer the scripts over hand-rolled git: they are idempotent and each run is
   isolated to one plugin.
 

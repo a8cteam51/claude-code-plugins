@@ -20,6 +20,12 @@
   rather than by counting entries, so a wrapper directory shipped beside a
   stray `license.txt` and a flat plugin carrying an `includes/` directory are
   both read correctly. bash 3.2 compatible.
+- The branch is the authority on what may be updated: a staged plugin with no
+  counterpart tracked on the target branch is skipped rather than added, and
+  "vendored" is decided by `git ls-files`, not by a directory existing on disk.
+  Checkout leftovers from another branch are listed as ignored rather than
+  mistaken for plugins. `open_plugin_pr.sh` enforces the same rule against the
+  base branch and reports `skipped-not-on-branch`.
 - `scripts/plugin_inventory.py` — reads plugin headers on a best-effort basis
   and falls back through version constants, `readme.txt` `Stable tag` and
   `composer.json`/`package.json` when the `Version:` header is a build

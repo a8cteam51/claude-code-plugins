@@ -6,23 +6,29 @@
 #                     --new-version VER [--old-version VER] [--name "Plugin Name"] \
 #                     [--plugins-dir plugins] [--branch NAME] [--label LABEL] \
 #                     [--remote origin] [--body-file FILE] [--draft] [--dry-run] \
-#                     [--reuse-branch] [--allow-dirty]
+#                     [--reuse-branch] [--allow-dirty] [--allow-new-plugin]
 #
 # One plugin per run, deliberately: a plugin that goes wrong does not take the
 # rest of the batch with it, and rolling one back is one merge revert. Versions
 # are passed in rather than parsed here, so a plugin with an unreadable header
 # is a value the caller supplies, not a crash.
 #
+# The base branch decides what may be updated. A plugin git does not track on
+# that branch is refused, because this workflow updates what a branch already
+# carries and never installs anything new. A directory sitting on disk proves
+# nothing - it may be a leftover from a checkout of another branch.
+#
 # Prints a RESULT line: `RESULT <status> <slug> <branch> <pr-url-or-->`, where
 # status is one of created, skipped-branch-exists, skipped-no-changes,
-# pushed-no-pr, dry-run. Exits non-zero only on a real failure. bash 3.2 safe.
+# skipped-not-on-branch, pushed-no-pr, dry-run. Exits non-zero only on a real
+# failure. bash 3.2 safe.
 set -euo pipefail
 
 REPO_PATH=""; BASE_BRANCH=""; SLUG=""; SRC=""; NEW_VERSION=""; OLD_VERSION=""
 NAME=""; PLUGINS_DIR="plugins"; BRANCH=""; LABEL=""; REMOTE="origin"; BODY_FILE=""
-DRAFT=""; DRYRUN=""; REUSE=""; ALLOW_DIRTY=""
+DRAFT=""; DRYRUN=""; REUSE=""; ALLOW_DIRTY=""; ALLOW_NEW=""
 
-usage() { sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -42,6 +48,7 @@ while [ $# -gt 0 ]; do
     --dry-run) DRYRUN="1"; shift;;
     --reuse-branch) REUSE="1"; shift;;
     --allow-dirty) ALLOW_DIRTY="1"; shift;;
+    --allow-new-plugin) ALLOW_NEW="1"; shift;;
     -h|--help) usage; exit 0;;
     *) echo "Unknown arg: $1" >&2; usage >&2; exit 2;;
   esac
@@ -68,7 +75,25 @@ BRANCH="${BRANCH:-update/${SLUG}-${NEW_VERSION}-${BASE_BRANCH}}"
 DEST="$ROOT/$PLUGINS_DIR/$SLUG"
 START_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 
+# Is this plugin actually on the base branch? Asked of git, not of the disk.
+tracked_on_base() {
+  git ls-tree -r --name-only "$REMOTE/$BASE_BRANCH" -- "$PLUGINS_DIR/$SLUG" 2>/dev/null | head -n1
+}
+
+refuse_new_plugin() {
+  echo "$SLUG is not on $BASE_BRANCH - git tracks no files at $PLUGINS_DIR/$SLUG there." >&2
+  echo "This workflow updates the plugins a branch already carries; it does not install new ones." >&2
+  echo "If the site really should run this plugin, that is a separate decision (and usually a VIP code review)." >&2
+  echo "RESULT skipped-not-on-branch $SLUG $BRANCH -"
+}
+
 if [ -n "$DRYRUN" ]; then
+  if [ -z "$ALLOW_NEW" ] && git rev-parse --verify --quiet "$REMOTE/$BASE_BRANCH" >/dev/null 2>&1; then
+    if [ -z "$(tracked_on_base)" ]; then
+      refuse_new_plugin
+      exit 0
+    fi
+  fi
   echo "DRY-RUN  ${NAME} (${SLUG}) ${OLD_VERSION:-new} -> ${NEW_VERSION}"
   echo "         branch ${BRANCH} off ${BASE_BRANCH}, copying ${SRC} -> ${PLUGINS_DIR}/${SLUG}"
   echo "RESULT dry-run $SLUG $BRANCH -"
@@ -95,6 +120,11 @@ fi
 git fetch "$REMOTE" --prune >/dev/null 2>&1 || git fetch "$REMOTE" --prune
 git rev-parse --verify --quiet "$REMOTE/$BASE_BRANCH" >/dev/null || {
   echo "Base branch $REMOTE/$BASE_BRANCH does not exist" >&2; exit 1; }
+
+if [ -z "$ALLOW_NEW" ] && [ -z "$(tracked_on_base)" ]; then
+  refuse_new_plugin
+  exit 0
+fi
 
 BRANCH_ON_REMOTE=""
 git ls-remote --exit-code --heads "$REMOTE" "$BRANCH" >/dev/null 2>&1 && BRANCH_ON_REMOTE="1"

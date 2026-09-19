@@ -28,6 +28,14 @@ logins), drop them in a folder, then merge the PRs and test the site.
 the files, branch, commit, push, open the PRs, and sort out whatever is
 malformed.
 
+## The rule that matters
+
+**The branch decides what gets updated, not the folder of zips.** The zips are
+candidates. Whatever the target branch already vendors is the list. Branches
+legitimately carry different plugin sets, so the same folder produces different
+work against the testing branch and production — and nothing gets added to a
+branch that does not already have it.
+
 ## The flow
 
 1. Drop the zips in a folder.
@@ -35,8 +43,9 @@ malformed.
    PR label, any workflow guarding production — and reads the repo's own process
    docs, which win over the skill's defaults.
 3. Claude stages and inventories everything, and shows you the plan: plugin,
-   old → new, action. Downgrades, unvendored plugins, unreadable versions and
-   updates that would delete files all stop for a decision.
+   old → new, action. The branch decides the list — a zip with no counterpart
+   tracked on that branch is skipped, never added. Downgrades, unreadable
+   versions and updates that would delete files stop for a decision.
 4. On your yes, one PR per plugin against the testing branch.
 5. **You** merge and test the staging site.
 6. Claude runs the production pass — per-plugin PRs against the production
@@ -54,8 +63,12 @@ malformed.
   `Plugin Name` or `Text Domain`.
 - Vendored copies someone patched by hand: the update would delete those files,
   so it says which files and which commits before anything is overwritten.
-- Downgrades, and plugins that are not vendored yet (installing a plugin is a
-  different decision from updating one).
+- Plugins the branch does not carry. Vendored means **git tracks it on that
+  branch**, not that a directory exists — a checkout of another branch leaves
+  directories behind, and `ls` then lies about what the branch contains. Those
+  are skipped, not offered as new installs: adding a plugin to a site is a
+  different decision, usually with a VIP code review behind it.
+- Downgrades.
 - Repos it has never seen: branches, plugins directory, label and guards are all
   read from the repo, not configured here.
 

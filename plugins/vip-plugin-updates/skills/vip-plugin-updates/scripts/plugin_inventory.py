@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Compare a folder of staged plugin directories against a repo's vendored plugins.
 
+The branch decides what may be updated. A plugin counts as vendored only when
+git tracks files for it on the checked-out branch - a directory left on disk by
+a previous checkout of another branch is not a vendored plugin, and a staged zip
+with no tracked counterpart is not an update.
+
 Reads WordPress plugin headers on a best-effort basis, falls back through
 readme.txt / composer.json / package.json / version constants when the header is
 unusable, and reports one record per staged plugin so the caller can decide what
@@ -14,6 +19,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 
 JUNK_NAMES = {".DS_Store", "__MACOSX", ".git", ".svn", "Thumbs.db"}
@@ -239,6 +245,38 @@ def version_compare(left, right):
     return sign if _rank(extra) >= _ORDER["#"] else -sign
 
 
+def git_tracked_slugs(plugins_root):
+    """Plugin slugs git tracks under plugins_root on the checked-out branch.
+
+    Returns None when plugins_root is not inside a git working copy, which means
+    "cannot tell" - callers then fall back to what is on disk.
+    """
+    try:
+        top = subprocess.run(
+            ["git", "-C", plugins_root, "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, timeout=30,
+        )
+        if top.returncode != 0:
+            return None
+        listing = subprocess.run(
+            ["git", "-C", plugins_root, "ls-files", "-z", "--", "."],
+            capture_output=True, text=True, timeout=120,
+        )
+        if listing.returncode != 0:
+            return None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+    slugs = set()
+    for path in listing.stdout.split("\0"):
+        if not path:
+            continue
+        head = path.split("/", 1)[0]
+        if head and head != path:  # a file directly in plugins/ is not a plugin
+            slugs.add(head)
+    return slugs
+
+
 def list_plugin_dirs(root):
     if not os.path.isdir(root):
         return []
@@ -283,7 +321,17 @@ def match_vendored(staged, vendored_by_slug, vendored_records):
 
 
 def build(staged_root, repo_plugins_root):
-    vendored_records = [describe(path) for path in list_plugin_dirs(repo_plugins_root)]
+    tracked = git_tracked_slugs(repo_plugins_root)
+    on_disk = list_plugin_dirs(repo_plugins_root)
+    if tracked is None:
+        vendored_paths, untracked_on_disk = on_disk, set()
+    else:
+        vendored_paths = [p for p in on_disk if os.path.basename(p) in tracked]
+        untracked_on_disk = {
+            os.path.basename(p) for p in on_disk if os.path.basename(p) not in tracked
+        }
+
+    vendored_records = [describe(path) for path in vendored_paths]
     vendored_by_slug = {record["slug"]: record for record in vendored_records}
 
     results = []
@@ -310,8 +358,15 @@ def build(staged_root, repo_plugins_root):
             notes.extend("vendored copy: " + note for note in vendored["notes"])
 
         if vendored is None:
-            entry["status"] = "new-plugin"
-            notes.append("no vendored plugin matched this directory - adding it would install a new plugin")
+            entry["status"] = "not-on-branch"
+            if staged["slug"] in untracked_on_disk:
+                notes.append(
+                    "a directory of this name is on disk but git tracks nothing in it on "
+                    "this branch - it is a leftover from another branch, not a vendored plugin"
+                )
+            else:
+                notes.append("git tracks no plugin of this name on this branch")
+            notes.append("skip it: this workflow updates what the branch already carries, it does not add plugins")
         elif how != "slug":
             notes.append("matched the vendored copy by " + how + ", not by directory name")
 
@@ -345,17 +400,37 @@ def build(staged_root, repo_plugins_root):
     return {
         "staged_dir": os.path.abspath(staged_root),
         "repo_plugins_dir": os.path.abspath(repo_plugins_root),
+        "branch": git_branch(repo_plugins_root),
+        "vendored_source": "git" if tracked is not None else "filesystem (not a git working copy)",
         "vendored_count": len(vendored_records),
+        "untracked_dirs_on_disk": sorted(untracked_on_disk),
         "plugins": results,
     }
+
+
+def git_branch(path):
+    try:
+        result = subprocess.run(
+            ["git", "-C", path, "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True, text=True, timeout=30,
+        )
+        return result.stdout.strip() if result.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError):
+        return None
 
 
 def render_text(report):
     lines = [
         "Staged:   " + report["staged_dir"],
-        "Vendored: " + report["repo_plugins_dir"] + " (" + str(report["vendored_count"]) + " plugins)",
-        "",
+        "Vendored: " + report["repo_plugins_dir"] + " (" + str(report["vendored_count"])
+        + " plugins tracked on branch " + (report["branch"] or "?") + ")",
     ]
+    if report["untracked_dirs_on_disk"]:
+        lines.append(
+            "On disk but untracked here, ignored: "
+            + ", ".join(report["untracked_dirs_on_disk"])
+        )
+    lines.append("")
     if not report["plugins"]:
         lines.append("No plugin directories found in the staged folder.")
     for entry in report["plugins"]:
