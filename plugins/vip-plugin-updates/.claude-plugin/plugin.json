@@ -1,0 +1,21 @@
+{
+  "name": "vip-plugin-updates",
+  "version": "1.0.0",
+  "description": "Turn a folder of downloaded WordPress plugin zips into one pull request per plugin against a WordPress VIP repo that vendors its plugins in git. For sites where the VIP dashboard cannot generate plugin update PRs because the repo is not in the wpcomvip organisation. Detects each repo's branches, plugins directory, PR label and production guards rather than being configured per site.",
+  "author": {
+    "name": "Automattic Special Projects"
+  },
+  "repository": "https://github.com/a8cteam51/claude-code-plugins",
+  "license": "MIT",
+  "keywords": [
+    "wordpress",
+    "wordpress-vip",
+    "plugin-updates",
+    "pull-request",
+    "github",
+    "woocommerce",
+    "vendored-plugins",
+    "release-process",
+    "maintenance"
+  ]
+}

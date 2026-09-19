@@ -191,6 +191,23 @@
       "skills": [
         "./skills/site-launch-comparison"
       ]
+    },
+    {
+      "name": "vip-plugin-updates",
+      "source": "./plugins/vip-plugin-updates",
+      "description": "Turn a folder of downloaded WordPress plugin zips into one pull request per plugin against a WordPress VIP repo that vendors its plugins in git. For sites where the VIP dashboard cannot generate plugin update PRs because the repo is not in the wpcomvip organisation.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Automattic Special Projects"
+      },
+      "repository": "https://github.com/a8cteam51/claude-code-plugins",
+      "license": "MIT",
+      "keywords": ["wordpress", "wordpress-vip", "plugin-updates", "pull-request", "github", "woocommerce", "vendored-plugins", "release-process", "maintenance"],
+      "category": "development-tools",
+      "strict": true,
+      "skills": [
+        "./skills/vip-plugin-updates"
+      ]
     }
   ]
 }
