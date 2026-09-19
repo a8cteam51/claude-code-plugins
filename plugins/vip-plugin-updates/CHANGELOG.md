@@ -15,8 +15,11 @@
   branch ref rather than the checkout, which may be sitting on production.
 - `scripts/stage_updates.sh` — unpacks zips and copies loose folders into one
   clean staging directory: archive wrappers removed, `__MACOSX`/`.DS_Store`/
-  `._*` stripped, flat archives given a slug from the archive name, duplicates
-  and unpackable archives reported rather than guessed at. bash 3.2 compatible.
+  `._*` stripped, duplicates and unpackable archives reported rather than
+  guessed at. Layout is decided by where the `Plugin Name` header actually sits
+  rather than by counting entries, so a wrapper directory shipped beside a
+  stray `license.txt` and a flat plugin carrying an `includes/` directory are
+  both read correctly. bash 3.2 compatible.
 - `scripts/plugin_inventory.py` — reads plugin headers on a best-effort basis
   and falls back through version constants, `readme.txt` `Stable tag` and
   `composer.json`/`package.json` when the `Version:` header is a build
@@ -30,7 +33,8 @@
   starting branch. Versions are arguments rather than re-parsed, so a mangled
   header cannot break the run; a missing label is retried without it; an
   existing remote branch is skipped rather than clobbered; a failed
-  `gh pr create` still leaves the commit pushed and says so.
+  `gh pr create` still leaves the commit pushed and says so. `--reuse-branch`
+  commits onto the existing branch's tip rather than resetting it to the base.
 - `references/troubleshooting.md` — unreadable version headers, slug
   mismatches, awkward zip layouts, `.gitignore` swallowing plugin files,
   vendored copies carrying local patches, `gh`/git failures, and recovering a

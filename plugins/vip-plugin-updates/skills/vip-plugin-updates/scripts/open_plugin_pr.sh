@@ -96,15 +96,31 @@ git fetch "$REMOTE" --prune >/dev/null 2>&1 || git fetch "$REMOTE" --prune
 git rev-parse --verify --quiet "$REMOTE/$BASE_BRANCH" >/dev/null || {
   echo "Base branch $REMOTE/$BASE_BRANCH does not exist" >&2; exit 1; }
 
-if git ls-remote --exit-code --heads "$REMOTE" "$BRANCH" >/dev/null 2>&1 && [ -z "$REUSE" ]; then
+BRANCH_ON_REMOTE=""
+git ls-remote --exit-code --heads "$REMOTE" "$BRANCH" >/dev/null 2>&1 && BRANCH_ON_REMOTE="1"
+
+if [ -n "$BRANCH_ON_REMOTE" ] && [ -z "$REUSE" ]; then
   echo "Branch $BRANCH already exists on $REMOTE - skipping (pass --reuse-branch to push onto it)"
   echo "RESULT skipped-branch-exists $SLUG $BRANCH -"
   exit 0
 fi
 
+# Reuse means adding a commit to the branch, so start from its tip. Starting
+# from the base branch would discard what is already on it and the push would
+# be rejected as a non-fast-forward.
+START_POINT="$REMOTE/$BASE_BRANCH"
+if [ -n "$BRANCH_ON_REMOTE" ] && [ -n "$REUSE" ]; then
+  if git rev-parse --verify --quiet "$REMOTE/$BRANCH" >/dev/null; then
+    START_POINT="$REMOTE/$BRANCH"
+    echo "Reusing $BRANCH - committing onto its existing tip, not onto $BASE_BRANCH"
+  else
+    echo "Branch $BRANCH is on $REMOTE but has no local ref after fetch; starting from $BASE_BRANCH" >&2
+  fi
+fi
+
 restore() { git checkout --quiet "$START_BRANCH" 2>/dev/null || true; }
 
-git checkout --quiet -B "$BRANCH" "$REMOTE/$BASE_BRANCH"
+git checkout --quiet -B "$BRANCH" "$START_POINT"
 
 # Replace rather than merge: the new package is the whole plugin. --delete
 # removes files the new version dropped, which is the point.

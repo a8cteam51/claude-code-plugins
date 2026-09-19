@@ -176,7 +176,8 @@ It prints `RESULT <status> <slug> <branch> <url>`:
 - `created` - done.
 - `skipped-branch-exists` - the branch is already on the remote. Check whether
   that PR already covers this update before doing anything else; pass
-  `--reuse-branch` only if you are deliberately updating an existing branch.
+  `--reuse-branch` only if you are deliberately adding to an existing branch -
+  it commits onto that branch's tip rather than rebuilding it from the base.
 - `skipped-no-changes` - the files are identical to the base branch. Usually
   means it is already applied; confirm and move on.
 - `pushed-no-pr` - the commit is pushed but `gh pr create` failed. The work is

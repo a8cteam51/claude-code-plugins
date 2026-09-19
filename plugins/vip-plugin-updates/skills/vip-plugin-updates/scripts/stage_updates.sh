@@ -56,7 +56,8 @@ copy_tree() {  # copy_tree <src-dir> <dest-dir>
 # woocommerce.4.2.1.zip / woocommerce-4.2.1.zip / woocommerce_v4.2.1.zip -> woocommerce
 slug_from_archive() {
   local base="${1##*/}"
-  base="${base%.zip}"
+  # -iname finds .ZIP and .Zip too, so strip the extension case-insensitively.
+  base="$(printf '%s' "$base" | sed -E 's/\.[Zz][Ii][Pp]$//')"
   printf '%s' "$base" | sed -E 's/[-_.]v?[0-9]+([._-][0-9A-Za-z]+)*$//'
 }
 
@@ -92,13 +93,22 @@ find "$SOURCE" -mindepth 1 -maxdepth 1 -type f -iname '*.zip' | sort | while IFS
   file_count="$(find "$work" -mindepth 1 -maxdepth 1 -type f -not -name '.*' | wc -l | tr -d ' ')"
   first_dir="$(find "$work" -mindepth 1 -maxdepth 1 -type d -not -name '.*' | sort | head -n1)"
 
-  if [ "$dir_count" = "1" ] && [ "$file_count" = "0" ]; then
-    place "$first_dir" "$(basename "$first_dir")" "$(basename "$archive")"
-  elif [ "$file_count" != "0" ]; then
-    # Files at the archive root: the zip itself is the plugin folder.
+  # Classify on where the plugin header lives, not on file counts. Counting
+  # misreads both common layouts: a wrapper directory shipped beside a stray
+  # license.txt looks "flat", and a genuinely flat plugin with an includes/
+  # directory looks "wrapped".
+  root_main="$(find "$work" -maxdepth 1 -type f -name '*.php' -exec grep -lIiE '^[[:space:]]*\*?[[:space:]]*Plugin Name:' {} + 2>/dev/null | head -n1 || true)"
+
+  if [ -n "$root_main" ]; then
+    # The archive root is the plugin folder.
     place "$work" "$(slug_from_archive "$archive")" "$(basename "$archive") (flat archive)"
+  elif [ "$dir_count" = "1" ]; then
+    # One wrapper directory, whatever else sits beside it at the root.
+    place "$first_dir" "$(basename "$first_dir")" "$(basename "$archive")"
   elif [ "$dir_count" != "0" ]; then
-    echo "WARN  $(basename "$archive"): $dir_count top-level folders - unpack it by hand"
+    echo "WARN  $(basename "$archive"): $dir_count top-level folders and no plugin header at the root - unpack it by hand"
+  elif [ "$file_count" != "0" ]; then
+    place "$work" "$(slug_from_archive "$archive")" "$(basename "$archive") (flat archive)"
   else
     echo "WARN  $(basename "$archive"): archive looks empty"
   fi

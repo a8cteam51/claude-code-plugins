@@ -93,7 +93,19 @@ set +e
 GUARDS=""
 if [ -n "$PROD_BRANCH" ]; then
   GUARDS="$(printf '%s\n' "$TREE_FILES" | grep -E '^\.github/workflows/' | while IFS= read -r f; do
-    if git show "$REF:$f" 2>/dev/null | grep -qE "branches:.*$PROD_BRANCH"; then basename "$f"; fi
+    body="$(git show "$REF:$f" 2>/dev/null)"
+    # Both YAML spellings: `branches: [master]` inline, and `branches:` with
+    # `- master` on its own line underneath. grep is line-oriented, so the
+    # second form needs its own pattern or a real guard reads as none.
+    printf '%s\n' "$body" | grep -qE '^[[:space:]]*branches:' || continue
+    # Quotes and list punctuation become spaces first, so one simple word-
+    # boundary match covers `[master]`, `"master"`, `master` and `- master`
+    # without a bracket expression per spelling.
+    flat="$(printf '%s\n' "$body" | tr -d "\"'" | tr '[],' '   ')"
+    if printf '%s\n' "$flat" | grep -qE "branches:.*[[:space:]]${PROD_BRANCH}([[:space:]]|\$)" \
+       || printf '%s\n' "$flat" | grep -qE "^[[:space:]]*-[[:space:]]*${PROD_BRANCH}[[:space:]]*\$"; then
+      basename "$f"
+    fi
   done | sort | tr '\n' ' ')" || true
 fi
 DOCS=""
@@ -145,7 +157,7 @@ Working copy:     $ROOT
 Current branch:   $CURRENT_BRANCH (tracked changes: $DIRTY, untracked files: $UNTRACKED_COUNT)
 Default branch:   $DEFAULT_BRANCH
 Testing branch:   ${DEV_BRANCH:-<none found>}
-Production branch:${PROD_BRANCH:+ $PROD_BRANCH}
+Production branch: ${PROD_BRANCH:-<none found>}
 Plugins dir:      ${PLUGINS_DIR:-<not found>} ($PLUGIN_COUNT plugins)
 PR label:         ${LABEL:-<none - PRs will be unlabelled>}
 Prod guards:      ${GUARDS:-<none>}

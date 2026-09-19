@@ -147,7 +147,17 @@ def describe(plugin_dir):
         )
     headers = parse_headers(read_head(main_file)) if main_file else {}
     if not main_file:
-        notes.append("no top-level PHP file with a Plugin Name header")
+        any_php = any(
+            name.lower().endswith(".php")
+            for name in os.listdir(plugin_dir)
+            if not is_junk(name)
+        ) if os.path.isdir(plugin_dir) else False
+        if any_php:
+            notes.append("no top-level PHP file with a Plugin Name header")
+        else:
+            # Seen for real: a directory left behind on a branch that does not
+            # actually carry the plugin, holding nothing but a stray .DS_Store.
+            notes.append("directory holds no PHP files at all - is this plugin on this branch?")
 
     version = headers.get("version", "").strip()
     source = "header in " + os.path.basename(main_file) if main_file else None
