@@ -23,6 +23,7 @@ Add the marketplace once, then install whichever plugins you need:
 | [poseidon-local](#poseidon-local) | Run the Poseidon plan/implement agents locally instead of via GitHub Actions | `/poseidon-plan`, `/poseidon-implement` |
 | [ai-canvas](#ai-canvas) | Connect a WordPress site once, then vibe-code pages and posts as a full-width Custom HTML block through the REST API, verified in the browser | Natural language |
 | [site-launch-comparison](#site-launch-comparison) | Screenshot two versions of a site and build a side-by-side before/after report | Natural language |
+| [vip-plugin-updates](#vip-plugin-updates) | Turn a folder of plugin zips into one PR per plugin against a VIP repo that vendors its plugins | Natural language |
 
 ## plugin-review
 
@@ -402,6 +403,46 @@ Capture full-page **before/after screenshots of two versions of a website** and 
 # Or name the pages yourself and it skips discovery:
 # > Compare https://staging.example.com against https://www.example.com on
 # > /, /shop/, and /about/. Desktop only.
+```
+
+## vip-plugin-updates
+
+Turn a folder of downloaded plugin zips into **one pull request per plugin** against a WordPress VIP repo that vendors its plugins in git. VIP's dashboard generates these PRs only for repos inside the `wpcomvip` organisation, so repos owned elsewhere — `Automattic/store.a8c.com`, `Automattic/mercantile.wordpress.org` — do the job by hand every month, for a dozen plugins at a time. You download the zips (most are premium, behind vendor logins) and merge and test; everything between is the skill's.
+
+**What's included:**
+
+- **vip-plugin-updates skill** - Natural-language trigger for phrases like "the new plugin zips are in ~/Downloads/store-plugins, open the update PRs" or "run the monthly plugin updates"
+- **scripts/detect_repo.sh** - Reads the testing branch, production branch, plugins directory, PR label, production-branch guard workflows and process docs out of the repo itself, so a repo it has never seen needs no configuration
+- **scripts/stage_updates.sh** - Unpacks zips and loose folders into one clean staging directory: wrappers removed, `__MACOSX`/`.DS_Store` stripped, flat archives given a slug from the archive name
+- **scripts/plugin_inventory.py** - Matches staged plugins to vendored ones, reads versions with fallbacks for unusable headers, and compares with a PHP-compatible `version_compare`
+- **scripts/open_plugin_pr.sh** - One plugin per run: branch, swap, commit, push, PR, return to where you started
+- **references/troubleshooting.md** - Unreadable versions, slug mismatches, awkward zip layouts, `.gitignore` swallowing plugin files, `gh` failures, recovering a half-finished run
+
+**What it does:**
+
+- Opens one PR per plugin, never a batch, so a plugin that breaks the site is one revert
+- Treats the branch as the authority on what gets updated: a zip with no counterpart tracked on that branch is skipped, never added, and "tracked" is asked of git rather than inferred from a directory sitting on disk
+- Stops for a decision on downgrades and on updates that would delete files someone patched by hand in the vendored copy
+- Recovers versions that a script cannot parse — `@@VERSION@@` build placeholders, missing headers — from version constants, `readme.txt`'s `Stable tag`, `composer.json` or the zip name, without ever editing the vendor's files
+- Follows the repo's own process docs where they differ from the skill's defaults, and reads production-branch guard workflows before the production pass instead of running into a red required check
+- Hands back after each pass — it never merges a PR, pushes to a base branch, or claims the site was tested
+
+**Requirements:**
+
+- `git`, `rsync`, `unzip`, `python3`
+- `gh` authenticated with push access to the repo
+- A local working copy of the target repo, and a folder of plugin zips you downloaded
+
+```bash
+# Install vip-plugin-updates
+/plugin install vip-plugin-updates@a8cteam51-claude-code-plugins
+
+# Then trigger the skill in natural language:
+# > The new plugin zips for the swag store are in ~/Downloads/store-plugins.
+# > Open the update PRs against develop in ~/GitHub/store.a8c.com.
+
+# After merging and testing the staging site:
+# > Staging looks good — run the production pass.
 ```
 
 ## License
