@@ -441,14 +441,16 @@ Also write `directions/index.html` — a nav/overview page linking every built
 direction. This is a **required** output of every run, not an inconsistent
 one, and it must be the shared house template, not an improvised page.
 
-Before filling it, check `commands/templates/MANIFEST.md`: if a template was
-already chosen for this project (this run, or an earlier run against the same
-`projects/<slug>/`), reuse it. Otherwise present the available templates
-(name + one-line description, default pre-selected) and ask which to use —
-a bare confirmation picks the default. This is the same choice
-`/publish-design-options` presents, so ask it once per project rather than
-twice; if the user later runs `/publish-design-options` first, it asks
-instead and this skill should reuse whatever was picked there.
+Before filling it, check `../publish-design-options/templates/MANIFEST.md`: if a
+`.design-template` file already exists at this project's scope root (`projects/<slug>/`
+when working inside this harness, otherwise the project's own top-level
+folder — this run, or an earlier run against that same root), reuse it.
+Otherwise present the available templates (name + one-line description,
+default pre-selected) and ask which to use — a bare confirmation picks the
+default. This is the same choice `/publish-design-options` presents, so ask
+it once per project rather than twice; if the user later runs
+`/publish-design-options` first, it asks instead and this skill should reuse
+whatever was picked there.
 
 Fill the chosen template exactly as `/publish-design-options` does for its
 packaged index, with `{{OPTIONS}}` hrefs pointing at the sibling

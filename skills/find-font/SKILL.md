@@ -1,4 +1,5 @@
 ---
+name: find-font
 description: Browse the local font catalog for a family matching a mood/use-case description, classifying candidates on demand
 ---
 
@@ -6,9 +7,9 @@ description: Browse the local font catalog for a family matching a mood/use-case
 
 Standalone browsing of the local font catalog, outside any design task —
 "what do I have that's warm and editorial," "find me a technical
-monospace," etc. Read `${CLAUDE_PLUGIN_ROOT}/commands/font-reference/
-consulting.md` and `${CLAUDE_PLUGIN_ROOT}/commands/font-reference/
-classification.md` and follow them; this command is the trigger, those
+monospace," etc. Read `${CLAUDE_PLUGIN_ROOT}/skills/find-font/references/
+consulting.md` and `${CLAUDE_PLUGIN_ROOT}/skills/find-font/references/
+classification.md` and follow them; this skill is the trigger, those
 files are the mechanics.
 
 Arguments (required): `$ARGUMENTS` — a free-text mood/structure/use-case

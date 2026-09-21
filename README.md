@@ -63,7 +63,7 @@ been chosen and needs to be handed to a build agent.
 
 **Output:** `handoff/DESIGN.md`, `handoff/decisions.md`.
 
-## Commands
+## Supporting skills
 
 - `/find-font` — browse the local font catalog (`~/.claude/local-font-sources/`)
   for a family matching a mood/use-case description
@@ -87,7 +87,7 @@ projects/<slug>/
   handoff/
     DESIGN.md
     decisions.md
-  .design-template        template id chosen for this project's index page (see commands/templates/MANIFEST.md)
+  .design-template        template id chosen for this project's index page (see skills/publish-design-options/templates/MANIFEST.md)
   .spacefast/             created by publish-to-spacefast when directions are shared
 ```
 
@@ -112,7 +112,7 @@ into this plugin. Install it separately if you want that command to work.
 
 `local-font-library`'s catalog (`~/.claude/local-font-sources/`) is external
 and shared across projects and plugins — only the `/find-font` and
-`/scan-font-sources` commands are bundled here; the catalog itself lives
+`/scan-font-sources` skills are bundled here; the catalog itself lives
 outside this plugin, same as before.
 
 ## Out of scope, by design

@@ -25,10 +25,14 @@ one template. As more templates are added, the same prompt naturally becomes
 a real choice among several without any code change here.
 
 Once chosen for a project, record the template id as plain text in
-`projects/<slug>/.design-template` (project root, sibling to `.spacefast/`)
-and reuse it for later runs against the same folder without re-asking, unless
-the user brings it up — consistency across runs in one project still matters
-more than re-litigating the pick every time.
+`.design-template` at the project's **scope root** — `projects/<slug>/` when
+the project lives inside this harness's own working area, or the project's
+own top-level folder (sibling to `.spacefast/`) when it doesn't. Resolve the
+scope root the same way `/publish-design-options` step 1 does: an explicit
+path if given, else `git rev-parse --show-toplevel`, else `$PWD`. Reuse the
+recorded choice for later runs against that same root without re-asking,
+unless the user brings it up — consistency across runs in one project still
+matters more than re-litigating the pick every time.
 
 ## Adding a template
 

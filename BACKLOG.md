@@ -17,7 +17,3 @@ Deferred ideas and future-phase features deliberately not built yet.
   EULA restrictions that block adding a public git remote) — a recurring
   hazard in past engagements, currently handled ad hoc rather than
   systematically.
-- Migrate `commands/find-font.md`, `commands/scan-font-sources.md`,
-  `commands/publish-design-options.md` from the flat `commands/` layout into
-  `skills/` — current Claude Code plugin conventions favor `skills/` for
-  everything; `commands/` still works but is the older pattern.

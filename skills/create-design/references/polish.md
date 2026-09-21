@@ -33,6 +33,9 @@ you're looking at now, not whether the literal originating detail recurs.
 - Every border, rule and container earns its place; delete any that separates
   what space already separates
 - No rule or border crowding the text it encloses
+- Content never touches the edge of a bounded/colored container — interior
+  padding is present on every side, even when the container's background
+  differs from the page background
 
 **Composition**
 - Visual balance and clear focal point per view

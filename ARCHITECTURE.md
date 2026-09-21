@@ -132,9 +132,10 @@ validation — is unchanged.**
 - `NN-<slug>.html` × N — unchanged
 - `NN-<slug>.tokens.md` × N — new
 - `index.html` — nav/overview page, filling the shared house template at
-  `commands/templates/design-options-index.html` (see `commands/templates/
-  MANIFEST.md`) — required output of every run, same template
-  `/publish-design-options` fills for the packaged version
+  `skills/publish-design-options/templates/design-options-index.html` (see
+  `skills/publish-design-options/templates/MANIFEST.md`) — required output of
+  every run, same template `/publish-design-options` fills for the packaged
+  version
 
 **Exit condition:** N directions built, validated in-browser, presented to the
 user. The user (outside the harness, in conversation) picks one to carry
@@ -201,9 +202,18 @@ projects/<slug>/
   handoff/
     DESIGN.md
     decisions.md
-  .design-template        template id chosen from commands/templates/MANIFEST.md, so create-design and /publish-design-options agree without re-asking
+  .design-template        template id chosen from skills/publish-design-options/templates/MANIFEST.md, so create-design and /publish-design-options agree without re-asking
   .spacefast/             created by publish-to-spacefast when directions are shared
 ```
+
+This layout is the norm when a project lives inside the harness's own working
+area, but it is not required: `.design-template` and `.spacefast/` are
+resolved against each project's own scope root (an explicit path, else `git
+rev-parse --show-toplevel`, else `$PWD` — same resolution
+`/publish-design-options` step 1 uses), so a client project that lives in its
+own standalone folder outside this harness gets the same persistent,
+no-re-asking template memory at its own top level, sibling to `.spacefast/`,
+instead of silently having nowhere to record the choice.
 
 Any phase can be entered independently against an existing `projects/<slug>/`
 folder — e.g. re-running Phase 2 after Phase 1 already exists, or running
@@ -234,13 +244,19 @@ sp-site-design-harness/
         design-standards.md          forked from sp-design-system
         accessibility-standards.md   forked from sp-design-system
         design-md-schema.md
-  commands/
-    find-font.md                ported from local-font-library
-    scan-font-sources.md        ported from local-font-library
-    publish-design-options.md   ported from create-design (née consistent-high-quality-design)
-    templates/
-      design-options-index.html  the `deck` template, shared by create-design and publish-design-options
-      MANIFEST.md                 template registry + token contract
+    find-font/                  ported from local-font-library
+      SKILL.md
+      references/
+        consulting.md   classification.md
+    scan-font-sources/           ported from local-font-library
+      SKILL.md
+      references/
+        scanning.md
+    publish-design-options/      ported from create-design (née consistent-high-quality-design)
+      SKILL.md
+      templates/
+        design-options-index.html  the `deck` template, shared by create-design and publish-design-options
+        MANIFEST.md                 template registry + token contract
   references/
     instruction-priority.md     the harness-wide priority order (§1)
   README.md                     directive: what this is, phase-by-phase, for a

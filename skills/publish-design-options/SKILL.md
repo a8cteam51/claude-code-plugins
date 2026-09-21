@@ -1,4 +1,5 @@
 ---
+name: publish-design-options
 description: Package the design options from this session behind one private Spacefast link for partner review
 ---
 
@@ -12,7 +13,7 @@ explicit list of entry HTML files. Supplying a path is the most reliable
 invocation; without it, discovery is inferred and must be confirmed.
 
 Read the `publish-to-spacefast` skill before publishing. Do not
-reimplement its API handling — this command delegates all publish mechanics to
+reimplement its API handling — this skill delegates all publish mechanics to
 the Spacefast CLI.
 
 **Standing constraints — do not deviate without being asked:**
@@ -172,18 +173,21 @@ options' markup is where silent, plausible-looking damage happens.
 ## 9. Choose the index template, then generate the page
 
 Before filling anything, check whether a template was already chosen for this
-project earlier in the session (this run, or a prior publish/design run
-recorded in `projects/<slug>/`). If so, reuse it without re-asking.
+project earlier in the session (this run, or a prior publish/design run —
+check for a `.design-template` file at the scope root resolved in step 1,
+whether or not that root happens to be a `projects/<slug>/` folder). If so,
+reuse it without re-asking.
 
-Otherwise, read `${CLAUDE_PLUGIN_ROOT}/commands/templates/MANIFEST.md`, list
-every template there (name + one-line description) with the one marked
-**Default** pre-selected, and ask the user which to use for this partner
-share. A bare confirmation ("yes" / enter / "the default") picks the default —
-this is a lightweight confirm, not a multi-question gate, and stays that way
-even as more templates are added.
+Otherwise, read `${CLAUDE_PLUGIN_ROOT}/skills/publish-design-options/templates/
+MANIFEST.md`, list every template there (name + one-line description) with the
+one marked **Default** pre-selected, and ask the user which to use for this
+partner share. A bare confirmation ("yes" / enter / "the default") picks the
+default — this is a lightweight confirm, not a multi-question gate, and stays
+that way even as more templates are added.
 
-Fill the chosen template (today, only `${CLAUDE_PLUGIN_ROOT}/commands/
-templates/design-options-index.html`, the `deck` template) and write the
+Fill the chosen template (today, only `${CLAUDE_PLUGIN_ROOT}/skills/
+publish-design-options/templates/design-options-index.html`, the `deck`
+template) and write the
 result as `index.html` at the staging root. It follows the team's
 presentation pattern: full-bleed blue cover with the Automattic wordmark and
 an oversized tight-tracked headline, then a numbered table of contents in

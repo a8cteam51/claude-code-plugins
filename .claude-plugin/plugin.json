@@ -8,11 +8,9 @@
   "skills": [
     "./skills/research-intake",
     "./skills/create-design",
-    "./skills/dev-handoff"
-  ],
-  "commands": [
-    "./commands/find-font.md",
-    "./commands/scan-font-sources.md",
-    "./commands/publish-design-options.md"
+    "./skills/dev-handoff",
+    "./skills/find-font",
+    "./skills/scan-font-sources",
+    "./skills/publish-design-options"
   ]
 }

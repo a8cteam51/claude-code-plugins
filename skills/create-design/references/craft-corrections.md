@@ -53,6 +53,54 @@ Each entry has four fields. Keep entries short — a paragraph, not a page.
   it's "ask whether this edge reads as chosen," which depends on the
   surrounding composition.
 
+### CC-002 — Added 2026-09-17
+
+- **Symptom observed:** A vertical sidebar nav with rotated text labels had
+  thin horizontal rule lines positioned close to each label. Instead of
+  reading as separators between nav items, they looked like broken or
+  misplaced underlines — as if a text-decoration had leaked or misaligned.
+- **Why it read as unintentional:** Rotated text sitting near a short rule
+  line pattern-matches to "underlined text" before it pattern-matches to
+  "list divider." Without consistent spacing, equal-length treatment, or a
+  clear grid relationship to the items they're supposedly separating, the
+  lines don't signal "structural divider" — they signal "stray line
+  associated with that specific word."
+- **Generalized principle:** Thin rule lines used as separators next to text
+  (especially rotated or otherwise non-standard text orientation) need
+  enough visual distinction from text-decoration conventions — spacing,
+  consistent length/alignment to a grid, or clear separation from the text
+  baseline — or the eye will read them as a broken/accidental underline
+  rather than an intentional layout device.
+- **Not a rule because:** Vertical dividers between nav items are a
+  legitimate, common device (especially in editorial/gallery-style layouts)
+  — the failure mode here is proximity/alignment ambiguity with underline
+  conventions, not the presence of rules themselves.
+
+### CC-003 — Added 2026-09-17
+
+- **Symptom observed:** A two-column numbered list (item 02, item 03) had the
+  left column left-aligned with a divider rule on its left, but the right
+  column was right-aligned with body text ragging left — so both columns'
+  ragged edges pointed inward at each other across the gutter, instead of
+  matching alignment/divider treatment.
+- **Why it read as unintentional:** Repeated items in a list are expected to
+  share the same structural logic (alignment, divider placement, rag
+  direction) so the eye can parse them as instances of one pattern. Mirroring
+  only the text alignment — while the divider, numeral, and heading
+  positioning don't mirror along with it — breaks that shared logic. The two
+  rags pointing at each other reads like a copy-paste/RTL mistake rather than
+  a deliberate symmetric composition.
+- **Generalized principle:** In a repeated set of items (cards, list entries,
+  columns), keep alignment and rag direction consistent across instances
+  unless full mirroring is applied systemically to *every* structural
+  element (divider, numeral, heading, spacing) — partial mirroring, where
+  only body-text alignment flips, reads as broken rather than intentional.
+- **Not a rule because:** Deliberate mirrored/facing-page layouts are a
+  legitimate device (e.g., a true symmetric spread where both dividers,
+  numerals, and headings mirror too) — the failure isn't rag-pointing-inward
+  per se, it's applying that mirroring inconsistently to only one element of
+  the pattern.
+
 <!-- Append new entries below this line, oldest first, sequential IDs. -->
 
 ## Adding a new entry

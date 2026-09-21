@@ -1,4 +1,5 @@
 ---
+name: scan-font-sources
 description: Scan all configured font sources and refresh the local-font-sources catalog's index
 ---
 
@@ -6,9 +7,9 @@ description: Scan all configured font sources and refresh the local-font-sources
 
 Refresh `~/.claude/local-font-sources/index.json` against the current
 state of every source in `~/.claude/local-font-sources/config.json`. Read
-`${CLAUDE_PLUGIN_ROOT}/commands/font-reference/scanning.md` and follow it —
-this command is the trigger, that file is the mechanics; do not duplicate
-the procedure here.
+`${CLAUDE_PLUGIN_ROOT}/skills/scan-font-sources/references/scanning.md` and
+follow it — this skill is the trigger, that file is the mechanics; do not
+duplicate the procedure here.
 
 Arguments (optional): `$ARGUMENTS` — `<name> <path>` to add or repoint a
 single source in `config.json` before scanning (e.g. `default
@@ -25,14 +26,15 @@ configured source as-is.
    (iCloud) or another live cloud-sync location — report that the
    collection needs to be copied to local disk first and stop, for that
    source only (other sources still scan).
-3. Run the scan procedure from `${CLAUDE_PLUGIN_ROOT}/commands/font-reference/
-   scanning.md` in full for every source: walk, parse, license-check, diff,
-   update `index.json`, tagging each result with its source's `name`.
+3. Run the scan procedure from `${CLAUDE_PLUGIN_ROOT}/skills/scan-font-sources/
+   references/scanning.md` in full for every source: walk, parse,
+   license-check, diff, update `index.json`, tagging each result with its
+   source's `name`.
 4. Report the delta only, broken out per source if more than one — new
    files, files flagged for reclassification, files now missing on disk,
    and updated totals by license status. Do not print the full index.
 
-This command never classifies anything (no specimen rendering, no web
+This skill never classifies anything (no specimen rendering, no web
 research) — it only updates `index.json`. Classification happens
 on demand, through `/find-font` or through a real design task, per
-`${CLAUDE_PLUGIN_ROOT}/commands/font-reference/classification.md`.
+`${CLAUDE_PLUGIN_ROOT}/skills/find-font/references/classification.md`.

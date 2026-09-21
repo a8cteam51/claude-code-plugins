@@ -116,3 +116,17 @@ Gate 5 already serves as the final pre-completion checkpoint a QA phase would
 otherwise duplicate. Instead added one documentation-only line in
 `create-design/SKILL.md` naming DELIVER steps 1-3, 5, and 6-9 as one connected
 QA pass, for visibility without the structural cost.
+
+## 2026-09-17 — Migrate find-font/scan-font-sources/publish-design-options into skills/
+
+Moved these three from the flat `commands/*.md` layout into
+`skills/<name>/SKILL.md` directories (each with its supporting reference/
+template files alongside it), and updated `plugin.json` to list them under
+`skills` instead of `commands`. Current Claude Code plugin conventions favor
+`skills/` for everything; `commands/` still works but is the older pattern,
+and this plugin already used `skills/` for its three main phases. Invocation
+is unchanged — each is still triggered as `/find-font`, `/scan-font-sources`,
+`/publish-design-options`. `classification.md` and `consulting.md` now live
+under `skills/find-font/references/`; `scan-font-sources/SKILL.md` and
+`create-design/SKILL.md` reference them/the templates across the sibling
+skill directory rather than a shared top-level folder.

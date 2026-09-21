@@ -16,7 +16,7 @@ The plugin's three-phase pipeline is built out:
 - **Phase 3 — `dev-handoff` skill**: chosen direction → `handoff/DESIGN.md` +
   `handoff/decisions.md`, gated on `[Development]`-tagged accessibility criteria.
 
-Supporting commands are in place: `/find-font`, `/scan-font-sources`,
+Supporting skills are in place: `/find-font`, `/scan-font-sources`,
 `/publish-design-options` (the last depends on the separately-installed
 `publish-to-spacefast` skill).
 
@@ -27,7 +27,7 @@ the instruction-priority order used when sources conflict.
 ## Testing so far
 
 One full pipeline dry run completed (2026-09-17) in a throwaway test project
-(`harness-test-1`, symlinked to this plugin's `skills/`/`commands/` rather
+(`harness-test-1`, symlinked to this plugin's `skills/` rather
 than a formal plugin install): research-intake → create-design → dev-handoff,
 end to end, timed. Result: three complete, correctly risk-tiered homepage
 directions, each functionally sound, each with its own subtle "reads as
@@ -52,10 +52,8 @@ reduce this class of issue. This is the immediate next step.
   structure once the downstream WP-build system's expected input format is
   known; whether font-licensing checks belong as a standing Phase 1 ledger
   check.
-- `commands/` uses the older flat-file plugin layout; current Claude Code
-  plugin docs recommend `skills/` for everything going forward. Not urgent,
-  but worth migrating `find-font`/`scan-font-sources`/`publish-design-options`
-  into `skills/` at some point.
+- Done: `find-font`/`scan-font-sources`/`publish-design-options` migrated from
+  the flat `commands/` layout into `skills/` (2026-09-17) — see BACKLOG.md.
 
 ## Known blockers
 
