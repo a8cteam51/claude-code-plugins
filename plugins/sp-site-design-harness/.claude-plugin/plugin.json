@@ -1,0 +1,16 @@
+{
+  "name": "sp-site-design-harness",
+  "version": "0.1.0",
+  "description": "Three-phase Research → Design → Dev Handoff pipeline for WordPress block-theme site design — takes raw brand material to a developer-ready design system (DESIGN.md + decisions.md); does not build the theme itself.",
+  "author": {
+    "name": "Automattic"
+  },
+  "skills": [
+    "./skills/research-intake",
+    "./skills/create-design",
+    "./skills/dev-handoff",
+    "./skills/find-font",
+    "./skills/scan-font-sources",
+    "./skills/publish-design-options"
+  ]
+}
