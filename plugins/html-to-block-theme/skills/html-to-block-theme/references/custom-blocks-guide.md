@@ -10,6 +10,24 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold-custom-block.sh" --theme-dir "<them
 
 It writes `blocks/<slug>/` and ensures the theme registers it.
 
+**Template mode** (an a8csp-project-template repository; see `project-template-guide.md`) differs from the build-less layout below. Custom blocks go in the **features mu-plugin**, not the theme, because page content stores them and they must survive a theme swap. They are built, not build-less:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold-custom-block.sh" --layout template \
+  --features-dir "<features-dir>" --namespace "<theme_slug>" --slug "<slug>" --title "<Title>"
+```
+
+What the scaffold does:
+- Writes `blocks/src/<slug>/`: ES modules and JSX in `index.js`, and a strict-types `render.php` whose variables carry the repository's prefix.
+- Adds `includes/blocks.php`, which registers everything in the wp-scripts `blocks-manifest.php` via `wp_register_block_types_from_metadata_collection()`.
+- Adds the `build:features:blocks`/`start:features:blocks` scripts and the lint paths to `package.json`.
+- Lists the block's source and build `block.json` in `.github/blocks-allowlist`. CI's blocks policy fails any unlisted `block.json`.
+
+After scaffolding:
+- Build with `npm run build:features:blocks`.
+- Styles and view scripts follow wp-scripts conventions (`style-index.css`, `index.css`, `viewScript`), per `project-template-guide.md` § Build pipeline.
+- The build-less layout below, and "Registering from the theme", apply only to standalone builds.
+
 ## When a custom block is justified
 
 Build one only when **all lower rungs fail**:

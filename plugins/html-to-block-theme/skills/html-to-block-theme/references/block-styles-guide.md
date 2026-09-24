@@ -4,6 +4,12 @@ When a recurring custom CSS class adds styling that block supports cannot expres
 
 This skill registers variations in **`functions.php` with `register_block_style()`**, and ships each block type's CSS as **its own file** loaded on demand with **`wp_enqueue_block_style()`**. There is no monolithic theme stylesheet and no `/styles/*.json` block-style files — one readable CSS file per block type, loaded only when that block is on the page.
 
+**Template mode** (an a8csp-project-template repository; see `project-template-guide.md`) keeps every rule in this guide but changes the locations:
+- Each block type's stylesheet source is `assets/css/src/blocks/<block-name>.scss`, built to `assets/css/build/blocks/<block-name>.css`.
+- `register_block_style()` and `wp_enqueue_block_style()` live in `includes/block-styles.php`, not `functions.php`. They enqueue the **build** path and name each `.css` file literally.
+- Handles are `<theme_slug>-block-<block-name>`, and the text domain is the theme slug.
+- The standards audit detects this layout by itself.
+
 ## The rule: one CSS file per block type
 
 - All custom CSS for a block type lives in **one file**: `assets/css/blocks/<block-name>.css`, where the block name's `/` becomes `-` (`core/button` → `assets/css/blocks/core-button.css`, `core/group` → `core-group.css`, `mytheme/hero` → `mytheme-hero.css`).
