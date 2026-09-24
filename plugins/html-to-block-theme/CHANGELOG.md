@@ -1,8 +1,29 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.0] - 2026-09-24
 
 ### Added
+- **Template mode** for repositories generated from `a8cteam51/a8csp-project-template`. The skill switches to it when the Studio site's `wp-content` is a clone of such a repository, and builds into that repository's theme and features mu-plugin under its conventions. Worked out while porting the missamychan.com build into `a8cteam51/missamychan-2026`.
+  - `references/project-template-guide.md` covers:
+    - detection and preconditions: feature branch, PHP floor, toolchain, dependencies;
+    - the identifiers the template makes permanent, and the theme contract its tests encode;
+    - where each part of the build goes, and the build pipeline;
+    - removing the template's example features;
+    - what fails the template's CI and how to fix it;
+    - the checks, the parity guard, content and dependency handling, and delivery;
+    - a recipe for porting an existing standalone build.
+  - `scripts/detect-project-template.sh` identifies a template clone and prints its theme slug, PHP prefix, text domains, features plugin, floors and leftover example features as an `H2BT_TEMPLATE` sentinel.
+  - `scripts/template-checks.sh` runs the repository's CI gates: build integrity, blocks allowlist, `composer lint:php`, `npm run lint`, and optionally the wp-env PHPUnit and Playwright suites.
+    - **Why it uses a mirror:** the checks run from a mirror of the tracked files, because a Studio site's `wp-content` also holds Studio's SQLite integration and loader, which the lint scripts and wp-env would otherwise pick up.
+    - **Tooling:** it picks a PHP CLI that meets the floor, using Studio's `~/.studio/php-bin` builds as a fallback.
+    - **wp-env safety:** it refuses ports another wp-env instance publishes, and waits for theme activation before the end-to-end run.
+  - `scripts/parity-check.sh` takes a pixel-exact full-page baseline and later compares against it: reduced motion, animations disabled, lazy images loaded, popups suppressed through `localStorage`. It uses the repository's own `@playwright/test` with local Chrome. Use it to prove a port or an auto-fix changed nothing.
+- `scaffold-custom-block.sh --layout template` scaffolds a custom block into the features mu-plugin:
+  - wp-scripts sources with ES modules and JSX, plus a strict-types `render.php` with prefixed variables;
+  - manifest registration in `includes/blocks.php`;
+  - the `build:features:blocks`/`start:features:blocks` scripts and the lint paths;
+  - the `.github/blocks-allowlist` entries CI requires.
+- `standards-audit.sh --layout auto|standalone|template`. Template mode, detected automatically, checks one `assets/css/src/blocks/*.scss` source per block type, built to `assets/css/build/blocks/` and enqueued from `functions.php` or `includes/*.php`. It flags unbuilt, orphaned and stray stylesheets, and lists per-purpose stylesheets for review.
 - `scripts/write-page.sh` — wraps the whole sentinel-verified page write (stage markup inside the site dir, fill the `write-page-content.php.tmpl` placeholders, run `studio wp eval-file`, grep for `H2BT_OK`) in one command; its exit code is derived from the sentinel. Replaces the inline sed recipe in the `section-builder` agent.
 - Run lessons: the skill now reads `<site-path>/.h2bt/lessons.md` at the start of a run and appends corrections/confirmed approaches at the end, so lessons persist across runs (Fable 5 memory-system pattern).
 - Ported field-tested lessons from the first three full conversion runs (July 2026) into the reference guides:
@@ -15,6 +36,8 @@
   - Skill quirk 4: quiet file activity is not a section-builder completion signal — wait for the agent notification.
 
 ### Changed
+- The standards audit's CSS footprint now excludes comments properly (`/* */`, and `//` in SCSS), so the theme-header comment no longer counts toward the total.
+- SKILL.md, `section-builder`, `blueprint-analyzer` and the block-styles, custom-blocks and standards guides point to the template guide when template mode is on. Section builders rebuild their sources before reloading the browser.
 - Browser checks now use the **Claude in Chrome** extension's MCP tools (`mcp__claude-in-chrome__*`) instead of a bundled Playwright MCP:
   - Removed the `.mcp.json` Playwright server; Node.js/`npx` is no longer a prerequisite — Chrome with the Claude in Chrome extension (connected, with `localhost`/`127.0.0.1` site permission) is, plus `python3` for `serve-html.sh`.
   - Rewrote `visual-refinement.md` for the Chrome tools: two dedicated tabs in one shared window (a single `resize_window` matches both viewports), viewport-only screenshots (scroll each section into view; no full-page capture), `javascript_tool` for computed-style spot-checks, `read_console_messages` for `view.js` errors, and tab cleanup when a file is done.

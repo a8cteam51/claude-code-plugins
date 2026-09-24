@@ -158,6 +158,37 @@ tests:
         value: '(window\.wp\.|wp\.blocks)'
         metric: Uses wp globals
 
+  - description: Template mode puts blocks in the features plugin and block CSS in Sass sources
+    vars:
+      reference: project-template-guide.md
+      request: >-
+        Our Studio site's wp-content is a git clone of a repository generated from
+        a8cteam51/a8csp-project-template. The design needs one custom block (an accordion
+        core/details cannot reproduce) and custom CSS for a core/group block style. Where
+        does each go in the repository, how is the block registered, and what else must
+        change so the repository's CI passes?
+    assert:
+      - type: javascript
+        value: file://assertions/opened-reference.cjs
+        metric: Opened the guide
+      # House conventions an unaided model cannot know: CI's blocks policy fails any tracked
+      # block.json missing from this file.
+      - type: contains
+        value: blocks-allowlist
+        metric: Blocks allowlist
+      # Content-bearing blocks go in the features mu-plugin, not the theme.
+      - type: regex
+        value: '(?i)features (mu-)?plugin'
+        metric: Features plugin home
+      # wp-scripts manifest registration rather than a build-less glob.
+      - type: regex
+        value: '(blocks-manifest|wp_register_block_types_from_metadata_collection)'
+        metric: Manifest registration
+      # Block CSS is a Sass source built into the committed tree.
+      - type: contains
+        value: assets/css/src/blocks/
+        metric: Block CSS source path
+
 evaluateOptions:
   maxConcurrency: 2
 

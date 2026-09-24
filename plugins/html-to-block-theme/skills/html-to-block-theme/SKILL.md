@@ -1,6 +1,6 @@
 ---
 name: html-to-block-theme
-description: This skill should be used when the user asks to "build a block theme from this HTML", "turn these designs into a WordPress theme", "convert this Claude Design output to a block theme", "make a WordPress theme from these HTML files", "make this design into a real WordPress site", or otherwise requests turning static HTML/CSS/JS design files into a WordPress block theme on a local WordPress Studio site. Triggers when static HTML/CSS design files (or a directory of them) are supplied alongside any HTML→block-theme conversion intent.
+description: This skill should be used when the user asks to "build a block theme from this HTML", "turn these designs into a WordPress theme", "convert this Claude Design output to a block theme", "make a WordPress theme from these HTML files", "make this design into a real WordPress site", or otherwise requests turning static HTML/CSS/JS design files into a WordPress block theme on a local WordPress Studio site — including building into, or porting a finished build into, a project repository generated from a8cteam51/a8csp-project-template. Triggers when static HTML/CSS design files (or a directory of them) are supplied alongside any HTML→block-theme conversion intent.
 ---
 
 # Build a WordPress block theme from a set of static HTML designs
@@ -12,6 +12,7 @@ Work in phases and **do not skip the blueprint**. Plan the whole mapping first, 
 ## Inputs
 
 - **Design directory** (required) — absolute path to a folder of static `.html` files plus their linked `.css`, `.js`, image, and font assets. The user provides this.
+- **Project repository** (optional) — a repository generated from `a8cteam51/a8csp-project-template`. When the Studio site's `wp-content` is a clone of one, the run is in **template mode** (detected in Preconditions): it builds into that repository's theme and features mu-plugin under the template's conventions, per `references/project-template-guide.md`.
 - **Studio site** (optional but preferred) — path or registered name of the target Studio site. If the user provides a path, use it as-is. If they don't, infer it from `studio site list --format=json` (match a sensible name, or ask if ambiguous). The site has a minimal block-theme scaffold the agent fully controls.
 
 ## Critical environment quirks
@@ -41,10 +42,13 @@ Run these in parallel before any work. If any fails, stop and report — do not 
 2. **Site resolves and is valid.** `studio site status --path=<site-path>` exits zero; capture the site's Local URL for the refine phase.
 3. **Site is running.** If stopped, `studio site start --path=<site-path>` and wait. If start fails, stop.
 4. **WP-CLI works.** `studio wp core is-installed --path=<site-path>` exits zero.
-5. **Theme scaffold present, and bind `<theme-dir>`.** Confirm the active theme is a block theme with at least `style.css`, `theme.json`, and `templates/index.html`. If absent, offer to scaffold via `mcp__wordpress-studio__scaffold_theme` and proceed only once it exists. Capture its absolute path once and reuse it as `<theme-dir>` for the rest of the run: `studio wp theme path <active-theme-slug> --dir --path=<site-path>` (or the scaffold tool's reported path).
-6. **MCP tools and subagents exposed.** Confirm the Claude in Chrome browser tools (`mcp__claude-in-chrome__*` — if deferred, load them with one ToolSearch call) and the Studio validator (`validate_blocks`, or whatever name the installed Studio version exposes — see Tooling) are available in the session, and that the `html-to-block-theme:blueprint-analyzer` and `html-to-block-theme:section-builder` subagent types resolve (they ship with this plugin). If a subagent type is unavailable, fall back to dispatching a `general-purpose` subagent with the same instructions.
-7. **Design directory exists** and contains at least one `.html` file. Glob the linked assets so later phases know what to route.
-8. **Clean working dir, read prior lessons.** Create `<site-path>/.h2bt/` and remove leftover staged files from any prior aborted run — but keep `lessons.md` and read it if present: it holds lessons recorded by previous runs against this site and environment, and they apply to this run.
+5. **Detect the layout.** Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-project-template.sh" --site-path <site-path>` and read its `H2BT_TEMPLATE` sentinel.
+   - `mode=standalone` → continue with step 6 as written. If the user named a project-template repository but the site's `wp-content` is not a clone of it, set that up first with the `studio-repo-clone` plugin (`clone-into-existing-site` keeps the site's database and uploads; `clone-new-site` for a new site), then re-run detection.
+   - `mode=template` → load `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/project-template-guide.md` and satisfy its Preconditions (feature branch, PHP floor, toolchain, dependencies). Bind `<repo>`, `<theme-dir>` (the sentinel's `theme_dir`), `<features-dir>`, `<prefix>`, and the text domains for the rest of the run. The template ships its theme, so skip scaffolding in step 6; confirm it is active (`studio wp theme activate <theme_slug> --path=<site-path>`) unless you are porting a build that must stay active until its parity baseline is taken.
+6. **Theme scaffold present, and bind `<theme-dir>`.** Confirm the active theme is a block theme with at least `style.css`, `theme.json`, and `templates/index.html`. If absent, offer to scaffold via `mcp__wordpress-studio__scaffold_theme` and proceed only once it exists. Capture its absolute path once and reuse it as `<theme-dir>` for the rest of the run: `studio wp theme path <active-theme-slug> --dir --path=<site-path>` (or the scaffold tool's reported path).
+7. **MCP tools and subagents exposed.** Confirm the Claude in Chrome browser tools (`mcp__claude-in-chrome__*` — if deferred, load them with one ToolSearch call) and the Studio validator (`validate_blocks`, or whatever name the installed Studio version exposes — see Tooling) are available in the session, and that the `html-to-block-theme:blueprint-analyzer` and `html-to-block-theme:section-builder` subagent types resolve (they ship with this plugin). If a subagent type is unavailable, fall back to dispatching a `general-purpose` subagent with the same instructions.
+8. **Design directory exists** and contains at least one `.html` file. Glob the linked assets so later phases know what to route.
+9. **Clean working dir, read prior lessons.** Create `<site-path>/.h2bt/` and remove leftover staged files from any prior aborted run — but keep `lessons.md` and read it if present: it holds lessons recorded by previous runs against this site and environment, and they apply to this run.
 
 ## Procedure
 
@@ -58,7 +62,7 @@ Run these in parallel before any work. If any fails, stop and report — do not 
 
    It starts a background server and prints one sentinel line: `H2BT_SERVE url=<base-url> pid=<pid> pidfile=<path>`. Parse it — capture `<base-url>` (each design file is then reachable at `<base-url><file>.html`) and `<pidfile>` (needed to stop the server in Phase 4).
 
-2. Dispatch one **`blueprint-analyzer`** subagent **per HTML file, in parallel** (these are read-only — parallel is safe and fast). Use the Agent tool with `subagent_type: "html-to-block-theme:blueprint-analyzer"`, passing the file path, the served URL, and the design directory. Each returns the structured JSON described in that agent's definition: section list, per-section block mapping with the chosen escalation-ladder rung, custom-CSS-class → block-style candidates, custom-block candidates (with "why core can't"), the file's classification (core template vs shared-wrapper page content), and the design tokens it detected.
+2. Dispatch one **`blueprint-analyzer`** subagent **per HTML file, in parallel** (these are read-only — parallel is safe and fast). Use the Agent tool with `subagent_type: "html-to-block-theme:blueprint-analyzer"`, passing the file path, the served URL, and the design directory (in template mode, also the block namespace: the project theme slug). Each returns the structured JSON described in that agent's definition: section list, per-section block mapping with the chosen escalation-ladder rung, custom-CSS-class → block-style candidates, custom-block candidates (with "why core can't"), the file's classification (core template vs shared-wrapper page content), and the design tokens it detected.
 
 3. **Reconcile** all analyzer outputs into one blueprint. Load `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/mapping-guide.md` and `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/theme-json-guide.md` for the rules. Decide:
    - A single unified token set for `theme.json` (merge near-duplicate colours/sizes; one source of truth).
@@ -84,9 +88,19 @@ Build the shared foundation once, before any per-file content. Load `${CLAUDE_PL
 
 5. Route assets: fonts → `theme.json` `fontFamilies` with files copied into `assets/fonts/`; content images → media library (`studio wp media import ...`); decorative/background images → theme `assets/`.
 
+**Template mode.** `project-template-guide.md` overrides the locations above and adds steps. In short:
+- Remove the template's example features by their co-located recipes.
+- Replace `theme.json`, the parts, templates and patterns in `<theme-dir>`.
+- Put root styles in `assets/sass/` partials.
+- Put block CSS in `assets/css/src/blocks/<block>.scss`, registered from `includes/block-styles.php` against the build path.
+- Put theme JS in ES modules under `assets/js/src/`.
+- Scaffold custom blocks into the features mu-plugin with `scaffold-custom-block.sh --layout template --features-dir <features-dir> --namespace <theme_slug>`, and delete `<features-dir>/.disabled`.
+
+Run `npm run build` after the foundation and after every source edit, since the site serves built files.
+
 ### Phase 3 — Build and refine, section by section (serial)
 
-Process the files **one at a time** (serial — see quirk 4). For each file, dispatch a **`section-builder`** subagent via the Agent tool with `subagent_type: "html-to-block-theme:section-builder"`, passing the blueprint, that file's target, the site path, the theme dir, the served original URL, and the site's Local URL. The subagent (per its definition):
+Process the files **one at a time** (serial — see quirk 4). For each file, dispatch a **`section-builder`** subagent via the Agent tool with `subagent_type: "html-to-block-theme:section-builder"`, passing the blueprint, that file's target, the site path, the theme dir, the served original URL, and the site's Local URL — and in template mode also `layout: template`, `<repo>`, `<features-dir>`, `<prefix>`, the text domains, and the path to `project-template-guide.md`. The subagent (per its definition):
 
 - Emits Gutenberg block markup using **only `<!-- wp -->` comments** (no other inline comments) for each section, applying the escalation ladder from `mapping-guide.md`.
 - For core templates: writes `templates/*.html` / `parts/*.html`.
@@ -106,9 +120,10 @@ Collect each subagent's JSON result (target built, validation summary, drift lis
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/standards-audit.sh" --theme-dir "<theme-dir>"
    ```
 
-   It must report zero non-`<!-- wp -->` inline comments (`stray_comments=0`), zero block-CSS organization violations (`css_org=0` — every block CSS file is one-per-block-type under `assets/css/blocks/` and enqueued via `wp_enqueue_block_style()`), and an itemised, minimal custom-CSS footprint. Load `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/standards.md` for what counts as a violation.
-4. **Record lessons.** Append to `<site-path>/.h2bt/lessons.md` anything a future run of this skill should know — corrections, confirmed approaches, environment quirks discovered this run. One lesson per entry, a one-line summary first, then why it mattered. Don't record what `blueprint.md` or the theme itself already captures; update an existing entry rather than duplicating it, and delete entries this run proved wrong.
-5. Report (see below). Stop the static server (`bash "${CLAUDE_PLUGIN_ROOT}/scripts/serve-html.sh" --stop --pidfile <pidfile>`) so it doesn't leak, and clean up transient staged files in `<site-path>/.h2bt/`, leaving `blueprint.md` and `lessons.md` as the audit trail.
+   It must report zero non-`<!-- wp -->` inline comments (`stray_comments=0`), zero block-CSS organization violations (`css_org=0` — every block CSS file is one-per-block-type under `assets/css/blocks/` and enqueued via `wp_enqueue_block_style()`; in template mode the audit detects the layout itself and checks one `assets/css/src/blocks/*.scss` source per block type, built and enqueued), and an itemised, minimal custom-CSS footprint. Load `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/standards.md` for what counts as a violation.
+4. **Template mode gates.** Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/template-checks.sh" --repo <repo>` (add `--tests --e2e` when Docker is running). It must end `H2BT_TEMPLATE_CHECKS_OK`; fix each failing gate by the table in `project-template-guide.md` § What fails CI. Take a `parity-check.sh` baseline before running any formatter or auto-fixer, and compare afterwards. Replace the template's example tests with tests of this build's promises. Commit in logical conventional-commit units on the feature branch; push and open a **draft** PR against `trunk` only with the user's permission.
+5. **Record lessons.** Append to `<site-path>/.h2bt/lessons.md` anything a future run of this skill should know — corrections, confirmed approaches, environment quirks discovered this run. One lesson per entry, a one-line summary first, then why it mattered. Don't record what `blueprint.md` or the theme itself already captures; update an existing entry rather than duplicating it, and delete entries this run proved wrong.
+6. Report (see below). Stop the static server (`bash "${CLAUDE_PLUGIN_ROOT}/scripts/serve-html.sh" --stop --pidfile <pidfile>`) so it doesn't leak, and clean up transient staged files in `<site-path>/.h2bt/`, leaving `blueprint.md` and `lessons.md` as the audit trail.
 
 ## Report
 
@@ -120,7 +135,8 @@ After Phase 4, summarise:
 - **Custom blocks created and why** each was needed beyond core.
 - Block-validation summary (`validated_ok`, `auto_fixed`, `downgraded`).
 - TODOs the user should inspect (lossy mappings, dropped animations, JS not yet ported).
+- Template mode: the `H2BT_TEMPLATE_CHECKS_*` line, the parity result, the branch and commits (and the PR link if pushed), the plugins the content depends on, and that page content lives in the Studio database — deploying ships code only.
 
 ## Things that should stop the run
 
-Each precondition and each post-write verification is a hard gate. Never report success when a page-content write's sentinel grep fails, when block validation still shows invalid blocks after the two-call ceiling (downgrade to `core/html` instead), or when the standards audit reports stray inline comments or block-CSS organization violations. Surface the reason plainly and stop — the user is driving this and needs to know exactly what was checked.
+Each precondition and each post-write verification is a hard gate. Never report success when a page-content write's sentinel grep fails, when block validation still shows invalid blocks after the two-call ceiling (downgrade to `core/html` instead), when the standards audit reports stray inline comments or block-CSS organization violations, or — in template mode — when `template-checks.sh` ends `H2BT_TEMPLATE_CHECKS_FAIL` or the work would land on `trunk`/`develop`. Surface the reason plainly and stop — the user is driving this and needs to know exactly what was checked.

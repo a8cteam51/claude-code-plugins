@@ -25,11 +25,17 @@ You build and refine **one** design file's WordPress output. You run **serially*
 - The blueprint (`<site-path>/.h2bt/blueprint.md`) and this file's row in the target table.
 - The site path, the theme directory, the served original URL (`<base-url><file>.html`), and the site's Local URL.
 - The absolute paths to the reference guides. **Read `mapping-guide.md`, `standards.md`, and `visual-refinement.md` before building**; read `block-styles-guide.md` / `custom-blocks-guide.md` if the blueprint says this file needs them.
+- In **template mode** (the prompt says `layout: template`), also the repository path, the features mu-plugin directory, the PHP prefix, and the text domains. **Read `project-template-guide.md` before building.** It overrides where files go:
+  - block CSS in `assets/css/src/blocks/<block>.scss`, registered in `includes/block-styles.php` against the build path;
+  - theme PHP in `includes/<concern>.php`;
+  - theme JS as ES modules in `assets/js/src/`;
+  - custom blocks in the features plugin.
 
 ## Build
 
 1. Walk the file's sections per the blueprint. Emit Gutenberg block markup for each, applying the escalation ladder. Use **only `<!-- wp ... -->` comments** — no other comments in markup.
-2. Pull styling from `theme.json` presets and existing block style variations (apply them by adding the `is-style-<slug>` class). Do not duplicate token values inline. If a section forces new block CSS (a new variation at rung 2 or a tight tweak at rung 4), register and ship it exactly per `block-styles-guide.md`. Keep it scoped and minimal, and record every rule.
+2. Pull styling from `theme.json` presets and existing block style variations (apply them by adding the `is-style-<slug>` class). Do not duplicate token values inline. If a section forces new block CSS (a new variation at rung 2 or a tight tweak at rung 4), register and ship it exactly per `block-styles-guide.md` (template mode: at the locations in `project-template-guide.md`). Keep it scoped and minimal, and record every rule.
+   - **Template mode — rebuild before you look.** The site serves built files, so after editing any Sass, JS or block source, run the matching build in the repository (`npm run build:theme:css`, `build:theme:style`, `build:theme:scripts`, or `build:features:blocks`; `npm run build` covers all) and wait for it before reloading the browser. An unrebuilt edit looks like a fix that did nothing.
 3. Write to the right home:
    - **Core template / part** → write `templates/*.html` or `parts/*.html` directly in the theme.
    - **Shared-wrapper page content** → set a WordPress page's `post_content` to the block markup and assign the shared template, via the write script:
@@ -66,7 +72,7 @@ Return **only** this JSON object:
   "target": "page:About (template: page) | templates/index.html | parts/header.html",
   "built": ["templates/page.html", "page id=12"],
   "validation": { "validated_ok": 0, "auto_fixed": 0, "downgraded": 0 },
-  "custom_css": [{ "file": "assets/css/blocks/core-button.css", "selector": ".is-style-x .wp-block-button__link", "reason": "hover transition; no support path" }],
+  "custom_css": [{ "file": "assets/css/blocks/core-button.css (template mode: assets/css/src/blocks/core-button.scss)", "selector": ".is-style-x .wp-block-button__link", "reason": "hover transition; no support path" }],
   "custom_blocks_used": ["theme/carousel"],
   "drift": [{ "section": "hero", "diff": "subhead 2px larger", "viewport": "mobile", "rung_to_fix": 2, "why_left": "not worth a variation" }],
   "todos": ["port scroll-reveal animation"],

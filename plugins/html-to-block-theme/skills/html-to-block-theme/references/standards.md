@@ -45,6 +45,15 @@ blocks/              # build-less custom blocks (one dir each)
 
 `style.css` must carry the theme header (Theme Name, Version, Text Domain, etc.). `templates/index.html` must exist for the theme to be valid.
 
+**Template mode** (an a8csp-project-template repository) uses that template's structure instead. `project-template-guide.md` § Where each piece goes has the full mapping; in short:
+- Sass sources build `style.css`.
+- Block CSS goes in `assets/css/src/blocks/*.scss`, built to `assets/css/build/blocks/`.
+- PHP goes in `includes/*.php`, loaded by the template's `functions.php`.
+- Theme JS is ES modules under `assets/js/src/`, built to `assets/js/build/`.
+- Custom blocks go in the features mu-plugin.
+
+The template's own gates (PHPCS, PHPStan, stylelint, ESLint, build integrity, blocks allowlist, tests) apply on top of these standards. Run them with `scripts/template-checks.sh`.
+
 **`style.css` is not auto-enqueued on block themes** (observed on WP 7.0.1/Studio): `functions.php` must enqueue it explicitly — `wp_enqueue_style( '<theme-slug>-style', get_stylesheet_uri(), … )` plus `add_editor_style( 'style.css' )` so the editor matches. Root `style.css` is exempt from the one-file-per-block-type rule and is where responsive token overrides live (`theme-json-guide.md`); a separate `assets/css/tokens.css` is flagged STRAY by the audit.
 
 The theme must **not** ship `templates/front-page.html` — the standards audit fails a theme containing it. The homepage is a WordPress page set as the static front page; see the homepage rule in `mapping-guide.md`.
@@ -52,7 +61,7 @@ The theme must **not** ship `templates/front-page.html` — the standards audit 
 ## WordPress / PHP
 
 - Escape output (`esc_html`, `esc_attr`, `esc_url`, `wp_kses_post`); use `get_block_wrapper_attributes()` in render callbacks.
-- One text domain, matching the theme slug, used consistently in i18n calls.
+- One text domain, matching the theme slug, used consistently in i18n calls. (Template mode: the theme uses the theme slug and the features mu-plugin its own text domain; each component sticks to its own.)
 - Bundle fonts locally (declared in `theme.json` `fontFace`); no CDN `@import`.
 
 ## Accessibility

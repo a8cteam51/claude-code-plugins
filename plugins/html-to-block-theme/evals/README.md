@@ -38,6 +38,7 @@ be spotted in a green table.
 | Block style CSS is one file per block type | `register_block_style()` + `assets/css/blocks/core-button.css` + `wp_enqueue_block_style()`, never a monolithic stylesheet | `references/block-styles-guide.md` § The rule |
 | core/html policy rejects an anchor-wrapped SVG | Bare inline SVG is allowed; wrapping it in `<a>` is not, and icon links belong in `core/social-links`. Real embeds stay allowed | `references/mapping-guide.md` § core/html policy |
 | Build-less custom block registration | Progressive disclosure — does SKILL.md's pointer actually retrieve? See below | `references/custom-blocks-guide.md` |
+| Template mode puts blocks in the features plugin | Progressive disclosure for template mode: features mu-plugin, manifest registration, `.github/blocks-allowlist`, `assets/css/src/blocks/*.scss`. Added in 0.3.0 and not yet run | `references/project-template-guide.md` |
 
 ### The disclosure case is not an A/B
 

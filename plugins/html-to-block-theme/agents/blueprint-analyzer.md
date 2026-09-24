@@ -40,6 +40,7 @@ You analyze **one** static HTML design file and return a structured mapping for 
 
 - Use documented block attributes only; never invent attribute names. Colour classes are `has-{slug}-background-color`.
 - Prefer block supports over block styles, block styles over custom blocks, custom blocks over custom CSS.
+- If the dispatching prompt names a block namespace (template mode uses the project theme slug), name custom block candidates `<namespace>/<slug>`; otherwise use `theme/<slug>`.
 - Anything with no clean mapping → note it as `core/html` + a TODO; do not force a wrong block.
 - Note anything that will be dropped (animations, decorative JS).
 
