@@ -72,7 +72,7 @@ Notes:
 ## Variation rules
 
 - **Selector must start with `.is-style-<slug>`** (or the block wrapper + that class). Never style by the original design class name.
-- **Check the block emits a wrapper class before scoping to it.** A block whose `block.json` sets `"className": false` never outputs a `wp-block-<name>` class — `core/paragraph` is the big one: `.wp-block-paragraph.is-style-x` matches nothing. Scope those variations as element + class instead (`p.is-style-x`).
+- **Check the block emits a wrapper class before scoping to it.** A block whose `block.json` sets `"className": false` saves no `wp-block-<name>` class. `core/paragraph` is the one that matters: WordPress 7.0 and later add `wp-block-paragraph` when the paragraph renders on the front end, but earlier versions never do, so there `.wp-block-paragraph.is-style-x` matches nothing. Scope paragraph variations as element + class (`p.is-style-x`), which matches on every version.
 - One concern per variation; one slug per recurring design class. Choose slugs from design intent (`elevated`, `ghost`, `inverted`, `bordered`), not the original class string.
 - Apply a variation in block markup with the class and the attribute:
 
@@ -115,8 +115,8 @@ Some block types need a little custom CSS that is not an editor-selectable varia
 Rung-4 structural CSS may target **block selectors directly** — the block's own wrapper classes and contextual combinators:
 
 ```css
-header.wp-block-template-part > .wp-block-group { position: relative; height: 306px; }
-header.wp-block-template-part nav.wp-block-navigation { position: absolute; top: 211px; }
+header.wp-block-template-part > .wp-block-group { position: relative; }
+header.wp-block-template-part nav.wp-block-navigation { position: absolute; inset-inline-end: 0; }
 .wp-block-group > footer.wp-block-template-part { margin-top: auto; }
 ```
 

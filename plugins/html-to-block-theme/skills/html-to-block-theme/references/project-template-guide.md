@@ -43,7 +43,7 @@ The template's CI, tests and wp-env configuration depend on these. Read them fro
 | Identifier | Rule |
 | --- | --- |
 | Theme directory, theme text domain | `themes/<theme_slug>` and `<theme_slug>`. Replace the theme's *contents*, never its name. |
-| PHP prefix | Taken verbatim from `<theme-dir>/.phpcs.xml`. It can look truncated (for example `missamychan_202_`). Theme globals use `<prefix>theme_*`; features globals use `<prefix>features_*`. That includes `render.php` variables. |
+| PHP prefix | Taken verbatim from `<theme-dir>/.phpcs.xml`. It can look truncated (for example `examplesite_202_` for a repository named `examplesite-2026`). Theme globals use `<prefix>theme_*`; features globals use `<prefix>features_*`. That includes `render.php` variables. |
 | Features text domain | `<features_slug>`, used in every features PHP and JS string. |
 | Block namespace, pattern slugs, pattern category | `<theme_slug>/<name>`. |
 | CSS classes, keyframes, custom properties, data attributes, handles | Prefixed `<theme_slug>-` (for example `<theme_slug>-block-core-image`). |
