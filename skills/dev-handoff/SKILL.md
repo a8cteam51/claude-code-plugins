@@ -60,6 +60,10 @@ Sections with nothing to say get an explicit `omitted` key in the
 frontmatter rather than being silently dropped. Prose must explain the *why*
 behind each token, not just restate the value.
 
+Read the chosen HTML file's `:root` block alongside `.tokens.md`. The `:root`
+block is authoritative. If the two disagree (e.g. a later `/iterate` edit
+missed the tokens file), use the CSS value and say so in `decisions.md`.
+
 ### Step 2 — Gap-fill against team standards
 
 Anything `DESIGN.md` needs that neither the chosen direction's tokens nor
@@ -112,6 +116,9 @@ system will consume:
   file cannot demonstrate.
 - **Explicit deferrals** — anything intentionally left for the build phase
   to decide, named plainly rather than left implicit.
+- **Partner feedback applied** — if `directions/NN-<slug>.changes.md` exists,
+  summarize it here so the build agent knows which choices came from partner
+  review and shouldn't be "corrected" back.
 
 ## Output (`handoff/`)
 
@@ -121,6 +128,12 @@ system will consume:
 **Explicitly not produced here:** `theme.json`, `style.css`, block
 templates/patterns, or anything else the separate WP-build system is
 responsible for.
+
+## After handoff
+
+Once `handoff/DESIGN.md` exists, the chosen `directions/*.html` is frozen as
+a reference. Later feedback is applied to the built theme with `/iterate`,
+which keeps `DESIGN.md` in sync. It never goes back into the HTML.
 
 ## Exit condition
 

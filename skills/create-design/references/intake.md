@@ -164,12 +164,27 @@ CONSTRAINTS
 Every selected direction produces two files side by side in `./directions/`,
 plus one shared index:
 
-- `NN-<slug>.html` — the self-contained page, as before.
+- `NN-<slug>.html` — the self-contained page, as before. Its `:root` block
+  holds every token in two layers:
+  1. **Raw palette**, named by the concept (`--sage: #74856A;`). The only
+     place hex values appear.
+  2. **Role aliases** pointing at the palette: `--color-text`,
+     `--color-text-muted`, `--color-surface`, `--color-surface-raised`,
+     `--color-border`, `--color-accent`, `--color-link`, `--color-focus`
+     (add others the design genuinely needs), plus `--font-display`,
+     `--font-body`, and the spacing scale.
+
+  Component CSS references role aliases, never raw palette names or hex.
+  Check it during the craft pass: grep for `#[0-9a-fA-F]{3,8}` outside
+  `:root` should return nothing. This is what makes a later `/iterate` swap a
+  one-line change.
 - `NN-<slug>.tokens.md` — the same token list this skill already produces in
   its chat response for that direction, persisted to disk instead of left
   only in conversation. Minimum contents:
   - Type scale (roles → sizes/weights/line-heights)
-  - Palette with roles (not just swatches — which token plays which role)
+  - Palette with roles (not just swatches — which token plays which role),
+    using the same raw and role-alias names as the HTML's `:root`, which is
+    authoritative if the two ever disagree
   - Spacing scale
   - Radius convention
   - Border and shadow strategy (state plainly when any of these is "none")
