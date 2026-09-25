@@ -37,15 +37,15 @@ be spotted in a green table.
 | The homepage is a page, never front-page.html | Homepage is content, not a view: a WP page plus `show_on_front`/`page_on_front`; own chrome means a `customTemplates` entry | `references/mapping-guide.md` § The homepage rule |
 | Block style CSS is one file per block type | `register_block_style()` + `assets/css/blocks/core-button.css` + `wp_enqueue_block_style()`, never a monolithic stylesheet | `references/block-styles-guide.md` § The rule |
 | core/html policy rejects an anchor-wrapped SVG | Bare inline SVG is allowed; wrapping it in `<a>` is not, and icon links belong in `core/social-links`. Real embeds stay allowed | `references/mapping-guide.md` § core/html policy |
-| Build-less custom block registration | Progressive disclosure — does SKILL.md's pointer actually retrieve? See below | `references/custom-blocks-guide.md` |
-| Template mode puts blocks in the features plugin | Progressive disclosure for template mode: features mu-plugin, manifest registration, `.github/blocks-allowlist`, `assets/css/src/blocks/*.scss`. Added in 0.3.0 and not yet run | `references/project-template-guide.md` |
+| Custom behaviour checks the blocks monorepo | Progressive disclosure — does SKILL.md's pointer actually retrieve? Core first, then the A8C Special Projects blocks monorepo (`a8csp` namespace, `npm run new-block`), styled from the theme. Replaced the build-less registration case in 0.4.0; not yet run | `references/custom-blocks-guide.md` |
+| Template mode keeps only an approved exclusion in the features plugin | Progressive disclosure for template mode: an approved exclusion in the features mu-plugin, manifest registration, `.github/blocks-allowlist`, `--exclusion-approved`, `assets/css/src/blocks/*.scss`. Reworded in 0.4.0; not yet run | `references/project-template-guide.md` |
 
 ### The disclosure case is not an A/B
 
 The first three cases ask whether the skill knows a rule. The fourth asks something different:
-**does SKILL.md's pointer to a reference file work?** Every fact it asserts lives only in
-`custom-blocks-guide.md` — `viewScriptModule`, `editorScript`, the no-JSX global-`wp`
-registration, and the `GLOB_ONLYDIR` loop appear nowhere in SKILL.md.
+**does SKILL.md's pointer to a reference file work?** The monorepo-first process it asserts —
+the `special-projects-blocks-monorepo` catalog, the `a8csp` namespace, `npm run new-block` —
+is spelled out only in `custom-blocks-guide.md`; SKILL.md names the monorepo and points there.
 
 `assertions/opened-reference.cjs` checks the retrieval itself by reading
 `metadata.toolCalls` for a read of the named file. That splits the result four ways:
@@ -60,13 +60,14 @@ workspace, so it can never pass the retrieval assertion — scoring it as "separ
 a tautology. `run-eval.mjs` detects the `Opened the guide` metric and prints the quadrant
 instead of a separation verdict.
 
-The first version of this case made exactly that mistake. It asserted only
-`viewScriptModule` / `editorScript` / `createElement` / `wp.blocks`, and the unaided arm
-passed all four without opening anything — those are standard WordPress knowledge. The
-`GLOB_ONLYDIR` assertion was added because registering blocks with a glob loop over
-`blocks/*` is a house convention rather than public knowledge: an unaided model writes an
-explicit `register_block_type()` per block. It is the only content assertion in the case
-that discriminates.
+An earlier version of this case, for the build-less in-theme blocks that 0.4.0 removed, made
+exactly that mistake. It asserted only `viewScriptModule` / `editorScript` / `createElement` /
+`wp.blocks`, and the unaided arm passed all four without opening anything — those are standard
+WordPress knowledge. The lesson carries over: a content assertion discriminates only when it
+checks a house convention rather than public knowledge. Here that is
+`special-projects-blocks-monorepo`, `a8csp` and `npm run new-block`; `wp_enqueue_block_style`
+and the core-first check are likely base knowledge and guard against regressions rather than
+prove retrieval.
 
 ## Measured separation
 
@@ -77,7 +78,7 @@ that discriminates.
 | The homepage is a page, never front-page.html | 0/3 | 3/3 | Separates cleanly |
 | Block style CSS is one file per block type | 3/3 | 3/3 | Dead weight — base model knows this |
 | core/html policy rejects an anchor-wrapped SVG | 1/3 | 3/3 | Separates, noisier |
-| Build-less custom block registration | — | — | Disclosure case, added later; not an A/B (see below) |
+| Build-less custom block registration | — | — | Disclosure case, added later; not an A/B (see below). Replaced in 0.4.0 by the monorepo case, which has not been run |
 
 Read it per assertion, not just per case. In case 1 the work is done by `Avoids
 front-page.html` (0/3 → 3/3) and `customTemplates` (0/3 → 3/3); `show_on_front` /

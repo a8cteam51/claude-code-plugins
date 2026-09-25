@@ -8,7 +8,7 @@ Resolve every visual detail at the **lowest** rung that achieves it. Record the 
 
 1. **Core block + block supports.** Express the detail through a core block and its supported attributes (spacing, colour, typography, border, dimensions, layout), drawing values from `theme.json` presets. This is the default — WordPress block properties are the de-facto styling mechanism.
 2. **Block style variation** — registered and shipped per `block-styles-guide.md`. Use when a recurring custom class adds styling that supports cannot express, but is still "a variant of a core block."
-3. **Custom block** (build-less, see `custom-blocks-guide.md`). Use only for genuine behaviour or markup beyond core: JS interactions, dynamic/repeating structures, or markup core blocks cannot produce.
+3. **Custom behaviour** (`custom-blocks-guide.md`). Use only for genuine behaviour or markup beyond core supports: JS interactions, dynamic or repeating structures, or markup core blocks cannot produce. Core features come first (patterns, Block Bindings, the Interactivity API on existing blocks, variations and filters), then a block reused from the A8C Special Projects blocks monorepo, and only then a new block built in the monorepo. Never create a block in the theme.
 4. **Documented custom CSS.** Last resort. Block-targeting CSS follows the same per-block-file rule as rung 2 (`block-styles-guide.md`). Keep each rule minimal, scope it tightly, and flag it in the report with the reason rung 1–3 could not do it.
 
 Never invent block attribute names. Use documented globals (`className`, `anchor`, `style`, `backgroundColor`, `textColor`, `fontSize`, `fontFamily`, `align`, `layout`) plus the per-block attributes this guide spells out. The Studio validator catches drift after the fact, but every wrong name costs a fix round — get them right up front. Colour classes are `has-{slug}-background-color` / `has-{slug}-color`, **not** `has-background-color-{slug}`.
@@ -28,7 +28,7 @@ Never invent block attribute names. Use documented globals (`className`, `anchor
 | `<ul>`/`<ol>` | `core/list` + `core/list-item` | |
 | Site nav | `core/navigation` | Lives in `parts/header.html`. |
 | Logo | `core/site-logo` or `core/image` | |
-| Icon / inline SVG | `core/html` (bare inline SVG only) or a custom block if interactive | An SVG wrapped in an `<a>`/`<div>` fails the core/html policy — icon *links* are `core/social-links` (restyled by a block style variation when the glyph is bespoke). Do not invent an "icon block." |
+| Icon / inline SVG | `core/html` (bare inline SVG only), or custom behaviour (`custom-blocks-guide.md`) if interactive | An SVG wrapped in an `<a>`/`<div>` fails the core/html policy — icon *links* are `core/social-links` (restyled by a block style variation when the glyph is bespoke). Do not invent an "icon block." |
 | Background media + overlay + content | `core/cover` | Maps cleanly to hero sections with a background image/colour and overlay. |
 | Separator / `<hr>` | `core/separator` | |
 | Spacer gap (no semantic content) | spacing supports first; `core/spacer` only if unavoidable | Prefer `blockGap`/padding over spacer blocks. |
@@ -114,8 +114,8 @@ This keeps the homepage editable in WordPress like every other page instead of h
 
 Static JS in the design (sliders, accordions, mobile menus, scroll effects) has no home in static block markup. Route it by rung:
 
-- **Core block already does it** (e.g. `core/navigation` mobile menu, `core/details` accordion) → use the core block; drop the bespoke JS. Native `<details name="group">` (same `name` on siblings) gives one-open-at-a-time accordion groups with zero JS — also usable inside a custom block's `render.php`.
-- **Needs custom behaviour** → a build-less custom block whose `view.js` (or the Interactivity API) reproduces it (see `custom-blocks-guide.md`). This is the home the user wants for "functionality beyond core."
+- **Core block already does it** (e.g. `core/navigation` mobile menu, `core/details` accordion) → use the core block; drop the bespoke JS. Native `<details name="group">` (same `name` on siblings) gives one-open-at-a-time accordion groups with zero JS — also usable inside a block's `render.php`.
+- **Needs custom behaviour** → follow `custom-blocks-guide.md`. Try the Interactivity API on an existing block, a variation or a filter first; then a block reused from the blocks monorepo; and only then a new block built in the monorepo. This is the home the user wants for "functionality beyond core."
 - **Purely decorative scroll/animation** → reproduce with CSS where cheap; otherwise drop it and note it in the report. Do not enqueue the original JS file wholesale.
 
 ## core/html policy (enforced by the validator)

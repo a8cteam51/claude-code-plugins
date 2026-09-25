@@ -1,39 +1,40 @@
 #!/usr/bin/env bash
 #
-# scaffold-custom-block.sh — write a custom block skeleton and make sure it gets registered.
+# scaffold-custom-block.sh — scaffold an APPROVED EXCLUSION: a block that stays in an
+# a8csp-project-template repository instead of the A8C Special Projects blocks monorepo.
 #
-# Standalone layout (default): a build-less block in the theme. No node/webpack: block.json
-# points at render.php (dynamic), index.js (editor, global wp / no JSX), and view.js.
+# Blocks belong in the monorepo (see references/custom-blocks-guide.md). A block may stay in the
+# project only when an engineering lead has approved an exclusion, so this script refuses to run
+# without --exclusion-approved. It never writes a block into a theme.
 #
-# Template layout (--layout template): an a8csp-project-template repository. The block's
-# sources go in the features mu-plugin under blocks/src/<slug>/ (ES modules + JSX, strict-types
-# render.php), built by wp-scripts into blocks/build/ with a blocks manifest; the script also
-# wires the manifest registration, the package.json build/lint scripts, and the
-# .github/blocks-allowlist entries CI requires.
+# The block's sources go in the features mu-plugin under blocks/src/<slug>/ (ES modules + JSX,
+# strict-types render.php), built by wp-scripts into blocks/build/ with a blocks manifest; the
+# script also wires the manifest registration, the package.json build/lint scripts, and the
+# .github/blocks-allowlist entries CI requires, under a comment marking the approved exclusion.
 #
 # Usage:
-#   scaffold-custom-block.sh --theme-dir <dir> --slug <slug> --title "<Title>" [--namespace <ns>]
-#   scaffold-custom-block.sh --layout template --features-dir <dir> --slug <slug> --title "<Title>" \
-#       --namespace <theme-slug> [--prefix <php_prefix_>]
+#   scaffold-custom-block.sh --exclusion-approved --features-dir <dir> --slug <slug> \
+#       --title "<Title>" --namespace <theme-slug> [--prefix <php_prefix_>]
 #
 set -euo pipefail
 
 usage() {
 	cat <<'EOF'
 Usage:
-  scaffold-custom-block.sh --theme-dir <dir> --slug <slug> --title "<Title>" [--namespace <ns>]
-  scaffold-custom-block.sh --layout template --features-dir <dir> --slug <slug> --title "<Title>" \
-      --namespace <theme-slug> [--prefix <php_prefix_>]
+  scaffold-custom-block.sh --exclusion-approved --features-dir <dir> --slug <slug> \
+      --title "<Title>" --namespace <theme-slug> [--prefix <php_prefix_>]
 
-Standalone: creates <theme-dir>/blocks/<slug>/{block.json,render.php,index.js,view.js,style.css}
-and ensures <theme-dir>/functions.php registers every block in blocks/* on init.
-Namespace defaults to "theme".
+Scaffolds an approved exclusion in an a8csp-project-template repository: a block kept in the
+project instead of the A8C Special Projects blocks monorepo. Run it only when an engineering
+lead has approved the exclusion; otherwise build the block in the monorepo
+(references/custom-blocks-guide.md).
 
-Template: creates <features-dir>/blocks/src/<slug>/{block.json,index.js,render.php}, adds
+Creates <features-dir>/blocks/src/<slug>/{block.json,index.js,render.php}, adds
 includes/blocks.php (manifest registration) if missing, adds the build:features:blocks and
 start:features:blocks npm scripts and the blocks/src lint paths when missing, and lists the
-block's src and build block.json in .github/blocks-allowlist. --prefix defaults to the one in
-the theme's .phpcs.xml. Build with `npm run build:features:blocks`.
+block's src and build block.json in .github/blocks-allowlist under an approved-exclusion
+comment. --prefix defaults to the one in the theme's .phpcs.xml. Build with
+`npm run build:features:blocks`.
 
 Refuses to overwrite an existing block directory.
 EOF
@@ -223,6 +224,7 @@ PY
 	mkdir -p "$repo/.github"
 	[[ -f "$allowlist" ]] || printf '# Blocks kept in this site repository rather than the blocks monorepo: one block.json path per line.\n' >"$allowlist"
 	local rel
+	grep -qxF "# Approved exclusion: ${namespace}/${slug}" "$allowlist" || echo "# Approved exclusion: ${namespace}/${slug}" >>"$allowlist"
 	for rel in "mu-plugins/$features_slug/blocks/src/$slug/block.json" "mu-plugins/$features_slug/blocks/build/$slug/block.json"; do
 		grep -qxF "$rel" "$allowlist" || echo "$rel" >>"$allowlist"
 	done
@@ -231,137 +233,42 @@ PY
 	if [[ -f "$features_dir/.disabled" ]]; then
 		echo "NOTE: $features_dir/.disabled is present, so the features plugin registers nothing until it is deleted."
 	fi
-	echo "H2BT_BLOCK_OK slug=${slug} dir=${block_dir} layout=template build=\"npm run build:features:blocks\""
+	echo "H2BT_BLOCK_OK slug=${slug} dir=${block_dir} layout=template exclusion=approved build=\"npm run build:features:blocks\""
 }
 
-theme_dir=""
 slug=""
 title=""
-namespace="theme"
-layout="standalone"
+namespace=""
 features_dir=""
 prefix=""
+approved="no"
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
-		--theme-dir) theme_dir="${2:-}"; shift 2 ;;
+		--exclusion-approved) approved="yes"; shift ;;
 		--slug) slug="${2:-}"; shift 2 ;;
 		--title) title="${2:-}"; shift 2 ;;
 		--namespace) namespace="${2:-}"; shift 2 ;;
-		--layout) layout="${2:-}"; shift 2 ;;
 		--features-dir) features_dir="${2:-}"; shift 2 ;;
 		--prefix) prefix="${2:-}"; shift 2 ;;
+		--theme-dir|--layout)
+			echo "$1 is no longer supported: blocks are never scaffolded into a theme. Reuse or build them in the blocks monorepo (references/custom-blocks-guide.md)." >&2
+			exit 2
+			;;
 		-h|--help) usage; exit 0 ;;
 		*) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
 	esac
 done
 
+if [[ "$approved" != "yes" ]]; then
+	echo "Refusing to scaffold: blocks belong in the A8C Special Projects blocks monorepo. Pass --exclusion-approved only when an engineering lead has approved keeping this block in the project (references/custom-blocks-guide.md)." >&2
+	exit 2
+fi
 [[ -n "$slug" ]] || { echo "--slug is required" >&2; exit 2; }
 [[ -n "$title" ]] || { echo "--title is required" >&2; exit 2; }
+[[ -n "$namespace" ]] || { echo "--namespace is required (use the project theme slug)" >&2; exit 2; }
 [[ "$slug" =~ ^[a-z][a-z0-9-]*$ ]] || { echo "Slug must be lowercase alphanumeric + hyphens: $slug" >&2; exit 1; }
 [[ "$namespace" =~ ^[a-z][a-z0-9-]*$ ]] || { echo "Namespace must be lowercase alphanumeric + hyphens: $namespace" >&2; exit 1; }
+[[ -n "$features_dir" && -d "$features_dir" ]] || { echo "--features-dir must name the features mu-plugin directory" >&2; exit 2; }
 
-case "$layout" in
-	standalone) ;;
-	template)
-		[[ -n "$features_dir" && -d "$features_dir" ]] || { echo "--features-dir must name the features mu-plugin directory" >&2; exit 2; }
-		[[ "$namespace" != "theme" ]] || { echo "--namespace is required in template layout (use the theme slug)" >&2; exit 2; }
-		scaffold_template_block
-		exit $?
-		;;
-	*) echo "--layout must be standalone or template: $layout" >&2; exit 2 ;;
-esac
-
-[[ -n "$theme_dir" ]] || { echo "--theme-dir is required" >&2; exit 2; }
-[[ -d "$theme_dir" ]] || { echo "Theme directory not found: $theme_dir" >&2; exit 1; }
-
-block_dir="$theme_dir/blocks/$slug"
-[[ -e "$block_dir" ]] && { echo "Block already exists: $block_dir" >&2; exit 1; }
-mkdir -p "$block_dir"
-
-cat >"$block_dir/block.json" <<EOF
-{
-	"\$schema": "https://schemas.wp.org/trunk/block.json",
-	"apiVersion": 3,
-	"name": "${namespace}/${slug}",
-	"title": "${title}",
-	"category": "design",
-	"icon": "screenoptions",
-	"supports": { "html": false, "anchor": true, "align": ["wide", "full"] },
-	"attributes": {},
-	"editorScript": "file:./index.js",
-	"viewScriptModule": "file:./view.js",
-	"render": "file:./render.php",
-	"style": "file:./style.css"
-}
-EOF
-
-cat >"$block_dir/render.php" <<'EOF'
-<?php
-/**
- * Server-rendered output for the block. $attributes, $content, $block are in scope.
- */
-
-$wrapper_attributes = get_block_wrapper_attributes();
-?>
-<div <?php echo $wrapper_attributes; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
-	<?php echo $content; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- InnerBlocks content, sanitized on save ?>
-</div>
-EOF
-
-cat >"$block_dir/index.js" <<EOF
-( function ( blocks, blockEditor, element ) {
-	var el = element.createElement;
-	blocks.registerBlockType( '${namespace}/${slug}', {
-		edit: function () {
-			var blockProps = blockEditor.useBlockProps();
-			return el( 'div', blockProps, el( blockEditor.InnerBlocks, null ) );
-		},
-		save: function () {
-			return el( blockEditor.InnerBlocks.Content, null );
-		},
-	} );
-} )( window.wp.blocks, window.wp.blockEditor, window.wp.element );
-EOF
-
-cat >"$block_dir/view.js" <<EOF
-import { store, getContext } from '@wordpress/interactivity';
-
-store( '${namespace}/${slug}', {
-	actions: {},
-	callbacks: {},
-} );
-EOF
-
-# Start empty — add scoped rules only when a real style is unavoidable (ladder rung 4).
-: >"$block_dir/style.css"
-
-functions="$theme_dir/functions.php"
-register_marker="h2bt_register_theme_blocks"
-
-read -r -d '' register_snippet <<'EOF' || true
-
-if ( ! function_exists( 'h2bt_register_theme_blocks' ) ) {
-	/**
-	 * Register every build-less block in the theme's blocks/ directory.
-	 */
-	function h2bt_register_theme_blocks() {
-		foreach ( glob( get_stylesheet_directory() . '/blocks/*', GLOB_ONLYDIR ) as $block_dir ) {
-			register_block_type( $block_dir );
-		}
-	}
-	add_action( 'init', 'h2bt_register_theme_blocks' );
-}
-EOF
-
-if [[ ! -f "$functions" ]]; then
-	{ echo "<?php"; echo "$register_snippet"; } >"$functions"
-	echo "==> created functions.php with block registration"
-elif ! grep -q "$register_marker" "$functions"; then
-	printf '%s\n' "$register_snippet" >>"$functions"
-	echo "==> appended block registration to functions.php"
-else
-	echo "==> functions.php already registers theme blocks"
-fi
-
-echo "H2BT_BLOCK_OK slug=${slug} dir=${block_dir}"
+scaffold_template_block

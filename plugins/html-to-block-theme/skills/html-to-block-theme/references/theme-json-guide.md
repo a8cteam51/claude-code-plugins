@@ -128,5 +128,5 @@ Because every design file feeds one theme:
 ## What does not belong in theme.json
 
 - One-off geometry for a single section (use the block instance's `style`).
-- Behaviour/JS (custom block territory).
+- Behaviour/JS (see `custom-blocks-guide.md`).
 - Anything achievable by a block style variation (registered in `functions.php` with `register_block_style()`, CSS in one file per block type under `assets/css/blocks/` — see `block-styles-guide.md`).

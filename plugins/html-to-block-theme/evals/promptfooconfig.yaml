@@ -117,56 +117,51 @@ tests:
         metric: Embed still allowed
 
   # Progressive disclosure. The other cases test rules SKILL.md states directly; this one
-  # tests whether SKILL.md's *pointer* works. Every fact asserted below lives only in
-  # custom-blocks-guide.md — `viewScriptModule`, `editorScript`, and the no-JSX global-`wp`
-  # registration appear nowhere in SKILL.md, so the agent cannot answer from SKILL.md alone.
-  # `Opened the guide` measures the retrieval itself; read it together with the content
-  # metrics — see assertions/opened-reference.cjs for the four outcomes.
-  - description: Build-less custom block registration, retrieved from the reference
+  # tests whether SKILL.md's *pointer* works. The monorepo-first process — the catalog, the
+  # a8csp namespace, `npm run new-block`, styling from the theme — lives in
+  # custom-blocks-guide.md. `Opened the guide` measures the retrieval itself; read it
+  # together with the content metrics — see assertions/opened-reference.cjs for the four
+  # outcomes.
+  - description: Custom behaviour checks the blocks monorepo before building, retrieved from the reference
     vars:
       reference: custom-blocks-guide.md
       request: >-
-        One section is an accordion that `core/details` cannot reproduce, so it needs a
-        custom block. This theme has no build step and no `node_modules`. Name the
-        `block.json` fields that point at the editor script and at the front-end module,
-        show how `index.js` registers the block without JSX, and give the `functions.php`
-        code that registers the theme's blocks.
+        One section is a tabbed content area that `core/details` cannot reproduce. Before
+        building anything, what do you check, and in what order? If nothing fits, where is
+        the new block built, under which block namespace, and how does this project style it?
     assert:
       - type: javascript
         value: file://assertions/opened-reference.cjs
         metric: Opened the guide
-      # The one content assertion that can actually discriminate. An unaided model writes
-      # an explicit register_block_type() per block; the glob loop is a house convention
-      # documented only in the guide. The other content metrics below turn out to be base
-      # knowledge — see the disclosure notes in README.md.
+      # House conventions an unaided model cannot know: where the team's blocks live, the
+      # namespace new blocks take, and the monorepo's own scaffold command.
       - type: contains
-        value: GLOB_ONLYDIR
-        metric: Theme registration convention
-      # The strongest content discriminator: viewScriptModule (rather than viewScript) is
-      # what the Interactivity API needs, and it is documented only in the guide.
+        value: special-projects-blocks-monorepo
+        metric: Checks the blocks monorepo
       - type: contains
-        value: viewScriptModule
-        metric: Front-end module field
+        value: a8csp
+        metric: Monorepo namespace
       - type: contains
-        value: editorScript
-        metric: Editor script field
-      # No-JSX registration through the globals WordPress already enqueues, not an npm build.
+        value: npm run new-block
+        metric: Monorepo scaffold
+      # Core routes come first; an unaided model often jumps straight to a custom block.
       - type: regex
-        value: 'createElement'
-        metric: No-JSX registration
-      - type: regex
-        value: '(window\.wp\.|wp\.blocks)'
-        metric: Uses wp globals
+        value: '(Interactivity API|Block Bindings)'
+        metric: Core first
+      # The project styles the block from its theme, per block type, not in the block.
+      - type: contains
+        value: wp_enqueue_block_style
+        metric: Styled from the theme
 
-  - description: Template mode puts blocks in the features plugin and block CSS in Sass sources
+  - description: Template mode keeps only an approved exclusion in the features plugin
     vars:
       reference: project-template-guide.md
       request: >-
         Our Studio site's wp-content is a git clone of a repository generated from
-        a8cteam51/a8csp-project-template. The design needs one custom block (an accordion
-        core/details cannot reproduce) and custom CSS for a core/group block style. Where
-        does each go in the repository, how is the block registered, and what else must
-        change so the repository's CI passes?
+        a8cteam51/a8csp-project-template. An engineering lead approved keeping one bespoke
+        block in this project instead of the blocks monorepo, and the design also needs
+        custom CSS for a core/group block style. Where does each go in the repository, how
+        is the block registered, and what else must change so the repository's CI passes?
     assert:
       - type: javascript
         value: file://assertions/opened-reference.cjs
@@ -176,14 +171,18 @@ tests:
       - type: contains
         value: blocks-allowlist
         metric: Blocks allowlist
-      # Content-bearing blocks go in the features mu-plugin, not the theme.
+      # An approved exclusion lives in the features mu-plugin, never the theme.
       - type: regex
         value: '(?i)features (mu-)?plugin'
         metric: Features plugin home
-      # wp-scripts manifest registration rather than a build-less glob.
+      # wp-scripts manifest registration.
       - type: regex
         value: '(blocks-manifest|wp_register_block_types_from_metadata_collection)'
         metric: Manifest registration
+      # The skill's scaffold only runs for an approved exclusion.
+      - type: contains
+        value: exclusion-approved
+        metric: Exclusion scaffold flag
       # Block CSS is a Sass source built into the committed tree.
       - type: contains
         value: assets/css/src/blocks/

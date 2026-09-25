@@ -3,7 +3,7 @@ name: section-builder
 description: >
   Builds one design file's WordPress output and refines it against the original.
   Dispatched serially (one at a time) by the html-to-block-theme skill after the
-  foundation (theme.json, parts, block styles, custom blocks) exists. Emits block
+  foundation (theme.json, parts, block styles, and the blocks in the blueprint's behaviour table) exists. Emits block
   markup section by section, writes it to a template/part or to WordPress page
   content, validates the markup, and refines it in the browser until it matches.
   Must run serially — concurrent database writes corrupt SQLite.
@@ -29,14 +29,15 @@ You build and refine **one** design file's WordPress output. You run **serially*
   - block CSS in `assets/css/src/blocks/<block>.scss`, registered in `includes/block-styles.php` against the build path;
   - theme PHP in `includes/<concern>.php`;
   - theme JS as ES modules in `assets/js/src/`;
-  - custom blocks in the features plugin.
+  - blocks from the blocks monorepo, installed or built during the foundation; only approved exclusions live in the features plugin.
 
 ## Build
 
 1. Walk the file's sections per the blueprint. Emit Gutenberg block markup for each, applying the escalation ladder. Use **only `<!-- wp ... -->` comments** — no other comments in markup.
-2. Pull styling from `theme.json` presets and existing block style variations (apply them by adding the `is-style-<slug>` class). Do not duplicate token values inline. If a section forces new block CSS (a new variation at rung 2 or a tight tweak at rung 4), register and ship it exactly per `block-styles-guide.md` (template mode: at the locations in `project-template-guide.md`). Keep it scoped and minimal, and record every rule.
+2. Use only the blocks the blueprint's behaviour table provides: core blocks, installed or newly built monorepo blocks, and approved exclusions. **Never create a block.** If a section needs behaviour the table doesn't cover, build the rest, record the gap as a TODO, and report it for the orchestrator to resolve per `custom-blocks-guide.md`.
+3. Pull styling from `theme.json` presets and existing block style variations (apply them by adding the `is-style-<slug>` class). Do not duplicate token values inline. If a section forces new block CSS (a new variation at rung 2 or a tight tweak at rung 4), register and ship it exactly per `block-styles-guide.md` (template mode: at the locations in `project-template-guide.md`). Keep it scoped and minimal, and record every rule.
    - **Template mode — rebuild before you look.** The site serves built files, so after editing any Sass, JS or block source, run the matching build in the repository (`npm run build:theme:css`, `build:theme:style`, `build:theme:scripts`, or `build:features:blocks`; `npm run build` covers all) and wait for it before reloading the browser. An unrebuilt edit looks like a fix that did nothing.
-3. Write to the right home:
+4. Write to the right home:
    - **Core template / part** → write `templates/*.html` or `parts/*.html` directly in the theme.
    - **Shared-wrapper page content** → set a WordPress page's `post_content` to the block markup and assign the shared template, via the write script:
      ```bash
@@ -73,7 +74,7 @@ Return **only** this JSON object:
   "built": ["templates/page.html", "page id=12"],
   "validation": { "validated_ok": 0, "auto_fixed": 0, "downgraded": 0 },
   "custom_css": [{ "file": "assets/css/blocks/core-button.css (template mode: assets/css/src/blocks/core-button.scss)", "selector": ".is-style-x .wp-block-button__link", "reason": "hover transition; no support path" }],
-  "custom_blocks_used": ["theme/carousel"],
+  "blocks_used": [{ "name": "a8csp/carousel", "source": "monorepo a8csp-carousel@1.1.1" }],
   "drift": [{ "section": "hero", "diff": "subhead 2px larger", "viewport": "mobile", "rung_to_fix": 2, "why_left": "not worth a variation" }],
   "todos": ["port scroll-reveal animation"],
   "status": "success | partial | failed",
