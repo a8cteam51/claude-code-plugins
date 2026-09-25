@@ -1,9 +1,19 @@
 # Changelog
 
+## [0.3.1] - 2026-09-25
+
+### Fixed
+- The reference guides and changelog no longer carry details from particular client builds:
+  - `project-template-guide.md`: the truncated PHP prefix example is now a neutral `examplesite_202_`.
+  - `block-styles-guide.md`: the direct-block-targeting CSS example no longer uses one design's header measurements.
+  - `theme-json-guide.md`: the variable-font condensed-cut note states the general condition, a width (`wdth`) axis, instead of the fonts one run used.
+  - The 0.3.0 entry no longer names the client build it came from.
+- `block-styles-guide.md`: WordPress 7.0 and later add `wp-block-paragraph` to rendered paragraphs, so `.wp-block-paragraph.is-style-x` only fails on earlier versions. Scoping paragraph variations as `p.is-style-x` remains the rule, because it matches on every version.
+
 ## [0.3.0] - 2026-09-24
 
 ### Added
-- **Template mode** for repositories generated from `a8cteam51/a8csp-project-template`. The skill switches to it when the Studio site's `wp-content` is a clone of such a repository, and builds into that repository's theme and features mu-plugin under its conventions. Worked out while porting the missamychan.com build into `a8cteam51/missamychan-2026`.
+- **Template mode** for repositories generated from `a8cteam51/a8csp-project-template`. The skill switches to it when the Studio site's `wp-content` is a clone of such a repository, and builds into that repository's theme and features mu-plugin under its conventions.
   - `references/project-template-guide.md` covers:
     - detection and preconditions: feature branch, PHP floor, toolchain, dependencies;
     - the identifiers the template makes permanent, and the theme contract its tests encode;
