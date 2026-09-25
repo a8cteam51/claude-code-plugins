@@ -2,12 +2,30 @@
 
 Read at DEFINE step 2, when deriving the type hierarchy and personality.
 
-## Skip this entirely if a font was supplied
+## Family cap by risk level
+
+Each option's risk level (SKILL.md, DISCOVER 2) caps how many font families
+it may use:
+
+| Level | Max families |
+|---|---|
+| low | 2-3 |
+| medium | 2-3 |
+| high | 3-4 |
+
+Every family counts — display, text, mono, accent, and any supplied brand
+font. Weights and styles of one family don't. The cap is a ceiling: fewer
+is always allowed when the concept is stronger for it. If the brand
+guidelines themselves mandate more families than the cap, the brand wins
+(`../../../references/instruction-priority.md`) — say so rather than
+silently exceeding it.
+
+## Skip the rest if a font was supplied
 
 If intake recorded a project-supplied font (`references/intake.md`), the
 typeface decision is already made and binding. Do not read further, do not
 search, do not touch the local catalog — this file has nothing to add in
-that case.
+that case beyond the cap above, which still counts the supplied font.
 
 ## Otherwise: one combined search
 
