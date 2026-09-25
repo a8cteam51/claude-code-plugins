@@ -111,11 +111,13 @@ N=1 ask the user · N=2 low·high · N=3 low·medium·high · N≥4 split as eve
 allows, remainder to low and high before medium. Re-draw any option whose
 characteristics duplicate another's.
 
-| Level | characteristics | degree | edge-of-feasibility directions |
-|---|---|---|---|
-| low | 3 | 45-70 | none |
-| medium | 4 | 60-90 | one |
-| high | 5 | 85-100 | two, one beyond what review would pass — explored, not always chosen |
+| Level | characteristics | degree | edge-of-feasibility directions | font families |
+|---|---|---|---|---|
+| low | 3 | 45-70 | none | 2-3 max |
+| medium | 4 | 60-90 | one | 2-3 max |
+| high | 5 | 85-100 | two, one beyond what review would pass — explored, not always chosen | 3-4 max |
+
+The font-family cap is a ceiling, not a target — see `references/typography.md`.
 
 - **Risk sets ambition, never rigor or conviction.** Critique, deletion, craft,
   accessibility and the anti-slop audit run identically at every level. The low
@@ -355,7 +357,8 @@ the process, not bolted on at the end.
 - **Concept** — could this exact visual language appear on hundreds of unrelated
   AI-generated sites? If yes, deepen the concept.
 - **Composition** — did it default to standard website structure without reason?
-- **Typography** — merely competent, or contributing to the identity?
+- **Typography** — merely competent, or contributing to the identity? Within
+  the risk level's font-family cap?
 - **Color** — a conceptual reason, or just "attractive"?
 - **Imagery** — avoiding imagery because code was easier?
 - **Decoration** — are effects compensating for weak composition?
