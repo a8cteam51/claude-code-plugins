@@ -12,10 +12,13 @@
 #      includes/*.php. Stray, unbuilt, or unenqueued block stylesheets are violations.
 #   4. No templates/front-page.html — the homepage must be a WordPress page set as
 #      the static front page via Reading settings, not a template.
+#   5. No blocks in the theme — no block.json anywhere under the theme. Blocks come from
+#      the A8C Special Projects blocks monorepo, or (template mode, approved exclusions
+#      only) the features mu-plugin.
 #
 # Usage: standards-audit.sh --theme-dir <dir> [--layout auto|standalone|template]
-# Exits non-zero if stray comments, block-CSS organization violations, or a
-# front-page.html template are found.
+# Exits non-zero if stray comments, block-CSS organization violations, a
+# front-page.html template, or a block inside the theme are found.
 #
 set -euo pipefail
 
@@ -24,9 +27,10 @@ usage() {
 Usage: standards-audit.sh --theme-dir <dir> [--layout auto|standalone|template]
 
 Scans <dir>/templates, <dir>/parts, <dir>/patterns for HTML comments that are not
-Gutenberg block delimiters, measures the custom-CSS footprint, and checks that block
-CSS is one file per block type enqueued via wp_enqueue_block_style(). Prints a report.
-Exits 1 if any stray comment or block-CSS organization violation is found, 0 otherwise.
+Gutenberg block delimiters, measures the custom-CSS footprint, checks that block CSS is
+one file per block type enqueued via wp_enqueue_block_style(), and checks that the theme
+ships no templates/front-page.html and no block.json. Prints a report. Exits 1 on any
+violation, 0 otherwise.
 
 --layout auto (default) picks "template" when the theme has assets/sass/style.scss,
 includes/, and .phpcs.xml (an a8csp-project-template theme), else "standalone".
@@ -187,14 +191,13 @@ else
 	fi
 
 	# 2. Block CSS must be one file per block type under assets/css/blocks/. Flag strays.
-	#    Allowed elsewhere: the theme-header style.css and a custom block's own bundled
-	#    CSS under blocks/<slug>/.
+	#    Allowed elsewhere: only the theme-header style.css. Themes contain no blocks, so no
+	#    block-bundled CSS either (see the theme blocks check).
 	while IFS= read -r -d '' css; do
 		rel="${css#$theme_dir/}"
 		case "$rel" in
 			style.css) ;;
 			assets/css/blocks/*.css) ;;
-			blocks/*) ;;
 			*)
 				echo "  STRAY       ${rel} — block CSS must be one file per block type under assets/css/blocks/"
 				css_org=$((css_org + 1))
@@ -218,8 +221,19 @@ else
 fi
 
 echo
-if [[ "$violations" -gt 0 || "$css_org" -gt 0 || "$front_page" -gt 0 ]]; then
-	echo "H2BT_AUDIT_FAIL layout=${layout} stray_comments=${violations} css_org=${css_org} front_page=${front_page} css_lines=${total}"
+echo "== Theme blocks check =="
+theme_blocks=0
+while IFS= read -r -d '' block_json; do
+	echo "  FORBIDDEN   ${block_json#$theme_dir/} — blocks never live in a theme; reuse or build them in the blocks monorepo"
+	theme_blocks=$((theme_blocks + 1))
+done < <(find "$theme_dir" -name node_modules -prune -o -name block.json -type f -print0)
+if [[ "$theme_blocks" -eq 0 ]]; then
+	echo "  OK — no block.json in the theme"
+fi
+
+echo
+if [[ "$violations" -gt 0 || "$css_org" -gt 0 || "$front_page" -gt 0 || "$theme_blocks" -gt 0 ]]; then
+	echo "H2BT_AUDIT_FAIL layout=${layout} stray_comments=${violations} css_org=${css_org} front_page=${front_page} theme_blocks=${theme_blocks} css_lines=${total}"
 	exit 1
 fi
-echo "H2BT_AUDIT_OK layout=${layout} stray_comments=0 css_org=0 front_page=0 css_lines=${total}"
+echo "H2BT_AUDIT_OK layout=${layout} stray_comments=0 css_org=0 front_page=0 theme_blocks=0 css_lines=${total}"
