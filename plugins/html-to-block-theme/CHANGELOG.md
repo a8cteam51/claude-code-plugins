@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.4.0] - 2026-09-25
+
+### Changed
+- **Custom blocks now come from the A8C Special Projects blocks monorepo, and are kept to a minimum.** Rung 3 of the escalation ladder resolves in order:
+  1. Core features: patterns, Block Bindings, the Interactivity API on existing blocks, variations and filters.
+  2. A block reused from [`a8cteam51/special-projects-blocks-monorepo`](https://github.com/a8cteam51/special-projects-blocks-monorepo).
+  3. A new block built in the monorepo.
+- **Reused blocks:** a run installs the block's release ZIP on the Studio site, styles it from the theme with its own block stylesheet, and adapts its behaviour with project-side filters, never by editing the block. The plugin and version become a site dependency.
+- **New blocks:** a run builds the block in a clone of the monorepo inside the Studio site (`npm run new-block`, `a8csp` namespace), on an `add/<slug>` branch, following the monorepo's rules:
+  - project-agnostic, with wireframe-only styling and generous filters;
+  - linted as the monorepo's CI does;
+  - checked in the newest Twenty-* theme on a throwaway Studio site;
+  - a 1200×800 screenshot of the block as it looks in the project.
+
+  The run drafts the New block proposal to `.h2bt/proposals/`. Pushing the branch, opening the pull request and filing the proposal wait for the user's approval.
+- **Blocks are never created in a theme, in any mode.** The build-less in-theme block layout is removed.
+  - `scaffold-custom-block.sh` now scaffolds only an **approved exclusion** (template mode, `--exclusion-approved`): a block an engineering lead has approved keeping in the project. It goes in the features mu-plugin, with an allowlist comment marking it.
+- `custom-blocks-guide.md` is rewritten around this flow. SKILL.md, the mapping, standards, block-styles, theme.json, visual-refinement and project-template guides, and both agents follow it:
+  - the blueprint analyzer reports behaviour candidates and the core routes ruled out, instead of naming blocks;
+  - the orchestrator checks the catalog once and records each behaviour's source in a behaviour table;
+  - section builders never create blocks.
+- The report lists every block beyond core with its source, and the pages that can't deploy until a new monorepo block is released.
+- Evals: the build-less registration case is replaced by a monorepo-first disclosure case, and the template-mode case now covers an approved exclusion. Neither has been run yet.
+
+### Added
+- `scripts/monorepo-blocks.sh`:
+  - `catalog` lists every monorepo plugin with its blocks, latest release, screenshot and descriptions, from a cached clone;
+  - `install` installs latest release ZIPs on a Studio site, refusing a block also built in a clone;
+  - `clone` clones the monorepo into the site and activates its autoloader.
+
+  Release lookups use `gh` when signed in, otherwise the public GitHub API.
+- `standards-audit.sh` fails a theme that contains any `block.json` (`theme_blocks`).
+
 ## [0.3.1] - 2026-09-25
 
 ### Fixed

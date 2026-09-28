@@ -40,8 +40,9 @@ patterns/            # *.php registered patterns
 styles/              # global (full-theme) style variations only (*.json); block styles are PHP-registered
 assets/css/blocks/   # one CSS file per block type (core-button.css, core-group.css…), enqueued via wp_enqueue_block_style()
 assets/              # fonts/, images/
-blocks/              # build-less custom blocks (one dir each)
 ```
+
+A theme never contains a block (`block.json`). Blocks come from the A8C Special Projects blocks monorepo, installed as plugins, per `custom-blocks-guide.md`; the standards audit fails a theme that ships one (`theme_blocks`).
 
 `style.css` must carry the theme header (Theme Name, Version, Text Domain, etc.). `templates/index.html` must exist for the theme to be valid.
 
@@ -50,7 +51,7 @@ blocks/              # build-less custom blocks (one dir each)
 - Block CSS goes in `assets/css/src/blocks/*.scss`, built to `assets/css/build/blocks/`.
 - PHP goes in `includes/*.php`, loaded by the template's `functions.php`.
 - Theme JS is ES modules under `assets/js/src/`, built to `assets/js/build/`.
-- Custom blocks go in the features mu-plugin.
+- Blocks come from the blocks monorepo. Only an approved exclusion goes in the features mu-plugin.
 
 The template's own gates (PHPCS, PHPStan, stylelint, ESLint, build integrity, blocks allowlist, tests) apply on top of these standards. Run them with `scripts/template-checks.sh`.
 
@@ -69,4 +70,4 @@ The theme must **not** ship `templates/front-page.html` — the standards audit 
 - Preserve semantic landmarks: header/nav/main/footer map to the right blocks and template parts.
 - Maintain heading order from the design (don't skip levels for styling — style with `theme.json`/supports instead).
 - Images carry `alt`; decorative images use empty `alt`.
-- Interactive custom blocks expose state via ARIA (`aria-expanded`, `hidden`) as shown in `custom-blocks-guide.md`.
+- Interactive blocks expose state via ARIA (`aria-expanded`, `aria-pressed`, `hidden`) as shown in `custom-blocks-guide.md`.

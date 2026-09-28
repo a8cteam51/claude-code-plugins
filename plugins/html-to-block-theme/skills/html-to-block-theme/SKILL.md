@@ -5,7 +5,7 @@ description: This skill should be used when the user asks to "build a block them
 
 # Build a WordPress block theme from a set of static HTML designs
 
-End-to-end conversion of a directory of static Claude Design files (HTML + linked CSS + JS + assets) into a standards-driven WordPress **block theme** on a local Studio site. The output reproduces the designs as closely as possible using WordPress primitives — `theme.json`, templates, template parts, block patterns, block styles, and page content — not hand-written CSS.
+End-to-end conversion of a directory of static Claude Design files (HTML + linked CSS + JS + assets) into a standards-driven WordPress **block theme** on a local Studio site. The output reproduces the designs as closely as possible using WordPress primitives — `theme.json`, templates, template parts, block patterns, block styles, and page content — not hand-written CSS. Custom behaviour comes from core features first, then from the A8C Special Projects blocks monorepo; the skill never creates a block inside a theme.
 
 Work in phases and **do not skip the blueprint**. Plan the whole mapping first, get it on disk, then build section by section and refine each section against the original in a real browser. The reference guides under `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/` are the source of truth for every mapping, standards, and tooling decision — load the relevant one before acting in each phase.
 
@@ -26,13 +26,14 @@ These will silently corrupt output if missed (inherited from the Studio environm
 
 ## Tooling
 
-This skill uses two MCP tool sets plus the `studio` CLI.
+This skill uses two MCP tool sets, the `studio` CLI, and the blocks monorepo helper.
 
 - **Claude in Chrome** — the Claude in Chrome browser extension's MCP tools (`mcp__claude-in-chrome__*`); the extension must be installed, connected to the session, and granted access to `localhost`/`127.0.0.1` sites. Used to load the original HTML (served locally) and the WordPress output in real Chrome tabs, screenshot both at matched viewports, and inspect DOM/computed styles. If the tools are deferred in-session, load the whole needed set in a **single** ToolSearch call. See `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/visual-refinement.md`.
 - **Studio MCP** — ships with the `studio` CLI; register once at user scope: `claude mcp add --scope user wordpress-studio -- studio mcp`. Relevant tools (confirm exact names in-session before relying on them — the validator has been renamed across Studio versions, e.g. earlier split `validate_html_blocks` / `validate_and_fix_blocks` tools):
   - `mcp__wordpress-studio__validate_blocks` — the combined validator: a static core/html policy check (policy: `mapping-guide.md`) followed by validation in the site's real block editor. Usage rules — argument forms, the two-call ceiling, what to do with rejects — live in the `section-builder` agent, which is what calls it.
   - `mcp__wordpress-studio__take_screenshot` — fallback screenshotter for the WordPress side if the Claude in Chrome extension is unavailable.
   - `mcp__wordpress-studio__scaffold_theme` — scaffold a minimal block theme if the site has none.
+- **Blocks monorepo** — [`a8cteam51/special-projects-blocks-monorepo`](https://github.com/a8cteam51/special-projects-blocks-monorepo), public. `${CLAUDE_PLUGIN_ROOT}/scripts/monorepo-blocks.sh` lists its catalog with each plugin's latest release (`catalog`), installs release ZIPs on the Studio site (`install`), and clones it with its autoloader for building a new block (`clone`). It needs `git` and `python3`, and uses `gh` for release lookups when signed in. Building a new block also needs Node/npm, and Composer for PHPCS. See `custom-blocks-guide.md`.
 
 ## Preconditions to verify
 
@@ -62,16 +63,16 @@ Run these in parallel before any work. If any fails, stop and report — do not 
 
    It starts a background server and prints one sentinel line: `H2BT_SERVE url=<base-url> pid=<pid> pidfile=<path>`. Parse it — capture `<base-url>` (each design file is then reachable at `<base-url><file>.html`) and `<pidfile>` (needed to stop the server in Phase 4).
 
-2. Dispatch one **`blueprint-analyzer`** subagent **per HTML file, in parallel** (these are read-only — parallel is safe and fast). Use the Agent tool with `subagent_type: "html-to-block-theme:blueprint-analyzer"`, passing the file path, the served URL, and the design directory (in template mode, also the block namespace: the project theme slug). Each returns the structured JSON described in that agent's definition: section list, per-section block mapping with the chosen escalation-ladder rung, custom-CSS-class → block-style candidates, custom-block candidates (with "why core can't"), the file's classification (core template vs shared-wrapper page content), and the design tokens it detected.
+2. Dispatch one **`blueprint-analyzer`** subagent **per HTML file, in parallel** (these are read-only — parallel is safe and fast). Use the Agent tool with `subagent_type: "html-to-block-theme:blueprint-analyzer"`, passing the file path, the served URL, and the design directory. Each returns the structured JSON described in that agent's definition: section list, per-section block mapping with the chosen escalation-ladder rung, custom-CSS-class → block-style candidates, behaviour candidates (with the core routes ruled out and why), the file's classification (core template vs shared-wrapper page content), and the design tokens it detected.
 
-3. **Reconcile** all analyzer outputs into one blueprint. Load `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/mapping-guide.md` and `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/theme-json-guide.md` for the rules. Decide:
+3. **Reconcile** all analyzer outputs into one blueprint. Load `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/mapping-guide.md`, `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/theme-json-guide.md`, and `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/custom-blocks-guide.md` for the rules. Decide:
    - A single unified token set for `theme.json` (merge near-duplicate colours/sizes; one source of truth).
    - The shared chrome (header/footer/nav present across files) → template parts.
    - Repeated cross-file sections → block patterns.
    - Each file's target: core templates (`templates/index.html`, `single.html`, `archive.html`, `404.html`, …) vs pages that share a wrapper template and differ only in content → a WordPress page assigned to that template. **The homepage is always a page, never `templates/front-page.html`** — template choice and Reading-settings wiring per the homepage rule in `mapping-guide.md`.
-   - The list of custom blocks to build, each justified against core.
+   - Where each behaviour comes from, per `custom-blocks-guide.md`: a core route; a monorepo plugin to reuse (run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/monorepo-blocks.sh" catalog` once and check every candidate against it); a new `a8csp/<slug>` block to build in the monorepo; or, in template mode and only when the user states an engineering lead approved it, an exclusion kept in the features plugin. Record why each earlier step fails.
 
-4. Write the blueprint to `<site-path>/.h2bt/blueprint.md` (a per-file target table, the token set, the part/pattern/custom-block lists, and the per-section mapping). **Present a summary to the user, ask them to approve or amend it, and end the turn** — the blueprint is the build contract, and Phase 2 starts only on their approval. Do not end the turn on a promise to build. Exception: when the user has already said to run without check-ins, proceed directly and flag in the final report that the blueprint was applied unreviewed.
+4. Write the blueprint to `<site-path>/.h2bt/blueprint.md` (a per-file target table, the token set, the part and pattern lists, the behaviour table with each behaviour's source, and the per-section mapping). **Present a summary to the user, ask them to approve or amend it, and end the turn** — the blueprint is the build contract, and Phase 2 starts only on their approval. Do not end the turn on a promise to build. Exception: when the user has already said to run without check-ins, proceed directly and flag in the final report that the blueprint was applied unreviewed.
 
 ### Phase 2 — Foundation (theme.json is the source of truth)
 
@@ -80,11 +81,11 @@ Build the shared foundation once, before any per-file content. Load `${CLAUDE_PL
 1. Write `theme.json` from the unified token set: palette, typography/`fontFamilies`, spacing scale, layout `contentSize`/`wideSize`, radii/shadows, and element styles.
 2. Create template parts for the shared chrome (`parts/header.html`, `parts/footer.html`, etc.).
 3. Register block styles per `block-styles-guide.md` — `register_block_style()` in `functions.php` (one variation per mapped custom CSS class), with one CSS file per block type under `assets/css/blocks/`, enqueued via `wp_enqueue_block_style()`.
-4. Scaffold each needed custom block build-less and register it from the theme:
-
-   ```bash
-   bash "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold-custom-block.sh" --theme-dir "<theme-dir>" --slug "<block-slug>" --title "<Block Title>"
-   ```
+4. Put each behaviour's block in place, per the blueprint and `custom-blocks-guide.md`:
+   - **Reused monorepo blocks:** install their release ZIPs with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/monorepo-blocks.sh" install --site-path <site-path> <plugin-dir>...`.
+   - **New blocks:** build them in a monorepo clone (`bash "${CLAUDE_PLUGIN_ROOT}/scripts/monorepo-blocks.sh" clone --site-path <site-path>`, then `npm run new-block`, on an `add/<slug>` branch), keep them project-agnostic and wireframe-styled, check them in the newest Twenty-* theme on a throwaway Studio site, add the screenshot, and draft the New block proposal. Pushing the branch, opening the monorepo pull request and filing the proposal wait for the user's approval.
+   - **Styling:** style every reused or new block from the theme with its own block stylesheet (`block-styles-guide.md`), and adapt behaviour with project-side filters, never by editing the block.
+   - **Approved exclusions** (template mode only): see Template mode below.
 
 5. Route assets: fonts → `theme.json` `fontFamilies` with files copied into `assets/fonts/`; content images → media library (`studio wp media import ...`); decorative/background images → theme `assets/`.
 
@@ -94,13 +95,14 @@ Build the shared foundation once, before any per-file content. Load `${CLAUDE_PL
 - Put root styles in `assets/sass/` partials.
 - Put block CSS in `assets/css/src/blocks/<block>.scss`, registered from `includes/block-styles.php` against the build path.
 - Put theme JS in ES modules under `assets/js/src/`.
-- Scaffold custom blocks into the features mu-plugin with `scaffold-custom-block.sh --layout template --features-dir <features-dir> --namespace <theme_slug>`, and delete `<features-dir>/.disabled`.
+- Blocks still come from the monorepo. Only an approved exclusion (the user states an engineering lead approved it) is scaffolded into the features mu-plugin, with `scaffold-custom-block.sh --exclusion-approved --features-dir <features-dir> --namespace <theme_slug>`.
+- Delete `<features-dir>/.disabled` once the features plugin carries real features.
 
 Run `npm run build` after the foundation and after every source edit, since the site serves built files.
 
 ### Phase 3 — Build and refine, section by section (serial)
 
-Process the files **one at a time** (serial — see quirk 4). For each file, dispatch a **`section-builder`** subagent via the Agent tool with `subagent_type: "html-to-block-theme:section-builder"`, passing the blueprint, that file's target, the site path, the theme dir, the served original URL, and the site's Local URL — and in template mode also `layout: template`, `<repo>`, `<features-dir>`, `<prefix>`, the text domains, and the path to `project-template-guide.md`. The subagent (per its definition):
+Process the files **one at a time** (serial — see quirk 4). For each file, dispatch a **`section-builder`** subagent via the Agent tool with `subagent_type: "html-to-block-theme:section-builder"`, passing the blueprint (including its behaviour table), that file's target, the site path, the theme dir, the served original URL, and the site's Local URL — and in template mode also `layout: template`, `<repo>`, `<features-dir>`, `<prefix>`, the text domains, and the path to `project-template-guide.md`. The subagent (per its definition):
 
 - Emits Gutenberg block markup using **only `<!-- wp -->` comments** (no other inline comments) for each section, applying the escalation ladder from `mapping-guide.md`.
 - For core templates: writes `templates/*.html` / `parts/*.html`.
@@ -120,7 +122,7 @@ Collect each subagent's JSON result (target built, validation summary, drift lis
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/standards-audit.sh" --theme-dir "<theme-dir>"
    ```
 
-   It must report zero non-`<!-- wp -->` inline comments (`stray_comments=0`), zero block-CSS organization violations (`css_org=0` — every block CSS file is one-per-block-type under `assets/css/blocks/` and enqueued via `wp_enqueue_block_style()`; in template mode the audit detects the layout itself and checks one `assets/css/src/blocks/*.scss` source per block type, built and enqueued), and an itemised, minimal custom-CSS footprint. Load `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/standards.md` for what counts as a violation.
+   It must report zero non-`<!-- wp -->` inline comments (`stray_comments=0`), zero block-CSS organization violations (`css_org=0` — every block CSS file is one-per-block-type under `assets/css/blocks/` and enqueued via `wp_enqueue_block_style()`; in template mode the audit detects the layout itself and checks one `assets/css/src/blocks/*.scss` source per block type, built and enqueued), zero blocks inside the theme (`theme_blocks=0`), and an itemised, minimal custom-CSS footprint. Load `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/standards.md` for what counts as a violation.
 4. **Template mode gates.** Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/template-checks.sh" --repo <repo>` (add `--tests --e2e` when Docker is running). It must end `H2BT_TEMPLATE_CHECKS_OK`; fix each failing gate by the table in `project-template-guide.md` § What fails CI. Take a `parity-check.sh` baseline before running any formatter or auto-fixer, and compare afterwards. Replace the template's example tests with tests of this build's promises. Commit in logical conventional-commit units on the feature branch; push and open a **draft** PR against `trunk` only with the user's permission.
 5. **Record lessons.** Append to `<site-path>/.h2bt/lessons.md` anything a future run of this skill should know — corrections, confirmed approaches, environment quirks discovered this run. One lesson per entry, a one-line summary first, then why it mattered. Don't record what `blueprint.md` or the theme itself already captures; update an existing entry rather than duplicating it, and delete entries this run proved wrong.
 6. Report (see below). Stop the static server (`bash "${CLAUDE_PLUGIN_ROOT}/scripts/serve-html.sh" --stop --pidfile <pidfile>`) so it doesn't leak, and clean up transient staged files in `<site-path>/.h2bt/`, leaving `blueprint.md` and `lessons.md` as the audit trail.
@@ -132,11 +134,20 @@ After Phase 4, summarise:
 - The theme built (name + path) and the per-file target table from the blueprint (what became a template, a part, a pattern, or a page).
 - Per-file fidelity at each viewport, and the **residual drift list** — every detail that did not match 1:1 and why.
 - **Every custom CSS rule written and why** (which ladder rung it sits on), plus the total custom-CSS footprint from the audit.
-- **Custom blocks created and why** each was needed beyond core.
+- **Every block beyond core and where it came from**: each behaviour's source and why the earlier steps failed.
+  - Reused monorepo plugins, with their versions.
+  - New monorepo blocks: the clone branch, the Twenty-* check result, the screenshot, and the proposal draft path. Their pull requests and proposals await the user's approval, and pages using them can't deploy until the block is released.
+  - Approved exclusions.
 - Block-validation summary (`validated_ok`, `auto_fixed`, `downgraded`).
 - TODOs the user should inspect (lossy mappings, dropped animations, JS not yet ported).
-- Template mode: the `H2BT_TEMPLATE_CHECKS_*` line, the parity result, the branch and commits (and the PR link if pushed), the plugins the content depends on, and that page content lives in the Studio database — deploying ships code only.
+- Template mode: the `H2BT_TEMPLATE_CHECKS_*` line, the parity result, the branch and commits (and the PR link if pushed), the plugins the content depends on (including every monorepo block plugin, and any still awaiting release), and that page content lives in the Studio database — deploying ships code only.
 
 ## Things that should stop the run
 
-Each precondition and each post-write verification is a hard gate. Never report success when a page-content write's sentinel grep fails, when block validation still shows invalid blocks after the two-call ceiling (downgrade to `core/html` instead), when the standards audit reports stray inline comments or block-CSS organization violations, or — in template mode — when `template-checks.sh` ends `H2BT_TEMPLATE_CHECKS_FAIL` or the work would land on `trunk`/`develop`. Surface the reason plainly and stop — the user is driving this and needs to know exactly what was checked.
+Each precondition and each post-write verification is a hard gate. Never report success when a page-content write's sentinel grep fails, when block validation still shows invalid blocks after the two-call ceiling (downgrade to `core/html` instead), when the standards audit reports stray inline comments, block-CSS organization violations or a block inside the theme, or — in template mode — when `template-checks.sh` ends `H2BT_TEMPLATE_CHECKS_FAIL` or the work would land on `trunk`/`develop`. Surface the reason plainly and stop — the user is driving this and needs to know exactly what was checked.
+
+For blocks, also stop rather than work around these rules:
+- Never create a block inside a theme.
+- Never edit a reused monorepo block in place; adapt it from the project.
+- Never push to the monorepo, open its pull request, or file a block proposal without the user's approval.
+- Scaffold an exclusion only when the user states that an engineering lead approved it.

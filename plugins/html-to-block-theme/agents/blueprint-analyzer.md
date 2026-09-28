@@ -31,7 +31,7 @@ You analyze **one** static HTML design file and return a structured mapping for 
 
 1. Read the HTML file. Read every linked CSS file and JS file (resolve `<link href>` and `<script src>` relative to the file). CSS custom properties (`:root { --… }`) are the cleanest token source.
 2. Walk the HTML depth-first. Break it into top-level **sections** (hero, feature grid, testimonial row, footer, etc.).
-3. For each section, decide the block mapping and the **lowest** escalation-ladder rung that achieves it. Note recurring custom classes that should become block style variations, and any behaviour that needs a custom block (with the reason core cannot do it).
+3. For each section, decide the block mapping and the **lowest** escalation-ladder rung that achieves it. Note recurring custom classes that should become block style variations. For any behaviour beyond core supports, describe the behaviour and say which core routes you ruled out and why: a core block, a pattern, Block Bindings, the Interactivity API on an existing block, or a variation or filter. Don't name or plan a block. The orchestrator checks the blocks monorepo once, for all files.
 4. Detect the section's design tokens (colours, font families + sizes, spacing, layout widths, radii, shadows). Report exact values; later reconciliation unifies them across files.
 5. Classify the file: a **core template** (blog index, single, archive, 404, generic page layout) or **shared-wrapper page content** (inner page that shares header/footer/wrapper with others and differs only in body). A distinct homepage is **always page content, never a `front-page.html` template** — classify it `page-content`, note that it is the designated front page, and when its chrome differs from the other pages (different or absent header/footer) note that it needs a custom page template. Flag the shared chrome present (header/nav/footer).
 6. List linked assets and their roles (content image vs decorative/background, fonts, scripts).
@@ -39,8 +39,7 @@ You analyze **one** static HTML design file and return a structured mapping for 
 ## Discipline
 
 - Use documented block attributes only; never invent attribute names. Colour classes are `has-{slug}-background-color`.
-- Prefer block supports over block styles, block styles over custom blocks, custom blocks over custom CSS.
-- If the dispatching prompt names a block namespace (template mode uses the project theme slug), name custom block candidates `<namespace>/<slug>`; otherwise use `theme/<slug>`.
+- Prefer block supports over block styles, block styles over custom behaviour, and custom behaviour over custom CSS.
 - Anything with no clean mapping → note it as `core/html` + a TODO; do not force a wrong block.
 - Note anything that will be dropped (animations, decorative JS).
 
@@ -70,7 +69,7 @@ Return **only** this JSON object (no prose):
       "block_mapping": "core/cover > (core/heading, core/paragraph, core/buttons)",
       "ladder_rung": 1,
       "block_style_candidates": [{ "design_class": "card--elevated", "variation_slug": "elevated", "block_types": ["core/group"] }],
-      "custom_block_candidates": [{ "name": "theme/carousel", "reason": "autoplay slider; no core equivalent" }],
+      "behaviour_candidates": [{ "behaviour": "autoplay slider with dot pagination", "core_routes_ruled_out": { "core_block": "no core slider", "pattern": "static layout only", "block_bindings": "not a data problem", "interactivity_on_existing_block": "needs slide/track markup core groups do not produce", "variation_or_filter": "no core block to extend" }, "catalog_terms": ["carousel", "slider"] }],
       "assets": [{ "type": "image", "role": "background", "src": "img/hero.jpg" }],
       "notes": "scroll-fade animation will be dropped"
     }

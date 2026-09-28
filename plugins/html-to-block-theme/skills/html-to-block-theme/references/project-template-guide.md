@@ -67,7 +67,7 @@ The template's CI, tests and wp-env configuration depend on these. Read them fro
 | `register_block_style()` and `wp_enqueue_block_style()` in `functions.php` | `includes/block-styles.php`. Enqueue the **build** path, name each file literally (the audit greps for `<block>.css`), and version it with the asset-metadata helper. |
 | `render_block_*` filters | `includes/<concern>.php`. |
 | `assets/js/*.js` | ES modules in `assets/js/src/`, imported by `src/index.js` and built into the one always-enqueued bundle. Each module returns early when its markup is absent. |
-| Custom blocks in `blocks/<slug>/` | Features plugin, `blocks/src/<slug>/`. Scaffold with `scaffold-custom-block.sh --layout template` (see `custom-blocks-guide.md`). Blocks belong with features because page content stores them; a theme swap must not unregister them. |
+| Custom behaviour | The same as standalone (`custom-blocks-guide.md`): core features first, then blocks from the A8C Special Projects blocks monorepo, installed as plugins and never tracked here. Only an approved exclusion is scaffolded into the features plugin (`blocks/src/<slug>/`, `scaffold-custom-block.sh --exclusion-approved`), because page content stores it and a theme swap must not unregister it. Project-side filters that adapt a monorepo block go in `<features-dir>/includes/<concern>.php`. |
 | Site-config mu-plugins (redirects and the like) | `<features-dir>/includes/<feature>.php`. |
 | Local-only shims (for example `jetpack_offline_mode`) | Untracked `mu-plugins/<file>.php`. Never commit them. |
 | `templates/`, `parts/`, `patterns/`, fonts | Same paths. Patterns keep `Slug: <theme_slug>/…` and `Categories: <theme_slug>`. |
@@ -75,13 +75,15 @@ The template's CI, tests and wp-env configuration depend on these. Read them fro
 
 ## Build pipeline
 
+The features-plugin block wiring below applies only to approved exclusions. Monorepo blocks build in the monorepo.
+
 - **`package.json` edits:**
   - Quote the PostCSS glob as `'…/assets/css/build/**/*.css'`. The template's unquoted `*.css` misses the `blocks/` subdirectory, and npm's `sh` doesn't expand `**` recursively.
   - Add `build:features:blocks` and `start:features:blocks`:
     `wp-scripts build|start --webpack-src-dir=<features>/blocks/src --output-path=<features>/blocks/build --webpack-copy-php --blocks-manifest`.
   - Add `<features>/blocks/src` to `lint:scripts`, `format:scripts` and `lint:styles`.
   - Add every imported `@wordpress/*` package (for example `@wordpress/blocks` and `@wordpress/block-editor`) as a devDependency. Otherwise ESLint's `import/no-extraneous-dependencies` fails.
-  - The template scaffold does all of this except the devDependencies, which it prints as a manual step.
+  - The exclusion scaffold does all of this except the devDependencies, which it prints as a manual step.
 - **Block assets under wp-scripts:**
   - Import `./style.scss` in `index.js` and reference it as `"style": "file:./style-index.css"`.
   - Import `./editor.scss` and reference it as `"editorStyle": "file:./index.css"`.
@@ -126,7 +128,7 @@ Detection lists what generation left behind.
   - **It works from a mirror.** The Studio site's `wp-content` also holds Studio's SQLite integration and loader. The lint scripts scan all of `mu-plugins/`, and wp-env mounts it, so checking in place reports hundreds of errors CI never sees. The mirror holds only tracked and unignored files, synced in place so wp-env's bind mounts survive.
   - **It refuses a port another wp-env instance already publishes**, because Playwright would silently test that other site.
   - **It waits for `afterStart` to activate the theme** before the end-to-end run.
-- **Tests.** Replace the example tests with tests of the build's own promises: render filters, custom block output, block style and stylesheet registrations, bindings and redirects. The wp-env sites hold no page content, so these tests cover code, not the design.
+- **Tests.** Replace the example tests with tests of the build's own promises: render filters (including filters that adapt monorepo blocks), approved-exclusion block output, block style and stylesheet registrations, bindings and redirects. The wp-env sites hold no page content, so these tests cover code, not the design.
 
 ## Visual parity guard
 
@@ -152,12 +154,13 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/parity-check.sh" --repo <repo> --base-url <s
   - Apply the same rewrite to `.h2bt/pages/*.html`.
   - Rename only block-comment names and prefixed identifiers. Image filenames and outbound URLs that happen to contain the old slug stay as they are.
 - **Plugins the content depends on** (for example Jetpack Forms or a motion plugin) are installed on the host and listed in the README under "Site dependencies". Track one under `plugins/` only if the user decides to, following the template README's tracked-plugin recipe.
+- **Monorepo block plugins** are site dependencies too: installed on the host from their release ZIPs, updated from opsoasis, and never tracked here. List each with its version. A block still awaiting its monorepo release blocks deploying the pages that use it; say so in the README and the report.
 
 ## Delivery
 
 - **Commits:** conventional commits (`feat:`, `fix:`, `test:`, `docs:`, `chore:`), in the logical units a reviewer reads.
 - **Pushing needs the user's permission.** Open a **draft** PR against `trunk` using the repository's PR template, with screenshots or the parity result for visual changes. Never push `trunk` or `develop`.
-- **README:** keep it true. Document the site's dependencies, the Studio workflow and the allowlisted blocks. Rewrite the prose that removed example features leave false.
+- **README:** keep it true. Document the site's dependencies (monorepo block plugins included), the Studio workflow and any allowlisted exclusions. Rewrite the prose that removed example features leave false.
 
 ## Porting an existing standalone build into the template
 

@@ -12,7 +12,7 @@ This skill registers variations in **`functions.php` with `register_block_style(
 
 ## The rule: one CSS file per block type
 
-- All custom CSS for a block type lives in **one file**: `assets/css/blocks/<block-name>.css`, where the block name's `/` becomes `-` (`core/button` → `assets/css/blocks/core-button.css`, `core/group` → `core-group.css`, `mytheme/hero` → `mytheme-hero.css`).
+- All custom CSS for a block type lives in **one file**: `assets/css/blocks/<block-name>.css`, where the block name's `/` becomes `-` (`core/button` → `assets/css/blocks/core-button.css`, `core/group` → `core-group.css`, the monorepo's `a8csp/modal` → `a8csp-modal.css`). Blocks reused or built from the blocks monorepo are styled from the theme this way too; they ship only wireframe styling (`custom-blocks-guide.md`).
 - That one file holds **every** custom rule for the block — general block tweaks and the rules for **all** of its `is-style-*` variations. Do not split one block type across files; do not merge multiple block types into one file.
 - Enqueue each file with `wp_enqueue_block_style( '<block-name>', … )` so WordPress loads it **only when that block renders** on the page. Never `wp_enqueue_style()` a global stylesheet for block CSS.
 
