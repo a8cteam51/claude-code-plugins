@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{PROJECT}} — design options</title>
+<meta name="description" content="Design options for {{PROJECT}}, prepared for review.">
+<meta name="robots" content="noindex, nofollow">
+<style>
+  :root{
+    --blue:#2e72f5;
+    --ink:#101010;
+    --paper:#fff;
+    --rule:#e2e2e2;
+    --quiet:#6b6b6b;
+    --grotesk:-apple-system,BlinkMacSystemFont,"Helvetica Neue","Inter",Helvetica,Arial,sans-serif;
+    --rail:clamp(1.5rem,5vw,4.5rem);
+  }
+  *,*::before,*::after{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);
+    font-family:var(--grotesk);font-size:16px;line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit}
+  .skip{position:absolute;left:-9999px;top:0;background:var(--ink);color:#fff;padding:.75rem 1rem;z-index:10}
+  .skip:focus{left:0}
+  :focus-visible{outline:3px solid var(--blue);outline-offset:3px}
+
+  /* ---- Cover ---- */
+  .cover{
+    background:var(--blue);color:#fff;
+    padding:var(--rail);
+    min-height:min(92vh,58rem);
+    display:flex;flex-direction:column;
+  }
+  .mark{
+    font-size:clamp(.75rem,1.1vw,.9rem);font-weight:700;
+    letter-spacing:.22em;text-transform:uppercase;
+  }
+  .cover__mid{flex:1;display:flex;flex-direction:column;justify-content:center;padding-block:clamp(3rem,8vh,7rem)}
+  .cover h1{
+    margin:0;
+    font-size:clamp(3.5rem,13.5vw,13rem);
+    line-height:.86;letter-spacing:-.045em;font-weight:500;
+  }
+  .cover p{
+    margin:clamp(1.25rem,3vh,2.5rem) 0 0;max-width:40ch;
+    font-size:clamp(1.15rem,2.6vw,2.1rem);
+    line-height:1.2;letter-spacing:-.02em;font-weight:500;
+    color:rgba(255,255,255,.92);
+  }
+  /* ---- Footer rail: three parts, per the deck template ---- */
+  .rail{
+    display:grid;gap:1rem .75rem;
+    grid-template-columns:repeat(3,1fr);align-items:end;
+    font-size:clamp(.75rem,1.05vw,.875rem);line-height:1.5;font-weight:500;
+  }
+  .rail>:nth-child(2){text-align:center}
+  .rail>:nth-child(3){text-align:right}
+  .cover .rail{color:rgba(255,255,255,.88)}
+
+  /* ---- Contents ---- */
+  .contents{padding:clamp(3.5rem,11vh,9rem) var(--rail) clamp(2rem,6vh,4rem)}
+  .contents h2{
+    margin:0 0 clamp(2rem,5vh,3.5rem);
+    font-size:clamp(.75rem,1.1vw,.9rem);font-weight:700;
+    letter-spacing:.22em;text-transform:uppercase;color:var(--quiet);
+  }
+  .toc{list-style:none;margin:0;padding:0;counter-reset:opt;border-top:1px solid var(--rule)}
+  .toc li{counter-increment:opt;border-bottom:1px solid var(--rule)}
+  .toc a{
+    display:grid;grid-template-columns:minmax(2.5rem,7vw) 1fr;
+    gap:clamp(1rem,4vw,3rem);align-items:baseline;
+    padding:clamp(1.5rem,4vh,2.75rem) 0;
+    text-decoration:none;transition:background .18s ease,padding .18s ease;
+  }
+  .toc a::before{
+    content:counter(opt);
+    font-size:clamp(2rem,7vw,5.5rem);line-height:.85;
+    letter-spacing:-.04em;font-weight:500;color:var(--ink);
+  }
+  .toc__name{
+    display:block;
+    font-size:clamp(2rem,7vw,5.5rem);line-height:.9;
+    letter-spacing:-.045em;font-weight:500;
+  }
+  .toc__note{
+    display:block;margin-top:.7em;max-width:56ch;
+    font-size:clamp(.95rem,1.5vw,1.125rem);line-height:1.4;
+    letter-spacing:-.01em;color:var(--quiet);
+  }
+  @media (hover:hover){
+    .toc a:hover{background:var(--blue);padding-inline:clamp(.75rem,2vw,1.5rem)}
+    .toc a:hover::before,.toc a:hover .toc__name{color:#fff}
+    .toc a:hover .toc__note{color:rgba(255,255,255,.9)}
+  }
+
+  /* ---- Provenance ---- */
+  .prov{
+    padding:clamp(2rem,6vh,4rem) var(--rail) clamp(2.5rem,7vh,5rem);
+    border-top:1px solid var(--rule);
+    font-size:.8125rem;line-height:1.6;color:var(--quiet);
+  }
+  .prov h2{
+    margin:0 0 1rem;font-size:.8125rem;font-weight:700;
+    letter-spacing:.22em;text-transform:uppercase;color:var(--quiet);
+  }
+  .prov dl{margin:0;display:grid;grid-template-columns:max-content 1fr;gap:.35rem 1.5rem}
+  .prov dt{font-weight:600;color:var(--ink)}
+  .prov dd{margin:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+
+  @media (max-width:40rem){
+    .rail{grid-template-columns:1fr}
+    .rail>:nth-child(2),.rail>:nth-child(3){text-align:left}
+    .prov dl{grid-template-columns:1fr;gap:.15rem}
+    .prov dt{margin-top:.6rem}
+  }
+  @media print{.cover{min-height:auto}.toc a{padding-block:1rem}}
+</style>
+</head>
+<body>
+
+<a class="skip" href="#contents">Skip to the options</a>
+
+<header class="cover">
+  <div class="mark">Automattic</div>
+  <div class="cover__mid">
+    <h1>Design&nbsp;options</h1>
+    <p>{{PROJECT}}</p>
+  </div>
+  <div class="rail">
+    <div>Automattic<br>Special Projects</div>
+    <div>{{VERSION}}<br>{{DATE}}</div>
+    <div>{{COUNT}} options<br>Pick any to review</div>
+  </div>
+</header>
+
+<main id="contents" class="contents">
+  <h2>Table of contents</h2>
+  <ol class="toc">
+{{OPTIONS}}
+  </ol>
+</main>
+
+<footer class="prov">
+  <h2>Provenance</h2>
+  <dl>
+{{PROVENANCE}}
+  </dl>
+</footer>
+
+</body>
+</html>
