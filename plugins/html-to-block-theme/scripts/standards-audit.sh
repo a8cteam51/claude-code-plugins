@@ -92,7 +92,7 @@ css_lines() {
 total=0
 found_css=0
 if [[ "$layout" == "template" ]]; then
-	footprint_find=( "$theme_dir/assets/sass" "$theme_dir/assets/css/src" "$theme_dir/blocks" -type f \( -name '*.scss' -o -name '*.css' \) )
+	footprint_find=( "$theme_dir/assets/sass" "$theme_dir/assets/css/src" -type f \( -name '*.scss' -o -name '*.css' \) )
 else
 	footprint_find=( "$theme_dir" -type f -name '*.css' )
 fi
@@ -156,7 +156,6 @@ if [[ "$layout" == "template" ]]; then
 			assets/css/src/*.scss|assets/css/build/*.css)
 				echo "  PER-PURPOSE ${rel} — not block CSS; allowed, list it in the report with what enqueues it"
 				;;
-			blocks/*) ;;
 			*)
 				echo "  STRAY       ${rel} — block CSS goes in assets/css/src/blocks/<block>.scss; root styles in assets/sass/"
 				css_org=$((css_org + 1))

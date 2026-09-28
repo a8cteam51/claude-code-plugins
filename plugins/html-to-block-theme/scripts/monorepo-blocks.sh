@@ -46,10 +46,10 @@ clone     Clones the monorepo into <site>/wp-content/plugins/special-projects-bl
 EOF
 }
 
-# Prints every release tag of the monorepo, one per line.
+# Prints every published, non-prerelease tag of the monorepo, one per line.
 release_tags() {
 	if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-		gh release list --repo "$repo" --limit 1000 --json tagName --jq '.[].tagName'
+		gh release list --repo "$repo" --limit 1000 --exclude-drafts --exclude-pre-releases --json tagName --jq '.[].tagName'
 		return
 	fi
 	local page=1 body
@@ -58,7 +58,7 @@ release_tags() {
 			echo "Could not list releases for ${repo} (GitHub API)." >&2
 			return 1
 		}
-		printf '%s' "$body" | python3 -c 'import json,sys; [print(r["tag_name"]) for r in json.load(sys.stdin)]'
+		printf '%s' "$body" | python3 -c 'import json,sys; [print(r["tag_name"]) for r in json.load(sys.stdin) if not r.get("draft") and not r.get("prerelease")]'
 		[[ "$(printf '%s' "$body" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')" -lt 100 ]] && break
 		page=$((page + 1))
 	done

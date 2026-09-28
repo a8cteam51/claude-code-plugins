@@ -69,7 +69,7 @@ Only after steps 1 and 2 have failed. The run builds the block locally; pushing 
 
    ```bash
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/monorepo-blocks.sh" clone --site-path <site-path>
-   git -C <site-path>/wp-content/plugins/special-projects-blocks-monorepo switch -c add/<slug>
+   git -C <site-path>/wp-content/plugins/special-projects-blocks-monorepo switch -c add/<slug> origin/trunk
    ```
 
    The clone lives in `wp-content/plugins/special-projects-blocks-monorepo`, and its autoloader loads every plugin there that has a `build/` directory. Never build a plugin in the clone that is also installed from a release ZIP.
