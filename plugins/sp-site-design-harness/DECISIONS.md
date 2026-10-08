@@ -130,3 +130,39 @@ is unchanged — each is still triggered as `/find-font`, `/scan-font-sources`,
 under `skills/find-font/references/`; `scan-font-sources/SKILL.md` and
 `create-design/SKILL.md` reference them/the templates across the sibling
 skill directory rather than a shared top-level folder.
+
+## 2026-09-25 — Iterate in HTML until sign-off, then in the theme; HTML frozen after handoff
+
+Partner feedback comes in two stages: "which design and how it looks," then
+"does it work as a real site." HTML is the cheapest place for the first
+(single file, instant reload, same Spacefast link republished). Real content,
+inner pages, and block behavior only exist in the theme. Iterating in both at
+once would create two drifting sources, the same class of bug as the
+`build/` intermediate that hurt a past engagement. So: iterate on the HTML
+until the partner signs off, hand off, then iterate only in the theme, with
+the HTML frozen as a reference.
+
+## 2026-09-25 — Add a lightweight `/iterate` skill instead of routing feedback through `create-design`
+
+Small requests ("change the border color") were triggering create-design's
+full engine (references, critic subagents, gates, full re-validation), which
+was slow and unnecessary. Added `/iterate` with three levels: L0 direct edit
+(no critic, gates, or screenshot; contrast check only if a color changed), L1
+local revision (one targeted screenshot plus a craft-corrections check for
+that section only), and L2 routed back to create-design. create-design's
+description now points small changes to `iterate` so the heavy engine doesn't
+trigger for them. After handoff `/iterate` edits the built theme and syncs
+`DESIGN.md`. That's a deliberate, narrow exception to "the harness doesn't
+touch theme code": it applies changes, it never builds.
+
+## 2026-09-25 — Two-layer role tokens in `:root`; CSS authoritative over `.tokens.md`
+
+Past direction files had a `:root` block, but it was palette-named (`--sage`,
+`--stone`) with no role aliases, so "change the border color" meant finding
+every usage. create-design now writes raw palette values plus role aliases
+(`--color-border`, `--color-text`, etc.), and component CSS uses only the
+aliases, with no hex outside `:root`. Considered dropping `.tokens.md` in
+favor of the CSS alone; kept it because dev-handoff reads it and the prose
+roles are useful. Instead the CSS is authoritative, `/iterate` updates both
+in the same edit, and dev-handoff reconciles them with the CSS winning.
+

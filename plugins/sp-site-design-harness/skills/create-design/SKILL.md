@@ -1,6 +1,6 @@
 ---
 name: create-design
-description: Design process for producing distinctive, art-directed digital design instead of generic AI-default interfaces. Use whenever building or refining the visual design of a marketing site, landing page, product interface, web app, mobile UI concept, interactive experience, or design prototype — including any request to "make it look good," "design a page," "improve the UI," or "make this less generic." Governs design thinking, direction-setting, critique, reduction, and polish; framework- and style-agnostic. Phase 2 (Design) of the sp-site-design-harness pipeline — ported from consistent-high-quality-design.
+description: Design process for producing distinctive, art-directed digital design instead of generic AI-default interfaces. Use whenever building or refining the visual design of a marketing site, landing page, product interface, web app, mobile UI concept, interactive experience, or design prototype — including any request to "make it look good," "design a page," "improve the UI," or "make this less generic." Governs design thinking, direction-setting, critique, reduction, and polish; framework- and style-agnostic. Phase 2 (Design) of the sp-site-design-harness pipeline — ported from consistent-high-quality-design. For feedback or changes to an existing direction or built theme (token swaps, copy, one-section revisions), use `iterate` instead.
 ---
 
 # Create Design
@@ -226,7 +226,9 @@ system — do not start by generating a generic token set.
 - Type hierarchy and type personality — see `references/typography.md` for
   where to search and how to ship the chosen typeface, unless intake already
   recorded a supplied font
-- Color system and its conceptual reason
+- Color system and its conceptual reason — written into `:root` as two
+  layers: raw palette values, then role aliases that the component CSS uses
+  (see `references/intake.md` "Output files"). No hex literals outside `:root`.
 - Image treatment · surface treatment
 - Border, radius, and shadow strategy (any of these may legitimately be "none")
 - Icon behavior
@@ -440,6 +442,10 @@ The result must read as deliberately art-directed, not procedurally assembled.
 palette with roles, spacing, radius, border/shadow strategy) already produced
 in conversation, persisted to disk so Phase 3 (`dev-handoff`) has something
 machine-readable to read. See `references/intake.md` for the exact shape.
+Each HTML file's `:root` uses the two-layer palette + role-alias structure
+described there; that block is authoritative, and `.tokens.md` mirrors it
+using the same names. That structure is what lets `/iterate` turn "change the
+border color" into a one-line edit.
 Also write `directions/index.html` — a nav/overview page linking every built
 direction. This is a **required** output of every run, not an inconsistent
 one, and it must be the shared house template, not an improvised page.

@@ -68,6 +68,10 @@ been chosen and needs to be handed to a build agent.
 - `/find-font` — browse the local font catalog (`~/.claude/local-font-sources/`)
   for a family matching a mood/use-case description
 - `/scan-font-sources` — refresh the local font catalog's index
+- `/iterate` — apply feedback fast: token swaps, copy, one-section revisions,
+  or a pasted list of partner notes, each classified L0/L1/L2 so small changes
+  skip the full design engine. Works on the HTML directions before handoff and
+  on the built block theme after (the HTML is frozen once handed off)
 - `/publish-design-options` — package a session's built directions behind one
   private Spacefast share link for partner review (requires the
   `publish-to-spacefast` skill, installed separately — see below)
@@ -83,10 +87,13 @@ projects/<slug>/
   directions/
     01-<slug>.html … NN-<slug>.html
     01-<slug>.tokens.md … NN-<slug>.tokens.md
+    NN-<slug>.changes.md  /iterate change log, pre-handoff
     index.html
   handoff/
     DESIGN.md
     decisions.md
+    changes.md            /iterate change log, post-handoff
+  .theme-path             built theme location, recorded by /iterate
   .design-template        template id chosen for this project's index page (see skills/publish-design-options/templates/MANIFEST.md)
   .spacefast/             created by publish-to-spacefast when directions are shared
 ```
@@ -122,4 +129,5 @@ block templates/patterns, and handing off to a build tool
 (`claude-code-wordpress.com`, `wp-site-creator`, or similar) — is
 deliberately not part of this plugin. It ends at `handoff/DESIGN.md` and
 `handoff/decisions.md`; a separate, external system is responsible for
-turning those into a built theme.
+turning those into a built theme. The one exception is `/iterate`, which can
+apply partner feedback to that built theme afterward.
