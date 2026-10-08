@@ -1,6 +1,6 @@
 # STATUS
 
-**Current version:** 0.1.0 (per `.claude-plugin/plugin.json`)
+**Current version:** 0.2.0 (per `.claude-plugin/plugin.json`)
 
 ## Where things are
 
@@ -15,6 +15,12 @@ The plugin's three-phase pipeline is built out:
   2026-09-17 entries for why.
 - **Phase 3 — `dev-handoff` skill**: chosen direction → `handoff/DESIGN.md` +
   `handoff/decisions.md`, gated on `[Development]`-tagged accessibility criteria.
+
+**Iteration — `iterate` skill** (added 2026-09-25): applies feedback at three
+levels (L0 direct edit, L1 local revision, L2 routed to create-design). It
+works on the HTML directions before handoff and on the built theme after, and
+the HTML is frozen once handed off. create-design now writes two-layer role
+tokens in `:root` so L0 swaps are one line. See DECISIONS.md 2026-09-25.
 
 Supporting skills are in place: `/find-font`, `/scan-font-sources`,
 `/publish-design-options` (the last depends on the separately-installed
@@ -40,6 +46,17 @@ reduce this class of issue. This is the immediate next step.
 
 ## What's next
 
+- `/iterate` behavior tests passed 2026-09-25: L0 swap, mixed batch, frozen-HTML
+  guard, theme-phase preset swap. They ran as isolated subagents following
+  SKILL.md on scratch copies of `harness-test-1`, because the headless `claude`
+  CLI login had expired. Their friction notes (contrast scope, screenshot
+  setup, before-shots, color names, reporting heads-ups) are folded into the
+  skill. **Still untested:** the trigger check, i.e. whether in a fresh
+  session "change the hero border color in option 2" loads `iterate` rather
+  than `create-design`. It needs a real session (re-login, then `claude -p` in
+  a project with the skills symlinked).
+- On the next full create-design run, also check that the output uses role
+  aliases and has no hex outside `:root`.
 - Re-run a fresh end-to-end test and specifically check: does
   `craft-corrections.md` get consulted during the critic/craft passes
   (visible in the model's own narration)? Do the two new re-validation steps

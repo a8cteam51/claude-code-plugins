@@ -7,7 +7,9 @@ independently usable skill; together they're packaged as one Claude Code plugin.
 **Phases:** Research → Design → Dev Handoff
 **Out of scope:** actually building the WordPress block theme. That happens in a
 separate, TBD system this harness hands off to. This harness produces design
-decisions, not code.
+decisions, not code. One narrow exception: `/iterate` applies feedback to
+an already-built theme after handoff (see §4b). It edits the theme but never
+builds it.
 
 ---
 
@@ -187,6 +189,32 @@ re-deriving decisions already made.
 
 ---
 
+## 4b. Iteration (`iterate` skill)
+
+**Goal:** apply feedback fast, without re-running the design engine.
+
+**Cutover rule:** iterate on the HTML directions until the partner signs off on
+one, then run Dev Handoff, then iterate only in the built theme. After handoff,
+`directions/*.html` is frozen as a reference, so there are never two live
+sources to keep in sync.
+
+| Phase | Edits | Authoritative | Kept in sync | Change log |
+|---|---|---|---|---|
+| Before handoff | `directions/NN-<slug>.html` | its `:root` block | `NN-<slug>.tokens.md` | `NN-<slug>.changes.md` |
+| After handoff | the block theme (path in `.theme-path`) | `theme.json` | `handoff/DESIGN.md` | `handoff/changes.md` |
+
+**Levels:** each request is classified and the level stated in one line.
+- **L0 direct edit** (token, copy, one property): minimal reads, edit, contrast
+  check if a color changed. No screenshot, critic, or gates.
+- **L1 local revision** (one section/component): edit, one targeted
+  screenshot, craft-corrections check for that section only. No critic.
+- **L2 new direction/concept**: routed back to `create-design`.
+
+L0 speed depends on Phase 2's two-layer `:root` (raw palette plus role aliases
+such as `--color-border`), so most swaps are one line.
+
+---
+
 ## 5. Shared project folder (the contract between phases)
 
 ```
@@ -198,10 +226,13 @@ projects/<slug>/
   directions/
     01-<slug>.html … NN-<slug>.html
     01-<slug>.tokens.md … NN-<slug>.tokens.md
+    NN-<slug>.changes.md  /iterate change log, pre-handoff (created on first change)
     index.html
   handoff/
     DESIGN.md
     decisions.md
+    changes.md            /iterate change log, post-handoff
+  .theme-path             path to the built block theme, recorded by /iterate
   .design-template        template id chosen from skills/publish-design-options/templates/MANIFEST.md, so create-design and /publish-design-options agree without re-asking
   .spacefast/             created by publish-to-spacefast when directions are shared
 ```
@@ -257,6 +288,10 @@ sp-site-design-harness/
       templates/
         design-options-index.html  the `deck` template, shared by create-design and publish-design-options
         MANIFEST.md                 template registry + token contract
+    iterate/                    fast revisions, pre- and post-handoff
+      SKILL.md
+      references/
+        levels.md
   references/
     instruction-priority.md     the harness-wide priority order (§1)
   README.md                     directive: what this is, phase-by-phase, for a
