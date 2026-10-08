@@ -208,6 +208,28 @@
       "skills": [
         "./skills/vip-plugin-updates"
       ]
+    },
+    {
+      "name": "sp-site-design-harness",
+      "source": "./plugins/sp-site-design-harness",
+      "description": "Three-phase Research → Design → Dev Handoff pipeline for WordPress block-theme site design — takes raw brand material to a developer-ready design system (DESIGN.md + decisions.md); does not build the theme itself.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Automattic Special Projects"
+      },
+      "repository": "https://github.com/a8cteam51/claude-code-plugins",
+      "license": "MIT",
+      "keywords": ["wordpress", "block-theme", "design-system", "brand", "typography", "fonts", "design-handoff", "theme-json"],
+      "category": "development-tools",
+      "strict": true,
+      "skills": [
+        "./skills/research-intake",
+        "./skills/create-design",
+        "./skills/dev-handoff",
+        "./skills/find-font",
+        "./skills/scan-font-sources",
+        "./skills/publish-design-options"
+      ]
     }
   ]
 }
