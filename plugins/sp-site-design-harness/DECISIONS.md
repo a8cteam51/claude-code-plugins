@@ -166,3 +166,49 @@ favor of the CSS alone; kept it because dev-handoff reads it and the prose
 roles are useful. Instead the CSS is authoritative, `/iterate` updates both
 in the same edit, and dev-handoff reconciles them with the CSS winning.
 
+
+## 2026-10-08 — Integrate with html-to-block-theme through a versioned design package
+
+The harness's handoff and h2bt's input never met: dev-handoff writes
+DESIGN.md + decisions.md for a "TBD" builder, and h2bt reads only a folder of
+HTML and re-infers everything. Chose a versioned "design package" contract
+that h2bt specifies and owns (the consumer defines its input) and the harness
+conforms to, kept generic so other upstreams can emit it. Considered having
+the harness own the spec; rejected because it would couple h2bt to this
+harness specifically. Plan and milestones: `docs/plans/h2bt-integration.md`.
+Baseline is GitHub trunk of both plugins; experiment branches are out of
+scope until merged.
+
+## 2026-10-08 — Palette slugs follow the team project template
+
+Three vocabularies were in play: `contrast/base/accent` (design-standards.md,
+from beautyinbloom), the design's own CSS variable names (h2bt), and
+`canvas/surface/ink/accent` (`a8cteam51/a8csp-project-template`). Chose the
+template's, because that's what new team sites start from and its CI
+enforces. design-standards.md gets aligned in M1.
+
+## 2026-10-08 — Bring h2bt's maintainer in after the M0 baseline
+
+h2bt is maintained by TommusRhodus. Engage after M0 so the conversation
+starts from a measured gap list rather than a proposal, and before M2 so the
+contract is agreed before either side builds to it.
+
+## 2026-10-08 — Simplify the handoff contract to the files we already make
+
+Revises the "versioned design package" entry above. After M0 the planned
+`manifest.json` and `tokens.json` looked like duplication: DESIGN.md
+frontmatter already carries the tokens, and a second copy would drift (the
+same bug class as `:root` vs `.tokens.md`). The contract is now DESIGN.md
+(defined frontmatter keys, team slugs as color keys), decisions.md (fixed
+sections incl. required fixes, real IA, content status), and `handoff/source/`
+(the chosen HTML plus assets). h2bt's side is one rule: read those docs in the
+blueprint when present, and they outrank inference. Motion tiers, a package
+validator, and a separate build ledger moved to BACKLOG.
+
+## 2026-10-08 — Plans live outside the repo
+
+This repo is published into `a8cteam51/claude-code-plugins`, and plans aren't
+plugin content. The integration plan and M0 report moved to
+`../sp-site-design-harness-plans/` (local git, no remote), the same pattern as
+the talks folder. The h2bt maintainer is briefed through GitHub issues rather
+than these docs.
