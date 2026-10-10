@@ -231,6 +231,26 @@
         "./skills/publish-design-options",
         "./skills/iterate"
       ]
+    },
+    {
+      "name": "pressable-to-wpcom-migration",
+      "source": "./plugins/pressable-to-wpcom-migration",
+      "description": "Migrate Team 51 sites from Pressable to WordPress.com: a read-only audit that reports blockers, decisions and manual work and generates a per-site runbook, then guided execution and verification through sync, cutover, DNS and handover.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Automattic Special Projects"
+      },
+      "repository": "https://github.com/a8cteam51/claude-code-plugins",
+      "license": "MIT",
+      "keywords": ["wordpress", "migration", "pressable", "wordpress-com", "reprint", "team51", "dns", "woocommerce", "jetpack", "audit"],
+      "category": "development-tools",
+      "strict": true,
+      "skills": [
+        "./skills/migration-audit",
+        "./skills/migration-run",
+        "./skills/migration-verify",
+        "./skills/migration-dns"
+      ]
     }
   ]
 }
