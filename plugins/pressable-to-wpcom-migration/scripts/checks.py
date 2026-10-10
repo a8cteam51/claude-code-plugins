@@ -46,7 +46,7 @@ OWNERS = [
     ("dns.account.", "TAM"),
     ("dns.other-sites.", "TAM"),
     ("dns.", "Developer"),
-    ("woo.woopayments", "TAM, with WooPayments support"),
+    ("woo.woopayments", "Developer, with the WooPayments team (#woosupport)"),
     ("woo.regulated-goods", "TAM, with the Terms of Service team"),
     ("woo.gateway-domain-bound", "Developer, with the partner at cutover"),
     ("woo.gateways", "Developer, with the partner"),
@@ -354,16 +354,27 @@ def woocommerce(m):
         facts = "Connected: %s. Account status `%s`, live=%s, country %s. WooPayments gateways enabled: %s." % (
             wcp.get("connected"), wcp.get("status"), wcp.get("is_live"), wcp.get("country"), "yes" if wcp_gateway else "no")
         if wcp.get("connected") or wcp.get("account_cached"):
-            out.append(F("woo.woopayments", "WooCommerce", "manual", "WooPayments account is tied to the source blog ID", facts,
-                         "Contact WooPayments support BEFORE scheduling cutover to move the account to the new blog ID. Until it moves, "
-                         "payment events go to the old site and the new site cannot take WooPayments payments. Keep another gateway "
-                         "live as a fallback if there is one.", steps=["prep.woopayments", "post.woopayments"]))
+            owner = g(m, "site", "jetpack", "connection_owner") or {}
+            tokens_n = sum(int(t["n"]) for t in (wcp.get("saved_tokens") or []) if "woocommerce_payments" in t["gateway_id"])
+            facts += " Stripe account `%s`. Jetpack connection owner on the source: %s." % (
+                wcp.get("stripe_account_id") or "not readable; get it from Payments settings",
+                ("%s <%s>" % (owner.get("login"), owner.get("email"))) if owner else "unknown")
+            if tokens_n:
+                facts += " %d saved WooPayments cards." % tokens_n
+            out.append(F("woo.woopayments", "WooCommerce", "manual", "WooPayments must be re-linked to the new blog ID", facts,
+                         "The Stripe account, balance, payout details and history are not lost: only the link between that account "
+                         "and the blog ID breaks. The WooPayments team re-links it (MC Switch Blog Tool). Ask in #woosupport, "
+                         "copying #a4a-ask, before scheduling cutover. Nobody may click \"finish setup\" or onboard WooPayments on "
+                         "the new site: that creates a second Stripe account and orphans this one. The same WordPress.com user "
+                         "should own the Jetpack connection on the new site.",
+                         steps=["prep.woopayments", "post.woopayments"]))
         else:
             out.append(F("woo.woopayments-unclear", "WooCommerce", "manual", "WooPayments is active but no connected account was detected",
                          facts + " Read over WP-CLI, which can under-report.",
-                         "Open Payments → Overview in wp-admin. If an account is connected, treat this as the account-move case and "
-                         "contact WooPayments support before scheduling cutover. If not, deactivate the plugin or leave it; there is "
-                         "nothing to move.", steps=["prep.woopayments", "post.woopayments"]))
+                         "Open Payments → Overview in wp-admin. If an account is connected, it must be re-linked to the new blog ID "
+                         "by the WooPayments team (ask in #woosupport) and nobody may onboard afresh on the new site. If no account "
+                         "is connected there is nothing to move; consider deactivating the plugin so no one starts onboarding by "
+                         "accident.", steps=["prep.woopayments", "post.woopayments"]))
     tokens = wcp.get("saved_tokens") or []
     if tokens:
         out.append(F("woo.saved-tokens", "WooCommerce", "manual", "Customers have saved payment methods",

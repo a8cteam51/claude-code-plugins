@@ -63,11 +63,23 @@ STEPS = [
               "that they will be available during the cutover window and the later name server change.\n\n"
               "```bash\npython3 {scripts}/state.py --dir {dir} decide registrar_access.<apex-domain> confirmed\n```",
          verify="Re-run the audit build; the access finding drops from blocker to info."),
-    dict(id="prep.woopayments", phase="prep", actor="human", title="Open the WooPayments account move", when=has("prep.woopayments"),
-         body="Contact WooPayments support and ask to move the account from blog ID `{source_blog_id}` to the new site's blog ID "
-              "(you will have it after step `prep.create-site`). Ask for: lead time, whether saved cards carry over, and where "
-              "payment events go between cutover and the move.",
-         verify="Support has confirmed a date at or before cutover. Recorded with `state.py decide woopayments_move`."),
+    dict(id="prep.woopayments", phase="prep", actor="human", title="Line up the WooPayments re-link", when=has("prep.woopayments"),
+         body=UNTESTED +
+              "WooPayments is a Stripe account linked to the site's blog ID through the Jetpack connection. The Stripe account, "
+              "its balance, payout details and history survive the move. The link does not: on the new blog ID WooPayments "
+              "behaves as if there were no account and offers to set one up.\n\n"
+              "**Nobody clicks \"finish setup\" or onboards on the new site.** That creates a second Stripe account and orphans "
+              "the real one.\n\n"
+              "1. Note the store's live Stripe account ID (`acct_…`): it is in the report's WooPayments finding, or in the "
+              "store's Payments settings. Source blog ID: `{source_blog_id}`.\n"
+              "2. Open a request in `#woosupport` (it has a WooPayments Request form), copying `#a4a-ask`. Say the site is moving "
+              "from Pressable to WordPress.com and will get a new blog ID, and ask for the account to be switched to it with "
+              "the MC Switch Blog Tool once the new site exists. Ask what they need and how much notice. For a batch of stores, "
+              "ask once for all of them.\n"
+              "3. Tell them if the store has subscriptions or saved cards (the report says); those may need extra handling.\n"
+              "4. Check who owns the Jetpack connection on the source (in the report). The same WordPress.com user should own it "
+              "on the new site, or the switch can be refused.",
+         verify="The WooPayments team has confirmed they will switch the account at cutover. Recorded with `state.py decide woopayments_relink`."),
     dict(id="prep.videopress", phase="prep", actor="human", title="Agree the VideoPress route", when=has("prep.videopress"),
          body=UNTESTED +
               "VideoPress storage is bound to the source blog ID (`{source_blog_id}`). After the move the videos are orphaned on the "
@@ -306,10 +318,19 @@ STEPS = [
          body="One order per enabled gateway, then refund it. Check the order emails arrive. In each gateway's own dashboard, "
               "confirm webhook or callback deliveries are succeeding.",
          verify="Each order reaches the expected status and each gateway shows successful deliveries."),
-    dict(id="post.woopayments", phase="post", actor="human", title="Complete the WooPayments account move", when=has("post.woopayments"),
-         body="Confirm with WooPayments support that the account now belongs to blog ID `{target_blog_id}`. In wp-admin, "
-              "Payments → Overview should show the existing account, not an onboarding prompt.",
-         verify="A WooPayments test payment succeeds and appears in the account's transactions."),
+    dict(id="post.woopayments", phase="post", actor="human", title="Get WooPayments re-linked and prove it", when=has("post.woopayments"),
+         body=UNTESTED +
+              "Until this is done the new site cannot take WooPayments payments, so do it straight after cutover with another "
+              "gateway live in the meantime if there is one.\n\n"
+              "1. Confirm the new site's Jetpack connection is healthy and owned by the expected WordPress.com user.\n"
+              "2. Ask the WooPayments team (the `#woosupport` thread from `prep.woopayments`) to switch the account from blog ID "
+              "`{source_blog_id}` to `{target_blog_id}`. Give them the Stripe account ID.\n"
+              "3. Do not onboard or click \"finish setup\" while waiting.\n"
+              "4. Afterwards, in wp-admin → Payments: the existing account, its balance, pending payouts and transaction "
+              "history are all there, and payout bank details are unchanged.\n"
+              "5. Make a small live payment and refund it. Check Apple Pay and Google Pay still appear at checkout.",
+         verify="Payments → Overview shows the existing account, not a setup prompt. The test payment appears in that account's "
+                "transactions and the refund succeeds."),
     dict(id="post.subscriptions", phase="post", actor="human", title="Confirm Subscriptions is back in live mode", when=has("post.subscriptions"),
          body="With the real domain restored, WooCommerce Subscriptions should leave staging mode by itself. Check "
               "WooCommerce → Status, and that the next renewals are scheduled.",

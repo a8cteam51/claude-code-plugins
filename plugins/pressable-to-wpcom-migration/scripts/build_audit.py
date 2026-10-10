@@ -205,6 +205,7 @@ def main():
     b.append("- Every sync replaces the target database. Database changes on the target go in `post-sync.sh`, never by hand.")
     b.append("- Never install SafetyNet on the target, and never use `wpcom:clone-site` to create it.")
     b.append("- Nothing on the live site changes before the freeze, apart from agreed plugin cleanup.")
+    b.append("- Nobody onboards or clicks \"finish setup\" for WooPayments on the new site. An existing account is re-linked by the WooPayments team.")
     b.append("- Stop at any failed verification. Do not improvise around it.\n")
     actor_label = {"agent": "Agent", "human": "Person", "both": "Agent + person"}
     phase = None

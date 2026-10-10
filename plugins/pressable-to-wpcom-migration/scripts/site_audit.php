@@ -130,6 +130,8 @@ $jp['reprint_exporter']     = class_exists( '\Automattic\Jetpack\Reprint_Export\
 $jp['related_plugins']      = array_values( array_filter( array_column( $out['plugins'], 'slug' ), function ( $s ) {
 	return 0 === strpos( $s, 'jetpack' ) || in_array( $s, array( 'akismet', 'vaultpress', 'zero-bs-crm', 'wpcomsh' ), true );
 } ) );
+$jp_owner                   = $jp['master_user_local_id'] ? get_userdata( $jp['master_user_local_id'] ) : null;
+$jp['connection_owner']     = $jp_owner ? array( 'login' => $jp_owner->user_login, 'email' => $jp_owner->user_email ) : null;
 $jp_plan                    = get_option( 'jetpack_active_plan' );
 $jp['plan_slug']            = is_array( $jp_plan ) && isset( $jp_plan['product_slug'] ) ? $jp_plan['product_slug'] : null;
 $jp['plan_class']           = is_array( $jp_plan ) && isset( $jp_plan['class'] ) ? $jp_plan['class'] : null;
@@ -288,6 +290,8 @@ if ( $woo['active'] ) {
 	$woo['woopayments'] = array(
 		'plugin_active'  => is_plugin_active( 'woocommerce-payments/woocommerce-payments.php' ),
 		'account_cached' => ! empty( $wcpay_data ),
+		/* The Stripe account ID is an identifier, not a credential; support needs it to re-link the account. */
+		'stripe_account_id' => isset( $wcpay_data['account_id'] ) ? $wcpay_data['account_id'] : null,
 		'connected'      => $wcpay_connected,
 		'is_live'        => isset( $wcpay_data['is_live'] ) ? (bool) $wcpay_data['is_live'] : null,
 		'status'         => isset( $wcpay_data['status'] ) ? $wcpay_data['status'] : null,

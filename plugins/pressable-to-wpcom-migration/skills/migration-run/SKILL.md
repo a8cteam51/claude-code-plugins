@@ -98,6 +98,10 @@ stopped.
   the partner agreed to.
 - **The old site stays frozen after cutover**, so visitors with stale DNS
   cannot create data that would be lost.
+- **WooPayments is never set up afresh on the new site.** A store with an
+  existing account will show a setup prompt on the new blog ID; clicking
+  through it creates a second Stripe account and orphans the real one. The
+  WooPayments team re-links the existing account instead.
 - **Ownership stays with Team 51** until the handover phase. Do not transfer
   anything during the migration.
 - **Secrets stay out of the conversation.** Read constant values and keys on
