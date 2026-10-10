@@ -24,6 +24,7 @@ Add the marketplace once, then install whichever plugins you need:
 | [ai-canvas](#ai-canvas) | Connect a WordPress site once, then vibe-code pages and posts as a full-width Custom HTML block through the REST API, verified in the browser | Natural language |
 | [site-launch-comparison](#site-launch-comparison) | Screenshot two versions of a site and build a side-by-side before/after report | Natural language |
 | [vip-plugin-updates](#vip-plugin-updates) | Turn a folder of plugin zips into one PR per plugin against a VIP repo that vendors its plugins | Natural language |
+| [pressable-to-wpcom-migration](#pressable-to-wpcom-migration) | Audit a Pressable site for a move to WordPress.com, generate its runbook, and work through the migration with checks | Natural language |
 
 ## plugin-review
 
@@ -443,6 +444,45 @@ Turn a folder of downloaded plugin zips into **one pull request per plugin** aga
 
 # After merging and testing the staging site:
 # > Staging looks good — run the production pass.
+```
+
+## pressable-to-wpcom-migration
+
+Move a Team 51 site from Pressable to WordPress.com. A read-only audit inspects the site and writes a report (blockers, decisions, manual work) and a runbook tailored to that site, with commands filled in. The other skills walk the runbook: the Reprint sync through the Migration Assistant, platform items, a rehearsal, the cutover freeze and DNS change, and the tasks after cutover such as merging stats and migrating subscribers to the new blog ID.
+
+**Status: 0.1.0, a draft for evaluation.** The audit has been run read-only against real sites. No step after the audit has been used on a real migration; unproven runbook steps are marked UNTESTED.
+
+**What's included:**
+
+- **migration-audit skill** - "Audit example.org for migration to WordPress.com". Read-only. Writes `migrations/<domain>/REPORT.md` and `RUNBOOK.md`
+- **migration-run skill** - "Continue the example.org migration". Does the agent's steps, hands a person theirs with the links and blog IDs they need, and asks before anything that writes
+- **migration-verify skill** - "Is the copy in parity?" Data fingerprint, plugin and config comparison, URL crawl, and a check for writes to the old site after the freeze
+- **migration-dns skill** - Registrar and name server audit, whether the partner's registrar login is needed, record cutover, and a zone comparison before name servers change
+- **scripts/checks.py** - The check catalogue: VideoPress content, WooCommerce gateways and webhooks, WooPayments, blog ID change, wp-config constants, files outside `wp-content`, deploy currency and drift, DNS and email records, and more. One function per check
+- **scripts/runbook.py** - The steps, switched on by what the audit finds
+- **assets/** - Two mu-plugins that only filter at runtime: a quarantine for the copy (no email, scheduled jobs, webhooks or checkout until cutover) and a read-only freeze for the live site during the final sync
+
+**What it does:**
+
+- Starts from the production site, not from repo or project names, when working out what deploys to it
+- Holds sites with VideoPress content, and sites whose registrar or DNS login is the partner's until that access is confirmed
+- Refuses to connect WordPress.com deploys where the existing deploy is stale, drifted or absent
+- Never uses SafetyNet on a migration target, and never transfers ownership during a migration
+- Says what it could not check instead of reporting a gap as clean
+
+**Requirements:**
+
+- `team51` CLI authenticated through 1Password, `gh` with access to `a8cteam51`
+- `dig`, `whois`, `python3`, `php`
+- The `team51` and `context-a8c` MCP servers for Pressable, DeployHQ, Linear, Slack and P2 lookups (the audit runs without them and reports what it skipped)
+
+```bash
+# Install pressable-to-wpcom-migration
+/plugin install pressable-to-wpcom-migration@a8cteam51-claude-code-plugins
+
+# Then trigger the skills in natural language:
+# > Audit example.org for migration to WordPress.com.
+# > What's next for the example.org migration?
 ```
 
 ## License
