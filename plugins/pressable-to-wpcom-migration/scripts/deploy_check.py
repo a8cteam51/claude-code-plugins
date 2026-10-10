@@ -37,9 +37,15 @@ TOOLING_NAMES = ("LICENSE", "composer.json", "composer.lock", "package.json", "p
 
 
 def is_tooling(path):
-    """Repo files that a wp-content deploy never puts on the server."""
-    return (path.startswith(".") or "/." in path or path.lower().endswith((".md", ".yml", ".yaml"))
-            or ("/" not in path and os.path.basename(path) in TOOLING_NAMES))
+    """Repo files that a wp-content deploy never puts on the server.
+
+    Root level only. A readme, config file or dotfile inside a theme or plugin
+    is deployed with it, so it is compared like any other file.
+    """
+    top = path.split("/", 1)[0]
+    if top.startswith("."):
+        return True
+    return "/" not in path and (path.lower().endswith((".md", ".yml", ".yaml")) or path in TOOLING_NAMES)
 
 
 def revision(args):
