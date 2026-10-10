@@ -302,7 +302,8 @@ STEPS = [
          verify="```bash\ndig +short {domain} @1.1.1.1\ndig +short www.{domain} @8.8.8.8\n```\nreturn the WordPress.com values. "
                 "`curl -sI https://{domain}` shows a valid certificate and a response from the new site."),
     dict(id="cut.unquarantine", phase="cut", actor="agent", title="Remove the quarantine from the new site", when=None,
-         body="Only once DNS resolves to the new site and the checks above pass.\n\n"
+         body="Only once DNS resolves to the new site and the checks above pass. The quarantine never lifts by itself: until "
+              "this file is removed the live site sends no email, runs no scheduled jobs and takes no payments.\n\n"
               "```bash\n{scripts}/mu_plugin.sh remove wpcom {domain} t51-migration-quarantine.php\n```",
          verify="Status reports the file absent. Scheduled jobs run; a test email arrives."),
     dict(id="cut.leave-frozen", phase="cut", actor="human", title="Leave the old site frozen", when=None,

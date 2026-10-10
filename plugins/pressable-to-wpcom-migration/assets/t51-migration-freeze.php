@@ -17,7 +17,9 @@
  *
  * Pages stay browsable in both modes. Administrators can still log in and work
  * (they should not, during the window). Jetpack and Reprint requests are let
- * through so the export keeps working.
+ * through so the export keeps working. Exemptions are matched on the request
+ * path only, never on the query string. A payment callback named by query
+ * (`?wc-api=...`) is the one exception, and only while draining.
  *
  * STATUS: draft, not yet proven on a real migration.
  */
@@ -37,21 +39,62 @@ function t51_freeze_message() {
 	return 'We are carrying out scheduled maintenance. Ordering, forms, comments and sign-in are unavailable for a short time. Please try again later.';
 }
 
+/* The request path relative to the site, without the query string, so nothing in a query can imitate a path. */
+function t51_freeze_request_path() {
+	$uri  = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : ''; // phpcs:ignore
+	$path = (string) wp_parse_url( $uri, PHP_URL_PATH );
+	foreach ( array( site_url(), home_url() ) as $base ) {
+		$prefix = rtrim( (string) wp_parse_url( $base, PHP_URL_PATH ), '/' );
+		if ( '' !== $prefix && 0 === strpos( $path, $prefix . '/' ) ) {
+			$path = substr( $path, strlen( $prefix ) );
+			break;
+		}
+	}
+	return '/' . ltrim( $path, '/' );
+}
+
 /* Requests that must keep working: the export itself, Jetpack, and command-line use. */
 function t51_freeze_is_exempt() {
-	if ( ( defined( 'WP_CLI' ) && WP_CLI ) || isset( $_GET['reprint-api'] ) || isset( $_GET['reprint-api-jetpack'] ) || isset( $_GET['site-export-api'] ) ) { // phpcs:ignore
+	if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		return true;
 	}
-	$uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : ''; // phpcs:ignore
-	if ( false !== strpos( $uri, 'xmlrpc.php' ) && isset( $_GET['for'] ) && 'jetpack' === $_GET['for'] ) { // phpcs:ignore
+	$path = t51_freeze_request_path();
+
+	/*
+	 * Jetpack's Reprint exporter answers at the site root and reads a raw request body. A form
+	 * post carries fields, so requiring an empty $_POST keeps this flag from excusing one.
+	 * (The standalone Reprint plugin exits while plugins load, before this check ever runs.)
+	 */
+	if ( isset( $_GET['reprint-api-jetpack'] ) && '/' === $path && empty( $_POST ) && empty( $_FILES ) ) { // phpcs:ignore
 		return true;
 	}
-	if ( preg_match( '#/wp-json/(jetpack|wpcom|my-jetpack)/#', $uri ) || ( isset( $_GET['rest_route'] ) && preg_match( '#^/(jetpack|wpcom|my-jetpack)/#', (string) $_GET['rest_route'] ) ) ) { // phpcs:ignore
+	if ( '/xmlrpc.php' === $path && isset( $_GET['for'] ) && 'jetpack' === $_GET['for'] ) { // phpcs:ignore
 		return true;
 	}
-	/* Payment-gateway callbacks are let through only while draining. */
-	if ( 'drain' === t51_freeze_mode() && ( isset( $_GET['wc-api'] ) || false !== strpos( $uri, '/wc-api/' ) || preg_match( '#/wp-json/(wc/v\d+/payments|wc/v\d+/wcpay|wc-stripe|paypal|wc/v\d+/square)#', $uri ) ) ) { // phpcs:ignore
+	$rest_route = '';
+	if ( 0 === strpos( $path, '/' . rest_get_url_prefix() . '/' ) ) {
+		$rest_route = substr( $path, strlen( '/' . rest_get_url_prefix() ) );
+	} elseif ( '/' === $path && isset( $_GET['rest_route'] ) ) { // phpcs:ignore
+		$rest_route = (string) $_GET['rest_route']; // phpcs:ignore
+	}
+	if ( preg_match( '#^/(jetpack|wpcom|my-jetpack)/#', $rest_route ) ) {
 		return true;
+	}
+
+	/* Draining: orders already in flight may finish, so gateway callbacks and scheduled work still run. */
+	if ( 'drain' === t51_freeze_mode() ) {
+		if ( defined( 'DOING_CRON' ) && DOING_CRON ) {
+			return true;
+		}
+		if ( '/wp-admin/admin-ajax.php' === $path && isset( $_REQUEST['action'] ) && 'as_async_request_queue_runner' === $_REQUEST['action'] ) { // phpcs:ignore
+			return true;
+		}
+		if ( isset( $_GET['wc-api'] ) || 0 === strpos( $path, '/wc-api/' ) ) { // phpcs:ignore
+			return true;
+		}
+		if ( preg_match( '#^/(wc/v\d+/payments|wc/v\d+/wcpay|wc-stripe|paypal|wc/v\d+/square)#', $rest_route ) ) {
+			return true;
+		}
 	}
 	return false;
 }
@@ -82,9 +125,8 @@ add_action(
 		if ( current_user_can( 'manage_options' ) ) {
 			return;
 		}
-		$uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : ''; // phpcs:ignore
 		/* Let the login form post so administrators can get in; non-administrators are refused below. */
-		if ( false !== strpos( $uri, 'wp-login.php' ) ) {
+		if ( '/wp-login.php' === t51_freeze_request_path() ) {
 			return;
 		}
 		t51_freeze_refuse();

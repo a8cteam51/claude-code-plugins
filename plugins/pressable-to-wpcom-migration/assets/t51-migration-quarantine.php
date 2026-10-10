@@ -15,9 +15,10 @@
  *   - asks search engines not to index the copy;
  *   - shows administrators a banner.
  *
- * It switches itself off when the site's home URL is no longer a temporary
- * WordPress.com address, so a forgotten copy cannot cripple a launched site.
- * Force it either way with define( 'T51_MIGRATION_QUARANTINE', true|false ).
+ * It is on for as long as this file is present, whatever the site's address,
+ * so a half-finished import or a failed URL rewrite cannot switch it off.
+ * Cutover lifts it by deleting the file. define( 'T51_MIGRATION_QUARANTINE',
+ * false ) in wp-config.php turns it off without deleting it.
  *
  * Not covered: plugins that send mail or call APIs without wp_mail() or the
  * WordPress scheduler. Check the audit's list of integrations.
@@ -28,11 +29,7 @@
 defined( 'ABSPATH' ) || exit;
 
 function t51_quarantine_active() {
-	if ( defined( 'T51_MIGRATION_QUARANTINE' ) ) {
-		return (bool) T51_MIGRATION_QUARANTINE;
-	}
-	$host = (string) wp_parse_url( get_option( 'home' ), PHP_URL_HOST );
-	return (bool) preg_match( '/\.(wpcomstaging\.com|wordpress\.com|wpcomstaging\.net|mystagingwebsite\.com)$/', $host );
+	return ! ( defined( 'T51_MIGRATION_QUARANTINE' ) && false === T51_MIGRATION_QUARANTINE );
 }
 
 if ( ! t51_quarantine_active() ) {

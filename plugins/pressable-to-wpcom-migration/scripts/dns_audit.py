@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Snapshot a domain's public DNS and registrar for the migration audit.
 
-    dns_audit.py example.com [--names extra1,extra2] [--pressable-ips 199.16.172.1,...]
+    dns_audit.py example.com [--names extra1,extra2] [--site-ips 199.16.172.1,...]
 
 Prints JSON. Uses `dig` and `whois`. It can only see names it asks for: DNS has
 no "list everything" query, so the record list is a floor, not the full zone.

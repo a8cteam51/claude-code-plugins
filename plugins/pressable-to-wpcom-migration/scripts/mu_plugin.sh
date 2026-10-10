@@ -19,6 +19,10 @@ case "$action" in
 		php -l "$file" >/dev/null || { echo "$file has a PHP syntax error; not installing" >&2; exit 65; }
 		content=$(base64 < "$file" | tr -d '\n')
 		mode="${T51_FREEZE_MODE:-frozen}"
+		case "$mode" in
+			drain|frozen) ;;
+			*) echo "T51_FREEZE_MODE must be drain or frozen, not '$mode'" >&2; exit 64 ;;
+		esac
 		export T51_ARGS="{\"action\":\"install\",\"name\":\"$name\",\"content_b64\":\"$content\",\"replace\":{\"__T51_FREEZE_MODE__\":\"$mode\"}}"
 		;;
 	remove|status)

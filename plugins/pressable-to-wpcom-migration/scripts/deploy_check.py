@@ -17,6 +17,7 @@ import fnmatch
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -29,6 +30,16 @@ def run(cmd, cwd=None, env=None, check=True):
     if check and res.returncode != 0:
         raise RuntimeError("%s failed: %s" % (" ".join(cmd[:4]), (res.stderr or res.stdout).strip()[-400:]))
     return res.stdout
+
+
+TOOLING_NAMES = ("LICENSE", "composer.json", "composer.lock", "package.json", "package-lock.json", "phpcs.xml", ".editorconfig",
+                 "Makefile", "gulpfile.js", "postcss.config.js", "webpack.config.js")
+
+
+def is_tooling(path):
+    """Repo files that a wp-content deploy never puts on the server."""
+    return (path.startswith(".") or "/." in path or path.lower().endswith((".md", ".yml", ".yaml"))
+            or ("/" not in path and os.path.basename(path) in TOOLING_NAMES))
 
 
 def revision(args):
@@ -48,10 +59,7 @@ def revision(args):
                  "message": c["commit"]["message"].splitlines()[0][:120]} for c in cmp_["commits"]][:40]
             out["files_changed"] = [f["filename"] for f in cmp_.get("files", [])][:80]
             # Commits that only touch repo tooling never reach the server, so they are not a deploy gap.
-            deployable = [f for f in out["files_changed"] if not f.startswith(".")
-                          and not f.lower().endswith((".md", ".yml", ".yaml"))
-                          and os.path.basename(f) not in ("LICENSE", "composer.json", "composer.lock", "package.json",
-                                                          "package-lock.json", "phpcs.xml", ".editorconfig")]
+            deployable = [f for f in out["files_changed"] if not is_tooling(f)]
             out["deployable_files_changed"] = deployable
             if cmp_["behind_by"] != 0:
                 out["state"] = "diverged"
@@ -83,12 +91,20 @@ def ignored(path, patterns):
 
 
 def drift(args):
-    repo_dir = args.repo_dir
     tmp = None
-    if not repo_dir:
-        tmp = tempfile.mkdtemp(prefix="t51-drift-")
-        run(["gh", "repo", "clone", args.repo, tmp, "--", "--quiet", "--no-checkout"])
-        repo_dir = tmp
+    try:
+        repo_dir = args.repo_dir
+        if not repo_dir:
+            tmp = tempfile.mkdtemp(prefix="t51-drift-")
+            run(["gh", "repo", "clone", args.repo, tmp, "--", "--quiet", "--no-checkout"])
+            repo_dir = tmp
+        _drift(args, repo_dir)
+    finally:
+        if tmp:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _drift(args, repo_dir):
     try:
         run(["git", "cat-file", "-e", args.rev + "^{commit}"], cwd=repo_dir)
     except RuntimeError:
@@ -96,7 +112,7 @@ def drift(args):
 
     patterns = load_ignore(repo_dir, args.rev)
     tracked = [p for p in run(["git", "ls-tree", "-r", "--name-only", args.rev], cwd=repo_dir).splitlines() if p]
-    deployable = [p for p in tracked if not ignored(p, patterns) and not p.startswith(".")]
+    deployable = [p for p in tracked if not ignored(p, patterns) and not is_tooling(p)]
 
     # Compare whole directories for our own themes and plugins, single files elsewhere
     # (mu-plugins also holds host files that are not ours to judge).

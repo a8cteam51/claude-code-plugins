@@ -3,7 +3,7 @@
  * Read-only: md5 of every file under the given wp-content paths.
  *
  * Arguments ($t51_args): { "paths": ["themes/my-theme", "mu-plugins/mu-loader.php"] }
- * Used by deploy_drift.py to compare a server against a git revision.
+ * Used by `deploy_check.py drift` to compare a server against a git revision.
  */
 
 $paths  = isset( $t51_args['paths'] ) ? (array) $t51_args['paths'] : array();
