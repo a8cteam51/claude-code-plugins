@@ -19,9 +19,18 @@ The source can also be an existing live site: the skill mirrors its pages into a
 - **Refines against the originals.** Uses the Claude in Chrome browser extension to load the original design and the WordPress output side by side in a comparison harness, at an exact width, then compares by eye and by measurement across the design's breakpoints and iterates. The harness and its results sink are served on loopback addresses only, and the copy placed in the Studio site is removed when the server stops.
 - **Works inside an A8C Special Projects project repository.** When the Studio site's `wp-content` is a clone of a repository generated from [`a8cteam51/a8csp-project-template`](https://github.com/a8cteam51/a8csp-project-template), the skill switches to *template mode* and builds into that repository's theme and features mu-plugin under its conventions (see [Template mode](#template-mode)).
 
+## Install
+
+```bash
+/plugin marketplace add a8cteam51/claude-code-plugins
+/plugin install html-to-block-theme@a8cteam51-claude-code-plugins
+```
+
+On Claude Code 2.1.275 or later, one step: `/plugin install html-to-block-theme --marketplace a8cteam51/claude-code-plugins`.
+
 ## Prerequisites
 
-- **Claude Code on the pinned model.** The plugin runs on `claude-opus-5-5` at `xhigh` effort, on a Claude Code recent enough to offer it. The evals check the guides against that pair, so the two subagents are pinned to it and the skill stops when the session is on another model. The orchestration follows the session's effort: set it to match. `scripts/model-pin.sh --set <model-id> --effort <level>` moves every pin at once, after the evals have been run on the new pair.
+- **Claude Code on the pinned model.** The plugin runs on `claude-opus-5-5`, on a Claude Code recent enough to offer it: the builder at `xhigh` effort and the analyzer at `medium`. The evals check the guides against that model, so both subagents are pinned to it and the skill stops when the session is on another model. The orchestration follows the session's effort: set it to the builder's. `scripts/model-pin.sh --set <model-id> [--effort <level>] [--analyzer-effort <level>]` moves every pin at once, after the evals have been run on the new pair.
 - **WordPress Studio** with the `studio` CLI on your `PATH` — <https://developer.wordpress.com/studio/>
 - A Studio site with a minimal block-theme scaffold the agent can take over (the skill can scaffold one via the Studio MCP if absent).
 - **Google Chrome with the Claude in Chrome extension**, connected to your Claude Code session and granted site permission for `localhost` / `127.0.0.1` (both the served design files and the Studio site are local). The refine phase drives your real browser — expect tabs to open and close.

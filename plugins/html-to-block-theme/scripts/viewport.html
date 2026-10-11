@@ -25,7 +25,7 @@
  * always be resized, and never below a few hundred pixels, so each page loads in an iframe that
  * is w × h CSS pixels and the stage is scaled to fit the window.
  *
- *   ?a=<url>[&b=<url>]&w=<width>&h=<height>[&strip=<n>][&scale=<n>][&y=<scroll>][&sink=<url>]
+ *   ?a=<url>[&b=<url>]&w=<width>&h=<height>[&strip=<n>][&scale=<n>][&y=<scroll>][&sink=<url>][&wait=<s>]
  *
  * Without strip, a and b sit side by side (panes 0 and 1). With strip=<n>, each URL gets a row
  * of n panes scrolled to consecutive screenfuls, so one capture shows a whole page: a's panes
@@ -37,7 +37,8 @@
  * on any other host, frames nothing but loopback URLs, and the relay answers only its parent
  * frame and only when that frame is a loopback origin named in its own address.
  *
- *   h2bt.ready()                   resolves when every pane has loaded, with each document's size
+ *   h2bt.ready()                   resolves when every pane has loaded, with each document's size;
+ *                                  rejects after wait seconds (30) when one never finishes
  *   h2bt.prepare()                 loads lazy images, switches transitions off, and waits for
  *                                  fonts and images in every pane; call it before measuring
  *   h2bt.scroll( y )               scrolls every pane (strip panes keep their screenful offset)
@@ -53,14 +54,19 @@
  *                                  with the differences only. Options: a, b or root (selectors
  *                                  of the region to compare), tolerance (px, default 0.5),
  *                                  boxes (also compare each group's block box), types (false
- *                                  to skip size, weight, colour, line height and underline)
+ *                                  to skip size, weight, colour, line height and underline).
+ *                                  Groups only one pane has are differences too: the first
+ *                                  five are listed with only: "a" or "b", and unpaired
+ *                                  gives their count.
  *   h2bt.sweep( widths, task[, height] )
  *                                  resizes to each width in turn. A string task is a function
  *                                  body run in every pane; only the widths where the panes
  *                                  disagree are kept. A function task is called once per width
  *                                  and its result is kept.
  *   h2bt.sink( name, data )        posts data to the loopback sink, which writes <name>.json;
- *                                  use it for any result longer than a few hundred characters
+ *                                  use it for any result longer than a few hundred characters.
+ *                                  The sink is on the server of the design files: this origin
+ *                                  is tried, then each pane's. Rejects when none stores it.
  */
 ( () => {
 	const params = new URLSearchParams( location.search );
@@ -87,7 +93,10 @@
 	const embed = params.get( 'embed' ) === '1';
 	const peers = ( params.get( 'peers' ) || '' ).split( ',' ).filter( ( origin ) => origin && isLoopback( origin ) );
 	const urls = [ params.get( 'a' ), params.get( 'b' ) ].filter( Boolean );
-	const sinkBase = params.get( 'sink' ) || location.origin + '/_h2bt/sink/';
+	// Where a result can be stored: the address given, else this origin and then each pane's.
+	let sinkBases = params.get( 'sink' )
+		? [ params.get( 'sink' ) ]
+		: [ ...new Set( [ location.origin, ...urls.map( ( url ) => new URL( url, location.href ).origin ) ] ) ].map( ( origin ) => origin + '/_h2bt/sink/' );
 
 	const refused = urls.filter( ( url ) => ! isLoopback( url ) );
 	if ( refused.length ) {
@@ -344,14 +353,20 @@
 		},
 		// One promise for every caller: the page calls ready() itself, and a second run would scroll
 		// back to the start after the caller had already scrolled.
+		// It gives up after ?wait=<seconds> (30 by default): a page that never finishes loading,
+		// or a font that never arrives, would otherwise hold its caller for ever.
 		ready() {
 			if ( ! readyPromise ) {
-				readyPromise = ( async () => {
-					await framesLoaded;
-					const sizes = await Promise.all( panes.map( ( _, index ) => this.run( index, WAIT ) ) );
-					await this.scroll( Number( params.get( 'y' ) ) || 0 );
-					return sizes;
-				} )();
+				const limit = ( Number( params.get( 'wait' ) ) || 30 ) * 1000;
+				readyPromise = Promise.race( [
+					( async () => {
+						await framesLoaded;
+						const sizes = await Promise.all( panes.map( ( _, index ) => this.run( index, WAIT ) ) );
+						await this.scroll( Number( params.get( 'y' ) ) || 0 );
+						return sizes;
+					} )(),
+					new Promise( ( _, reject ) => setTimeout( () => reject( new Error( 'h2bt: the panes were not ready after ' + limit / 1000 + ' seconds. Reload the tab; if it repeats, load each page on its own to see which one does not finish.' ) ), limit ) ),
+				] );
 			}
 			return readyPromise;
 		},
@@ -398,7 +413,19 @@
 					diffs.push( { i: index, is: one.text.slice( 0, 24 ), ...diff } );
 				}
 			}
-			return { groups: [ a.length, b.length ], diffs };
+			// Text one page has and the other lacks is a difference too. Without this a page
+			// that ends early, or carries an extra block at its end, compares as equal.
+			const paired = Math.min( a.length, b.length );
+			const longer = a.length > b.length ? a : b;
+			const only = a.length > b.length ? 'a' : 'b';
+			for ( let index = paired; index < Math.min( longer.length, paired + 5 ); index++ ) {
+				diffs.push( { i: index, is: longer[ index ].text.slice( 0, 24 ), only } );
+			}
+			const out = { groups: [ a.length, b.length ], diffs };
+			if ( longer.length > paired ) {
+				out.unpaired = { only, count: longer.length - paired };
+			}
+			return out;
 		},
 		async sweep( widths, task, sweepHeight ) {
 			const out = {};
@@ -416,12 +443,28 @@
 			}
 			return out;
 		},
+		// The sink belongs to the server that serves the design files. When this page is loaded
+		// from the WordPress origin, that is the other pane's origin, not this one: try each
+		// until one stores the data, and say so when none does.
 		async sink( name, data ) {
-			if ( ! isLoopback( sinkBase ) ) {
+			const bases = sinkBases.filter( isLoopback );
+			if ( ! bases.length ) {
 				throw new Error( 'h2bt: the sink must be a loopback address' );
 			}
-			const response = await fetch( sinkBase + encodeURIComponent( name ), { method: 'POST', body: JSON.stringify( data ) } );
-			return name + ':' + ( await response.text() );
+			const refused = [];
+			for ( const base of bases ) {
+				try {
+					const response = await fetch( base + encodeURIComponent( name ), { method: 'POST', body: JSON.stringify( data ) } );
+					if ( response.ok ) {
+						sinkBases = [ base ];
+						return name + ':' + ( await response.text() );
+					}
+					refused.push( base + ' ' + response.status );
+				} catch ( error ) {
+					refused.push( base + ' ' + error );
+				}
+			}
+			throw new Error( 'h2bt: no sink stored ' + name + ' (' + refused.join( '; ' ) + ')' );
 		},
 	};
 

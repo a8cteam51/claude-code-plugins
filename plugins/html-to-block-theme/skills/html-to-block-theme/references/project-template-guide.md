@@ -9,10 +9,10 @@ Template mode is on when the Studio site's `wp-content` is a git clone of a repo
 ## Detect and bind
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-project-template.sh" --site-path <site-path>
+bash "<plugin-root>/scripts/detect-project-template.sh" --site-path <site-path>
 ```
 
-The last line is `H2BT_TEMPLATE mode=template …` or `H2BT_TEMPLATE mode=standalone reason=…`. In template mode, bind these from the sentinel for the rest of the run:
+The last line is `H2BT_TEMPLATE mode=template …`, `H2BT_TEMPLATE mode=standalone reason=…` or `H2BT_TEMPLATE mode=template-unreadable reason=…`. The last one is a project-template clone whose theme could not be read (no single tracked theme, or its `style.css` is gone from the working tree): stop and fix that, and never build a standalone theme into the repository. Paths in the sentinel are quoted. In template mode, bind these from the sentinel for the rest of the run:
 - `<repo>`, the site's `wp-content`;
 - `<theme-dir>`, which is `themes/<theme_slug>`;
 - `<features-dir>`, which is `mu-plugins/<features_slug>`;
@@ -135,6 +135,7 @@ Detection lists what generation left behind.
 
 - **Standards audit:** `standards-audit.sh --theme-dir <theme-dir> --content-dir <site-path>/.h2bt/pages` detects the template layout by itself. It checks one Sass source per block type, each built and enqueued, and counts the SCSS sources as the CSS footprint.
 - **CI gates:** `template-checks.sh --repo <repo> [--tests] [--e2e]` runs CI's gates in order: build integrity, blocks allowlist, `composer lint:php`, `npm run lint`, then the wp-env suites.
+  - **`--mirror-dir` names a directory the script owns.** The mirror is synced with `rsync --delete`, so the script refuses a directory that is the repository, inside it or around it, one that is not empty and that it did not make, and the mirror of another repository. Leave the flag out unless there is a reason to move the mirror.
   - **It works from a mirror.** The Studio site's `wp-content` also holds Studio's SQLite integration and loader. The lint scripts scan all of `mu-plugins/`, and wp-env mounts it, so checking in place reports hundreds of errors CI never sees. The mirror holds only tracked and unignored files, synced in place so wp-env's bind mounts survive.
   - **It runs before the first commit.** A tracked file deleted in the working tree, such as the template's removed examples, is left out of the mirror. If the copy into the mirror fails, the run ends with `mirror_copy=fail` and names the step.
   - **It refuses a port another wp-env instance already publishes**, because Playwright would silently test that other site.
@@ -149,16 +150,18 @@ Detection lists what generation left behind.
 ## Visual parity guard
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/parity-check.sh" --repo <repo> --base-url <site-url> \
+bash "<plugin-root>/scripts/parity-check.sh" --repo <repo> --base-url <site-url> \
   --paths "/,/about/,/contact/" --mode baseline [--local-storage <popup-key>=1]
 # … change code, rebuild …
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/parity-check.sh" --repo <repo> --base-url <site-url> \
+bash "<plugin-root>/scripts/parity-check.sh" --repo <repo> --base-url <site-url> \
   --paths "/,/about/,/contact/" --mode compare [--local-storage <popup-key>=1]
 ```
 
 **When to take a baseline:** before porting a theme, before running any formatter or auto-fixer, and before refactoring Sass.
 - **How it captures:** full-page shots at 1440 and 390, with reduced motion, CSS animations disabled, lazy images scrolled into loading, and popups suppressed through `localStorage`.
-- **Why a zero tolerance is safe:** two captures of an unchanged site are pixel-identical, so `compare` fails on any difference.
+- **Why a zero tolerance is safe:** two captures of an unchanged site are pixel-identical, so `compare` fails on any difference: no differing pixel is allowed, and no colour tolerance either.
+- **`compare` never writes a baseline.** A path or width with no baseline ends `H2BT_PARITY_FAIL … reason=no-baseline` and names what is missing. Take the baseline on the unchanged site first. Two paths that are one page (`/about` and `/about/`) are refused in one run.
+- **Screenshot names carry a short hash of the path,** so that `/` and `/home/` are different files. A baseline taken with an earlier version of the script has other names and has to be taken again.
 - **What it runs on:** the repository's own `@playwright/test` with local Chrome, writing to the git-ignored `tests/.cache/h2bt-parity/`.
 - **Where to run it:** against the Studio site, because wp-env has no content.
 

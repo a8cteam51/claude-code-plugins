@@ -17,6 +17,8 @@ A live site carries more than a design. Put each answer in the blueprint.
 
 Work from a mirror, not from the live site. A mirror is frozen, it can be measured at any width without loading the live server, and it reports nothing to the site's analytics.
 
+- **Put the mirror at `<site-path>/.h2bt/mirror/`** unless the user names another place. A run keeps that directory when it cleans up, and a later run finds it there.
+
 - **Save each page with its stylesheets, scripts, fonts and images at the same root-relative paths** the live site uses, so the page renders unchanged from the static server. Assets from other hosts go under one directory per host.
 - **Strip analytics, statistics, search and consent scripts** from the copy. A local copy must not report page views to the live site's trackers. Remove speculation rules as well: they prefetch pages that do not exist locally.
 - **Save a second copy of every script-driven page with all scripts removed.** That is the reference for the default state, which is what an out-of-scope behaviour is built as.

@@ -32,19 +32,27 @@ Usage:
 catalog   Prints one tab-separated line per monorepo plugin:
             plugin-dir  blocks  latest-release  screenshot  description
           "blocks" lists every block.json name; "-" marks a plugin that extends core blocks
-          without registering its own. Ends with H2BT_MONOREPO_CATALOG plugins=<n> cache=<dir>.
+          without registering its own. Ends with
+          H2BT_MONOREPO_CATALOG plugins=<n> releases=ok|unavailable cache=<dir>.
+          releases=unavailable means the release lookup failed (no network, or the GitHub
+          API's limit for callers who are not signed in): every release then reads "unknown",
+          which says nothing about whether the plugin has one.
           The cache defaults to ${XDG_CACHE_HOME:-~/.cache}/h2bt/special-projects-blocks-monorepo.
 
 install   For each plugin directory, installs its latest release ZIP with
           `studio wp plugin install <url> --activate` and prints
-          H2BT_MONOREPO_INSTALL plugin=<dir> version=<version>. Refuses a plugin that is also
-          built in a monorepo clone on the same site, which would register its blocks twice.
+          H2BT_MONOREPO_INSTALL plugin=<dir> version=<version>, once the site reports that
+          version as the one installed. Refuses a plugin that is also built in a monorepo
+          clone on the same site, which would register its blocks twice.
 
 clone     Clones the monorepo into <site>/wp-content/plugins/special-projects-blocks-monorepo
           (or fetches it when present) and activates the autoloader. Prints
           H2BT_MONOREPO_CLONE dir=<path>. Build new blocks there with `npm run new-block`.
 EOF
 }
+
+# A flag that takes a value must be followed by one.
+need_value() { [[ $# -ge 2 ]] || { echo "$1 needs a value" >&2; exit 2; }; }
 
 # Prints every published, non-prerelease tag of the monorepo, one per line.
 release_tags() {
@@ -85,7 +93,8 @@ cmd_catalog() {
 	local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/h2bt/${clone_name}"
 	while [[ $# -gt 0 ]]; do
 		case "$1" in
-			--cache-dir) cache_dir="${2:-}"; shift 2 ;;
+			--cache-dir) need_value "$@"; cache_dir="$2"; shift 2 ;;
+			-h|--help) usage; exit 0 ;;
 			*) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
 		esac
 	done
@@ -98,14 +107,21 @@ cmd_catalog() {
 		git clone -q --depth 1 "$repo_url" "$cache_dir"
 	fi
 
-	local versions
-	versions="$(release_tags | latest_versions)" || versions=""
+	# A lookup that failed is not a monorepo with no releases: say which it was.
+	local versions releases="ok"
+	if ! versions="$(release_tags | latest_versions)"; then
+		versions=""
+		releases="unavailable"
+		echo "The release lookup failed: releases are listed as unknown. Sign in with gh (gh auth login), or try again later." >&2
+	fi
 
-	VERSIONS="$versions" python3 - "$cache_dir" <<'PY'
+	VERSIONS="$versions" RELEASES="$releases" python3 - "$cache_dir" <<'PY'
 import glob, json, os, re, sys
 
 root = sys.argv[1]
 latest = dict(line.split("\t", 1) for line in os.environ.get("VERSIONS", "").splitlines() if "\t" in line)
+releases = os.environ.get("RELEASES", "ok")
+no_release = "unreleased" if releases == "ok" else "unknown"
 count = 0
 for plugin in sorted(os.listdir(root)):
     entry = os.path.join(root, plugin, f"{plugin}.php")
@@ -128,9 +144,9 @@ for plugin in sorted(os.listdir(root)):
             descriptions.append(match.group(1).strip())
     screenshot = "yes" if os.path.isfile(os.path.join(root, plugin, "screenshot.png")) else "no"
     description = " | ".join(dict.fromkeys(descriptions)) or "-"
-    print("\t".join([plugin, ",".join(names) or "-", latest.get(plugin, "unreleased"), screenshot, description]))
+    print("\t".join([plugin, ",".join(names) or "-", latest.get(plugin, no_release), screenshot, description]))
     count += 1
-print(f"H2BT_MONOREPO_CATALOG plugins={count} cache={root}")
+print(f"H2BT_MONOREPO_CATALOG plugins={count} releases={releases} cache={root}")
 PY
 }
 
@@ -138,7 +154,8 @@ cmd_install() {
 	local site_path="" plugins=()
 	while [[ $# -gt 0 ]]; do
 		case "$1" in
-			--site-path) site_path="${2:-}"; shift 2 ;;
+			--site-path) need_value "$@"; site_path="$2"; shift 2 ;;
+			-h|--help) usage; exit 0 ;;
 			-*) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
 			*) plugins+=("$1"); shift ;;
 		esac
@@ -147,8 +164,11 @@ cmd_install() {
 	[[ ${#plugins[@]} -gt 0 ]] || { echo "Name at least one monorepo plugin directory" >&2; exit 2; }
 	command -v studio >/dev/null 2>&1 || { echo "The studio CLI is required" >&2; exit 1; }
 
-	local versions plugin version url clone_build
-	versions="$(release_tags | latest_versions)"
+	local versions plugin version url clone_build installed
+	if ! versions="$(release_tags | latest_versions)"; then
+		echo "H2BT_MONOREPO_INSTALL_FAIL plugin=${plugins[0]} reason=\"the release lookup failed; sign in with gh or try again later\""
+		exit 1
+	fi
 	for plugin in "${plugins[@]}"; do
 		clone_build="$site_path/wp-content/plugins/${clone_name}/${plugin}/build"
 		if [[ -d "$clone_build" ]]; then
@@ -166,6 +186,13 @@ cmd_install() {
 			echo "H2BT_MONOREPO_INSTALL_FAIL plugin=${plugin} reason=\"not active after install from ${url}\""
 			exit 1
 		fi
+		# Active is not installed-at-this-version: a failed download leaves an older copy active.
+		# Studio can print notices around the value, so take the line that is a version.
+		installed="$(studio wp plugin get "$plugin" --field=version --path="$site_path" 2>/dev/null | tr -d '\r' | grep -E '^[0-9][0-9A-Za-z.+-]*$' | tail -1 || true)"
+		if [[ "$installed" != "$version" ]]; then
+			echo "H2BT_MONOREPO_INSTALL_FAIL plugin=${plugin} reason=\"the site has version ${installed:-unknown}, not ${version}, after the install from ${url}\""
+			exit 1
+		fi
 		echo "H2BT_MONOREPO_INSTALL plugin=${plugin} version=${version}"
 	done
 }
@@ -174,7 +201,8 @@ cmd_clone() {
 	local site_path=""
 	while [[ $# -gt 0 ]]; do
 		case "$1" in
-			--site-path) site_path="${2:-}"; shift 2 ;;
+			--site-path) need_value "$@"; site_path="$2"; shift 2 ;;
+			-h|--help) usage; exit 0 ;;
 			*) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
 		esac
 	done

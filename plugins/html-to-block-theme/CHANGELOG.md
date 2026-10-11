@@ -1,5 +1,58 @@
 # Changelog
 
+## [0.5.1] - 2026-10-11
+
+Fixes from a review of every script and prompt in the plugin. Nothing here changes how a run is organised. Each script fix was reproduced before and after on a throwaway Studio site or a scratch repository.
+
+### Fixed
+- **`write-page.sh` could turn a media item into a page.** WordPress's page lookup also returns an attachment when no page has the slug, and the script updated whatever it got: an image imported as `about.jpg` became the published About page, with the success sentinel and exit 0.
+  - A slug held by a post that is not a page now fails before anything is written, and says which post holds it.
+  - A template the active theme does not have fails, with the list of those it has. Before, the page silently used the default template. `--template` takes a slug, not a file path.
+  - The stored slug, template and content are read back as well as the title. A slug WordPress renamed (`embed` to `embed-2`) fails, and the stray page is not kept.
+  - The sentinel is now `H2BT_OK id= slug= template= bytes= php=`.
+- **`template-checks.sh --mirror-dir` could delete a repository's ignored files.** The mirror is synced with `rsync --delete`, and any directory was accepted, the repository itself included. It now refuses a directory that is the repository, inside it or around it, one that is not empty and that it did not make, and the mirror of another repository.
+  - A value flag given last (`--repo` with nothing after it) looped for ever. Every script now answers that with exit 2 and a message.
+  - A `vendor/` copy left in the mirror by an earlier `--tests` run is no longer linted against.
+  - A failed `wp-env:start` fails the end-to-end gate at once.
+  - The check for another environment on the port also recognises wp-env's older, hash-named work directories as this mirror's own.
+- **`parity-check.sh` was not exact, and could approve a change it had never seen.**
+  - Playwright's default colour tolerance was left on: a whole page moving from `#ffffff` to `#f6f6f6` passed. The comparison now allows no differing pixel and no colour tolerance.
+  - `compare` wrote a missing baseline and passed on the next run. It never writes one now, and names what is missing (`reason=no-baseline`).
+  - `/` and `/home/`, or `/about/team/` and `/about-team/`, were one screenshot file. Names now carry a short hash of the path, so **baselines taken with an earlier version have to be taken again**.
+  - Every failure ends with the `H2BT_PARITY_FAIL` sentinel, and `shots=` counts the screenshots of this run.
+- **`standards-audit.sh` passed what it could not check.**
+  - A `theme.json` that does not parse was a note, and the run ended `H2BT_AUDIT_OK`. It is now a failure (`theme_json`), as is a directory that is not a theme.
+  - A block delimiter whose attributes wrap over lines was reported as a stray comment.
+  - The whole-pixel check also hit CSS comments, `1.0px` and the geometry inside an inline SVG or a data URI.
+  - `<!-- wp:core/post-content -->` was never checked for a constrained layout, and the older `"inherit": true` form of one was reported as full width.
+  - An image block with no attributes, the plainest image that points at a theme file, was missing from the image review.
+  - It ends with its sentinel when perl or python3 is missing.
+- **`monorepo-blocks.sh`:** a failed release lookup listed every plugin as `unreleased`. It now lists `unknown` and says `releases=unavailable`. `install` reports success only when the site has the expected version installed: before, an older copy that was still active counted.
+- **`serve-html.sh --stop`** signalled whatever process had the number in the pid file. It now stops only a process that is its own server, refuses a file that is not one of its pid files, and removes its log. An explicit `--port` that is in use is refused, and `--port` is validated.
+- **`scaffold-custom-block.sh`:** a title with a quote broke `block.json`. It printed `H2BT_BLOCK_OK` with a build command it had not been able to add; that case now ends `H2BT_BLOCK_PARTIAL`. A scaffold that fails part-way removes the block directory it made.
+- **`detect-project-template.sh`** reported a project-template repository it could not read as `mode=standalone`, and died without output when the theme's `style.css` was gone. Both are now `mode=template-unreadable`, and the skill stops on it. Paths in the sentinel are quoted.
+- **The comparison harness** (`viewport.html`):
+  - `compareText` ignored text that only one page had: three groups against five compared as equal. They are differences now, with a count in `unpaired`.
+  - `sink()` loaded from the WordPress origin posted to WordPress, wrote nothing and resolved. It finds the sink on the server of the design files, and rejects when nothing stored the data.
+  - `ready()` waited for ever on a page that never finishes loading. It rejects after 30 seconds (`&wait=`).
+- `render-probe.sh` trimmed a PHP warning raised by the markup it rendered.
+- **Guide and prompt passages that were wrong:**
+  - Two places told the reader to fall back to `core/html`, which the validator rejects outside its policy: the analyzer's "no clean mapping" rule and the skill's stop list.
+  - `${CLAUDE_PLUGIN_ROOT}` was written into nine commands in the reference guides. Those files are read, not loaded, so nothing filled the path in, and the shell does not have the variable. The guides now write `<plugin-root>`, which the skill and both agents bind once.
+  - Both agents expected their guides' paths from the dispatching prompt, which the skill never told the orchestrator to send. They now name their guides themselves.
+  - The preconditions were to be run "in parallel", though each depends on the one before, and several changed the site before the checks that can stop the run had passed. They are ordered now, the read-only ones first.
+  - "Studio's `wp` cannot see the host `/tmp`" and "`eval-file -` silently does nothing" were stated for every site. They hold on Studio's sandboxed PHP runtime and not on the native one. The rule is unchanged: stage inside the site and check a sentinel.
+  - The audit's counters were listed by hand in two places in the skill, and both had lost `front_page`. The skill now says the audit must end `H2BT_AUDIT_OK`.
+
+### Changed
+- **The analyzer runs at `medium` effort; the builder stays at `xhigh`.** On the 34 probes of the evals the plugin's results were the same at both efforts, at about a quarter of the cost and a sixth of the time. Those probes do not exercise the builder's refinement, so its effort waits for a comparison that does. `model-pin.sh` takes `--analyzer-effort`, and covers both places in the skill that name the model.
+- `section-builder` cannot start subagents (`disallowedTools: Agent`); the sentence asking it not to is gone. After a late rewrite of an invalid block it validates once more, so that the gate about validated blocks can be answered.
+- Both agents' descriptions are two sentences. They are loaded into every session, and the agents are only ever dispatched by the skill.
+- The skill no longer restates the builder's instructions; it says what to send, what comes back and how to check it. The dispatch lists match each agent's Inputs: the WordPress version, the sink directory, the widths to sweep and the defect policy were missing.
+- A missing subagent type stops the run. The general-purpose fallback had neither the agent's instructions nor its pinned model.
+- A live site's mirror goes to `<site-path>/.h2bt/mirror/` unless the user names another place, and the run's clean-up removes loose staged files only.
+- README: an install section.
+
 ## [0.5.0] - 2026-10-11
 
 Ported from a full template-mode run whose source was a live site, on WordPress 7.1.3. What the guides now say about WordPress 7.1 was checked on that version; a run on another core confirms each form with the new render probe.

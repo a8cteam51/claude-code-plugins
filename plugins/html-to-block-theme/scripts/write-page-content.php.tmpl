@@ -44,10 +44,32 @@ if ( false === $title || '' === trim( $title ) ) {
 }
 $title = trim( $title );
 
+// get_page_by_path() also searches attachments, and returns one when no page has the slug.
+// Updating that post would turn the media item into a page, so only a page counts as existing.
+$existing = get_page_by_path( $slug, OBJECT, 'page' );
+if ( $existing instanceof WP_Post && 'page' !== $existing->post_type ) {
+	echo 'H2BT_FAIL: the slug "' . $slug . '" is held by ' . $existing->post_type . ' ' . $existing->ID . ', so a page cannot take it. Give that post another slug first (wp post update ' . $existing->ID . ' --post_name=<other>), or choose another page slug.' . "\n";
+	exit;
+}
+
+// A template slug that names no template falls back to the default one without a word.
+if ( 'default' !== $template ) {
+	if ( wp_is_block_theme() ) {
+		$known = array();
+		foreach ( get_block_templates( array(), 'wp_template' ) as $block_template ) {
+			$known[] = $block_template->slug;
+		}
+	} else {
+		$known = array_keys( wp_get_theme()->get_page_templates( null, 'page' ) );
+	}
+	if ( ! in_array( $template, $known, true ) ) {
+		echo 'H2BT_FAIL: the active theme (' . get_stylesheet() . ') has no template "' . $template . '". Its templates: ' . implode( ', ', $known ) . '. Pass "default" for the default page template.' . "\n";
+		exit;
+	}
+}
+
 // Preserve block-delimiter comments and raw markup: drop kses for this write.
 kses_remove_filters();
-
-$existing = get_page_by_path( $slug, OBJECT, 'page' );
 
 $postarr = array(
 	'post_title'   => wp_slash( $title ),
@@ -57,11 +79,12 @@ $postarr = array(
 	'post_content' => wp_slash( $content ),
 );
 
-if ( $existing instanceof WP_Post ) {
+$created = ! $existing instanceof WP_Post;
+if ( $created ) {
+	$post_id = wp_insert_post( $postarr, true );
+} else {
 	$postarr['ID'] = $existing->ID;
 	$post_id       = wp_update_post( $postarr, true );
-} else {
-	$post_id = wp_insert_post( $postarr, true );
 }
 
 kses_init_filters();
@@ -78,11 +101,34 @@ if ( $template && 'default' !== $template ) {
 	delete_post_meta( $post_id, '_wp_page_template' );
 }
 
-// Read the title back: the sentinel describes what was stored, not what was asked for.
+// Read everything back: the sentinel describes what was stored, not what was asked for.
+$stored_slug = get_post_field( 'post_name', $post_id, 'raw' );
+if ( $stored_slug !== $slug ) {
+	// WordPress renames a slug it will not store (a reserved word, or one in use), and the
+	// next run would then insert another page. Do not leave the stray page behind.
+	if ( $created ) {
+		wp_delete_post( $post_id, true );
+	}
+	echo 'H2BT_FAIL: WordPress would not store the slug "' . $slug . '" (it gave "' . $stored_slug . '")' . ( $created ? '; the page was not kept' : '' ) . ". Choose another slug.\n";
+	exit;
+}
+
 $stored_title = get_post_field( 'post_title', $post_id, 'raw' );
 if ( $stored_title !== $title ) {
 	echo 'H2BT_FAIL: page ' . $post_id . ' was written, but its stored title differs from the requested one: ' . $stored_title . "\n";
 	exit;
 }
 
-echo 'H2BT_OK id=' . $post_id . ' bytes=' . strlen( $content ) . ' php=' . PHP_VERSION . "\n";
+$stored_template = (string) get_post_meta( $post_id, '_wp_page_template', true );
+if ( $stored_template !== ( 'default' === $template ? '' : $template ) ) {
+	echo 'H2BT_FAIL: page ' . $post_id . ' was written, but its stored template is "' . $stored_template . '", not "' . $template . "\".\n";
+	exit;
+}
+
+$stored_content = (string) get_post_field( 'post_content', $post_id, 'raw' );
+if ( $stored_content !== $content ) {
+	echo 'H2BT_FAIL: page ' . $post_id . ' was written, but its stored content differs from the source (' . strlen( $content ) . ' bytes given, ' . strlen( $stored_content ) . " stored).\n";
+	exit;
+}
+
+echo 'H2BT_OK id=' . $post_id . ' slug=' . $stored_slug . ' template=' . $template . ' bytes=' . strlen( $stored_content ) . ' php=' . PHP_VERSION . "\n";

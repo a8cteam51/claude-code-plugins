@@ -30,15 +30,18 @@ unless the H2BT_PROBE_OK sentinel was printed.
 EOF
 }
 
+# A flag that takes a value must be followed by one.
+need_value() { [[ $# -ge 2 ]] || { echo "$1 needs a value" >&2; exit 2; }; }
+
 site_path=""
 markup=""
 post_id="0"
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
-		--site-path) site_path="${2:-}"; shift 2 ;;
-		--markup) markup="${2:-}"; shift 2 ;;
-		--post-id) post_id="${2:-}"; shift 2 ;;
+		--site-path) need_value "$@"; site_path="$2"; shift 2 ;;
+		--markup) need_value "$@"; markup="$2"; shift 2 ;;
+		--post-id) need_value "$@"; post_id="$2"; shift 2 ;;
 		-h|--help) usage; exit 0 ;;
 		*) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
 	esac
@@ -54,7 +57,8 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 tmpl="$script_dir/render-probe.php.tmpl"
 [[ -r "$tmpl" ]] || { echo "Template not found: $tmpl" >&2; exit 1; }
 
-# Studio's wp cannot read host /tmp: stage inside the site, under names nothing else uses.
+# A site whose file access is limited to its own directory cannot read host /tmp: stage inside
+# the site, which every site can read, under names nothing else uses.
 site_path="$(cd "$site_path" && pwd)"
 stage_dir="$site_path/.h2bt"
 mkdir -p "$stage_dir"
@@ -75,6 +79,7 @@ out="$(cd "$site_path" && studio wp eval-file ".h2bt/$script_basename" --path="$
 
 if grep -q '^H2BT_PROBE_OK' <<<"$out"; then
 	# Studio can print PHP notices before the script's output: show the probe's part only.
+	# A warning the markup itself raises comes after the BEGIN line, so it is shown.
 	sed -n '/^H2BT_PROBE_BEGIN/,/^H2BT_PROBE_OK/p' <<<"$out"
 	exit 0
 fi

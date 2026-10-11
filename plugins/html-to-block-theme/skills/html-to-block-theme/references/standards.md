@@ -1,6 +1,6 @@
 # Standards
 
-Non-negotiable rules for the delivered theme. The standards audit (`scripts/standards-audit.sh`) enforces the comment and custom-CSS rules, the reserved preset slugs, the dropped-colour rule, whole-pixel values and the layout of post content; the rest are review criteria. Pass it `--content-dir <site-path>/.h2bt/pages` so the page content, which is not in the theme, is checked too.
+Non-negotiable rules for the delivered theme. The standards audit (`scripts/standards-audit.sh`) enforces the comment and custom-CSS rules, the reserved preset slugs, the dropped-colour rule, whole-pixel values and the layout of post content; the rest are review criteria. Pass it `--content-dir <site-path>/.h2bt/pages` so the page content, which is not in the theme, is checked too. It also fails on a `theme.json` that does not parse (`theme_json`), which WordPress ignores, and on a directory that is not a theme. Its last line is `H2BT_AUDIT_OK` or `H2BT_AUDIT_FAIL`.
 
 ## Comments
 

@@ -10,14 +10,14 @@
 - id: eval-file-from-stdin
   covers:
     - { file: SKILL.md, match: "can silently no-op" }
-  claim: A script piped to `studio wp eval-file -` does not run.
+  claim: A script piped to `studio wp eval-file -` does not run (stated for the sandboxed PHP runtime; the eval site runs the native one).
   run: printf '<?php echo "H2BT_ENV_RAN\n";' | studio wp eval-file - --path="$SITE" 2>&1
   holds_when_output_lacks: H2BT_ENV_RAN
 
 - id: host-tmp-is-out-of-reach
   covers:
     - { file: SKILL.md, match: "cannot see the host `/tmp/`" }
-  claim: Studio's wp cannot read a file in the host's /tmp.
+  claim: Studio's wp cannot read a file in the host's /tmp (stated for the sandboxed PHP runtime; the eval site runs the native one).
   run: f="/tmp/h2bt-env-$$.php"; printf '<?php echo "H2BT_ENV_RAN\n";' > "$f"; studio wp eval-file "$f" --path="$SITE" 2>&1; rm -f "$f"
   holds_when_output_lacks: H2BT_ENV_RAN
 

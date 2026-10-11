@@ -12,9 +12,11 @@
 #   write-page.sh --site-path <site> --title <title> --slug <slug> \
 #                 [--template <template-slug|default>] --content <markup-file>
 #
-# On success the PHP sentinel line (H2BT_OK id=<id> bytes=<n> php=<version>) is
-# printed and the staged files are removed. The PHP reads the stored title back
-# before it prints the sentinel, so a title WordPress stored differently fails.
+# On success the PHP sentinel line is printed and the staged files are removed:
+#   H2BT_OK id=<id> slug=<slug> template=<template> bytes=<n> php=<version>
+# The PHP reads the stored title, slug, template and content back before it prints the
+# sentinel, so anything WordPress stored differently fails. A slug held by a post that is
+# not a page (an attachment, usually) fails before anything is written.
 #
 set -euo pipefail
 
@@ -30,11 +32,15 @@ Usage:
                 [--template <template-slug|default>] --content <markup-file>
 
 Upserts a WordPress page whose post_content is the block markup in <markup-file>,
-assigned to <template-slug> (or the default page template). Prints the H2BT_OK
+assigned to <template-slug> (or the default page template). <template-slug> is the slug
+of a template of the active theme, such as page-home, not a file path. Prints the H2BT_OK
 sentinel on success; exits non-zero on any failure. Trust the exit code — it is
 derived from the sentinel, not from `studio wp`'s own exit status.
 EOF
 }
+
+# A flag that takes a value must be followed by one.
+need_value() { [[ $# -ge 2 ]] || { echo "$1 needs a value" >&2; exit 2; }; }
 
 site_path=""
 title=""
@@ -44,11 +50,11 @@ content=""
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
-		--site-path) site_path="${2:-}"; shift 2 ;;
-		--title) title="${2:-}"; shift 2 ;;
-		--slug) slug="${2:-}"; shift 2 ;;
-		--template) template="${2:-}"; shift 2 ;;
-		--content) content="${2:-}"; shift 2 ;;
+		--site-path) need_value "$@"; site_path="$2"; shift 2 ;;
+		--title) need_value "$@"; title="$2"; shift 2 ;;
+		--slug) need_value "$@"; slug="$2"; shift 2 ;;
+		--template) need_value "$@"; template="$2"; shift 2 ;;
+		--content) need_value "$@"; content="$2"; shift 2 ;;
 		-h|--help) usage; exit 0 ;;
 		*) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
 	esac
@@ -58,7 +64,7 @@ done
 [[ -d "$site_path" ]] || { echo "Site path not found: $site_path" >&2; exit 1; }
 [[ -r "$content" && -s "$content" ]] || { echo "Content file missing or empty: $content" >&2; exit 1; }
 [[ "$slug" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]] || { echo "Slug must be lowercase kebab-case: $slug" >&2; exit 2; }
-[[ "$template" =~ ^[A-Za-z0-9_./-]+$ ]] || { echo "Template must be a template slug or \"default\": $template" >&2; exit 2; }
+[[ "$template" =~ ^[A-Za-z0-9_-]+$ ]] || { echo "Template must be a template slug (page-home, not templates/page-home.html) or \"default\": $template" >&2; exit 2; }
 [[ "$title" != *$'\n'* ]] || { echo "Title must be a single line" >&2; exit 2; }
 command -v studio >/dev/null 2>&1 || { echo "studio CLI not found" >&2; exit 1; }
 

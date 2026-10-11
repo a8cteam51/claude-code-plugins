@@ -9,7 +9,7 @@ Do not set a width by resizing the browser window. `resize_window` cannot go bel
 `serve-html.sh` serves it with the design files:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/serve-html.sh" --dir "<design-dir>" --site-path "<site-path>"
+bash "<plugin-root>/scripts/serve-html.sh" --dir "<design-dir>" --site-path "<site-path>"
 # H2BT_SERVE url=<base-url> pid=<pid> pidfile=<path>
 # H2BT_HARNESS url=<base-url>_h2bt/viewport.html site_copy=<site-path>/_h2bt/viewport.html sink=<dir>
 ```
@@ -28,15 +28,15 @@ Open one tab on the harness:
 
 | Call | What it does |
 |---|---|
-| `await h2bt.ready()` | Resolves when every pane has loaded, with each document's size. |
+| `await h2bt.ready()` | Resolves when every pane has loaded, with each document's size. Rejects after 30 seconds (`&wait=<seconds>`) when a pane never finishes loading: reload, and if it repeats load each page on its own. |
 | `await h2bt.prepare()` | Loads lazy images, switches transitions off, waits for fonts and images in every pane. Reports each pane's pending images and whether the browser prefers a dark scheme. Call it before measuring. |
 | `await h2bt.scroll( y )` | Scrolls every pane together. |
 | `await h2bt.run( index, source )` | Evaluates a function body with `( doc, win )` in one pane and resolves with its JSON-safe result. |
 | `await h2bt.resize( width[, height] )` | Sets every pane to a new CSS width (and height) without a reload. |
 | `await h2bt.pages()` | Each pane's width, document height and sideways overflow, with the elements that reach past the edge. |
-| `await h2bt.compareText( options )` | Pairs the text of panes 0 and 1 and returns only the differences (§ Compare text, not elements). |
+| `await h2bt.compareText( options )` | Pairs the text of panes 0 and 1 and returns only the differences, text that only one pane has included (§ Compare text, not elements). |
 | `await h2bt.sweep( widths, task[, height] )` | Resizes to each width in turn and runs a task (§ Sweep widths in one call). |
-| `await h2bt.sink( name, data )` | Writes `data` to `<sink-dir>/<name>.json` on disk. |
+| `await h2bt.sink( name, data )` | Writes `data` to `<sink-dir>/<name>.json` on disk, also when the harness was loaded from the WordPress origin. Rejects when nothing stored it. |
 
 **Keep results small, and send large ones to the sink.** `javascript_tool` cuts a result at about 1,000 characters, and withholds one that looks like `key=value` pairs or holds markup or addresses. Return short JSON: counts, keys that differ, a summed difference. Send anything longer with `h2bt.sink()` and read the file with a script that prints only the differences.
 
@@ -102,6 +102,7 @@ await h2bt.sink( 'about-1440-text', result );
 ```
 
 - `a` and `b` (or `root` for both) are selectors of the region to compare. `boxes: true` also compares each group's block box; `types: false` skips the type.
+- **Text that only one page has is a difference.** When the panes have different numbers of groups, `unpaired` gives the side and the count, and the first five such groups are in `diffs` with `only: "a"` or `"b"`. A page that ends early, or carries an extra block, therefore never compares as equal. Pairing is by order, so one missing group early on also shifts every pair after it: fix the first difference and compare again.
 - Typographic quotes and dashes are treated as their plain forms, because WordPress texturises content.
 - An emoji is compared by the `alt` of WordPress's replacement image. A mirror with its scripts removed shows the character where the live page and the build show the image, so the live page is the reference for that character.
 - The ink matters for small labels. A block with a small font on a taller line centres its text; the same text as an inline element in a parent with a larger font hangs from the parent's baseline. The offset is under a pixel, which a box comparison never sees.

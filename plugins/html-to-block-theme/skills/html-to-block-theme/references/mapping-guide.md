@@ -18,10 +18,10 @@ Never invent block attribute names. Use documented globals (`className`, `anchor
 Attribute forms move between WordPress versions. Markup written from memory of an older core fails validation or is silently rewritten. Two checks cost one call each:
 
 - **Read the block's `block.json`** in the site's core (`wp-includes/blocks/<block>/block.json`) for its attributes and supports before writing a block you have not written on this core. On WordPress 7.1, for example, text alignment on a paragraph, heading or button is `style.typography.textAlign`, not an `align` or `textAlign` attribute.
-- **Render a probe** to see what an attribute prints, with no page or database write:
+- **Render a probe** to see what an attribute prints, with no page or database write (`<plugin-root>` is the plugin's directory, which the skill and the builder's instructions give):
 
   ```bash
-  bash "${CLAUDE_PLUGIN_ROOT}/scripts/render-probe.sh" --site-path <site-path> --markup <markup-file> [--post-id <id>]
+  bash "<plugin-root>/scripts/render-probe.sh" --site-path <site-path> --markup <markup-file> [--post-id <id>]
   ```
 
   It prints the HTML and the block-supports CSS the markup produced, with the PHP and WordPress versions. Use it wherever this guide says a form depends on the core version, and before building a section on an attribute form you have not confirmed. The probe runs `do_blocks()`, so it does not texturise text as a real page does.

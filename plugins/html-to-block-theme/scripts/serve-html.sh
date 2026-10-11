@@ -35,6 +35,9 @@ Capture the url for the browser and the pidfile to stop it later.
 EOF
 }
 
+# A flag that takes a value must be followed by one.
+need_value() { [[ $# -ge 2 ]] || { echo "$1 needs a value" >&2; exit 2; }; }
+
 dir=""
 port=""
 stop=0
@@ -44,12 +47,12 @@ sink_dir=""
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
-		--dir) dir="${2:-}"; shift 2 ;;
-		--port) port="${2:-}"; shift 2 ;;
-		--site-path) site_path="${2:-}"; shift 2 ;;
-		--sink-dir) sink_dir="${2:-}"; shift 2 ;;
+		--dir) need_value "$@"; dir="$2"; shift 2 ;;
+		--port) need_value "$@"; port="$2"; shift 2 ;;
+		--site-path) need_value "$@"; site_path="$2"; shift 2 ;;
+		--sink-dir) need_value "$@"; sink_dir="$2"; shift 2 ;;
 		--stop) stop=1; shift ;;
-		--pidfile) pidfile="${2:-}"; shift 2 ;;
+		--pidfile) need_value "$@"; pidfile="$2"; shift 2 ;;
 		-h|--help) usage; exit 0 ;;
 		*) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
 	esac
@@ -58,7 +61,13 @@ done
 if [[ "$stop" -eq 1 ]]; then
 	[[ -n "$pidfile" && -f "$pidfile" ]] || { echo "Missing or invalid --pidfile" >&2; exit 2; }
 	pid="$(cat "$pidfile")"
-	if kill "$pid" 2>/dev/null; then
+	# Nothing below runs on a file that is not one of this script's pid files: it would be
+	# deleted, and whatever number it held would be signalled.
+	[[ "$pid" =~ ^[0-9]+$ ]] || { echo "Not a pid file written by serve-html.sh: $pidfile" >&2; exit 2; }
+	# A pid outlives its process: after a reboot or a long run the number can belong to
+	# something else. Only a process that is this server is stopped.
+	if ps -p "$pid" -o command= 2>/dev/null | grep -q 'serve\.py'; then
+		kill "$pid" 2>/dev/null || true
 		echo "H2BT_SERVE_STOPPED pid=$pid"
 	else
 		echo "H2BT_SERVE_STOPPED pid=$pid (already gone)"
@@ -75,11 +84,13 @@ if [[ "$stop" -eq 1 ]]; then
 		fi
 		rm -f "$statefile"
 	fi
-	rm -f "$pidfile"
+	rm -f "$pidfile" "${pidfile%.pid}.log"
 	exit 0
 fi
 
 [[ -n "$dir" ]] || { echo "--dir is required" >&2; usage >&2; exit 2; }
+# The port goes into file names and into the listening check below.
+[[ -z "$port" || ( "$port" =~ ^[0-9]{1,5}$ && "$port" -ge 1 && "$port" -le 65535 ) ]] || { echo "--port must be a port number: $port" >&2; exit 2; }
 [[ -d "$dir" ]] || { echo "Directory not found: $dir" >&2; exit 1; }
 [[ -z "$site_path" || -d "$site_path" ]] || { echo "Site path not found: $site_path" >&2; exit 1; }
 command -v python3 >/dev/null 2>&1 || { echo "python3 is required to serve files" >&2; exit 1; }
@@ -90,8 +101,14 @@ harness="$script_dir/viewport.html"
 
 abs_dir="$(cd "$dir" && pwd)"
 
+listening() { python3 -c 'import socket,sys; s=socket.socket(); sys.exit(0 if s.connect_ex(("127.0.0.1",int(sys.argv[1])))==0 else 1)' "$1"; }
+
 if [[ -z "$port" ]]; then
 	port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"
+elif listening "$port"; then
+	# The check after the start cannot tell the new server from one already on the port.
+	echo "Port $port is already in use; stop that server or leave --port out" >&2
+	exit 1
 fi
 
 logfile="${TMPDIR:-/tmp}/h2bt-serve-${port}.log"
@@ -113,7 +130,7 @@ echo "$pid" >"$pidfile"
 
 # Give it a moment and confirm it is actually listening.
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-	if kill -0 "$pid" 2>/dev/null && python3 -c "import socket,sys; s=socket.socket(); sys.exit(0 if s.connect_ex(('127.0.0.1',$port))==0 else 1)"; then
+	if kill -0 "$pid" 2>/dev/null && listening "$port"; then
 		if [[ -n "$site_path" ]]; then
 			# Outside wp-content, so never inside a project repository. Removed by --stop.
 			mkdir -p "$site_path/_h2bt"

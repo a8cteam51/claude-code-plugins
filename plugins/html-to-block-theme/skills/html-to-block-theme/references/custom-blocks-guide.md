@@ -62,14 +62,14 @@ Testing traps:
 List the catalog before planning any block:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/monorepo-blocks.sh" catalog
+bash "<plugin-root>/scripts/monorepo-blocks.sh" catalog
 ```
 
 It refreshes a cached clone and prints one tab-separated line per plugin:
 
 - the plugin directory;
 - the block names it registers, or `-` for a plugin that extends core blocks without registering its own, such as a Query Loop variation or a cover-block style;
-- its latest release, or `unreleased`;
+- its latest release, or `unreleased`. `unknown` in every row means the release lookup failed (no network, or GitHub's limit for callers who are not signed in), and the sentinel then says `releases=unavailable`: sign in with `gh` or try again, and do not read it as unreleased;
 - whether it has a `screenshot.png`;
 - its descriptions.
 
@@ -84,10 +84,10 @@ The last line is the `H2BT_MONOREPO_CATALOG` sentinel.
 1. **Install it from its release**, the way production does:
 
    ```bash
-   bash "${CLAUDE_PLUGIN_ROOT}/scripts/monorepo-blocks.sh" install --site-path <site-path> <plugin-dir> [<plugin-dir>...]
+   bash "<plugin-root>/scripts/monorepo-blocks.sh" install --site-path <site-path> <plugin-dir> [<plugin-dir>...]
    ```
 
-   It installs and activates each plugin's latest release ZIP and prints `H2BT_MONOREPO_INSTALL plugin=<dir> version=<version>`. It refuses a plugin that is also built in a monorepo clone on the same site, because the block would register twice. Validate markup that uses the block only after it is installed.
+   It installs and activates each plugin's latest release ZIP and prints `H2BT_MONOREPO_INSTALL plugin=<dir> version=<version>` once the site reports that version installed. It refuses a plugin that is also built in a monorepo clone on the same site, because the block would register twice. Validate markup that uses the block only after it is installed.
 2. **Style it from the theme**, as for any block type: one stylesheet per block type, named from the block name, and enqueued with `wp_enqueue_block_style()` (`block-styles-guide.md`). For example, `a8csp/modal` becomes `assets/css/blocks/a8csp-modal.css`, or `assets/css/src/blocks/a8csp-modal.scss` in template mode. Register style variations for the monorepo block with `register_block_style()` like any other.
 3. **Adapt its behaviour from the project**, never in the block. Use the block's own PHP filters, `render_block_<block>`, `register_block_type_args`, block variations, and editor filters. The code lives in the theme's includes (standalone), or in the features plugin's `includes/<concern>.php` (template mode), because it serves content that must survive a theme swap.
 4. **Record it as a site dependency.** The plugin is installed on the host and updates itself from opsoasis. It is never tracked in the project repository. List the plugin and version in the report and, in template mode, in the README's "Site dependencies".
@@ -99,7 +99,7 @@ Only after steps 1 and 2 have failed. The run builds the block locally; pushing 
 1. **Clone the monorepo into the site** and branch:
 
    ```bash
-   bash "${CLAUDE_PLUGIN_ROOT}/scripts/monorepo-blocks.sh" clone --site-path <site-path>
+   bash "<plugin-root>/scripts/monorepo-blocks.sh" clone --site-path <site-path>
    git -C <site-path>/wp-content/plugins/special-projects-blocks-monorepo switch -c add/<slug> origin/trunk
    ```
 
@@ -195,7 +195,7 @@ For trivial behaviour with no shared state, a plain `view.js` (`viewScript`) is 
 The monorepo allows a block to stay in a project repository when it is so bespoke that no other project could reuse it, but only with an engineering lead's approval. Take this path **only when the user states that approval**. Otherwise the block goes to the monorepo. Standalone runs have no exclusion path.
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold-custom-block.sh" --exclusion-approved \
+bash "<plugin-root>/scripts/scaffold-custom-block.sh" --exclusion-approved \
   --features-dir "<features-dir>" --namespace "<theme_slug>" --slug "<slug>" --title "<Title>"
 ```
 
@@ -204,6 +204,8 @@ The block goes in the **features mu-plugin**, not the theme, because page conten
 - adds `includes/blocks.php`, which registers everything in the wp-scripts `blocks-manifest.php` via `wp_register_block_types_from_metadata_collection()`;
 - adds the `build:features:blocks`/`start:features:blocks` scripts and the lint paths to `package.json`;
 - lists the block's source and build `block.json` in `.github/blocks-allowlist`, under a comment marking it an approved exclusion. CI's blocks policy fails any unlisted `block.json`.
+
+The scaffold ends `H2BT_BLOCK_OK`. `H2BT_BLOCK_PARTIAL` means the block's files are written but it could not add the scripts to `package.json`: add the `ADD MANUALLY` lines it printed before building. A scaffold that fails part-way removes the block directory it made, so it can be run again.
 
 Build with `npm run build:features:blocks`. Styles and view scripts follow the wp-scripts conventions in `project-template-guide.md` § Build pipeline.
 

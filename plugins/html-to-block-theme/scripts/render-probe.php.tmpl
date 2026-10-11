@@ -7,7 +7,8 @@
  * with `studio wp eval-file`. It writes nothing to the database.
  *
  * Output: H2BT_PROBE_BEGIN ..., the rendered HTML, the block-supports stylesheet, and
- * H2BT_PROBE_OK — or one H2BT_PROBE_FAIL: ... line.
+ * H2BT_PROBE_OK — or one H2BT_PROBE_FAIL: ... line. BEGIN is printed before the blocks render,
+ * so a warning the markup raises lands between BEGIN and the HTML and is not trimmed away.
  *
  * Placeholders (the caller generates or validates both):
  *   __MARKUP_FILE__  basename of the block-markup file in this same directory
@@ -32,10 +33,11 @@ if ( $post_id > 0 ) {
 	setup_postdata( $probe_post );
 }
 
+echo 'H2BT_PROBE_BEGIN php=' . PHP_VERSION . ' wp=' . get_bloginfo( 'version' ) . ' theme=' . get_stylesheet() . "\n";
+
 $html = do_blocks( (string) file_get_contents( $markup_file ) );
 $css  = wp_style_engine_get_stylesheet_from_context( 'block-supports', array( 'prettify' => true ) );
 
-echo 'H2BT_PROBE_BEGIN php=' . PHP_VERSION . ' wp=' . get_bloginfo( 'version' ) . ' theme=' . get_stylesheet() . "\n";
 echo "--- html ---\n";
 echo $html . "\n";
 echo "--- block-supports css ---\n";
