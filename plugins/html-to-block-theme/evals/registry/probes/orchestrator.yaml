@@ -1,0 +1,118 @@
+# Probes for rules the orchestrator meets while it plans the blueprint and the foundation.
+# The format is described at the top of builder.yaml. These ask for a plan as a list, each
+# line starting with a path, so that a check can tell a file that is created from one that
+# is mentioned in order to reject it.
+
+- id: homepage-is-a-page
+  covers:
+    - { file: mapping-guide.md, match: "Never create `templates/front-page.html`." }
+    - { file: mapping-guide.md, match: "Homepage has its own chrome" }
+    - { file: SKILL.md, match: "The homepage is always a page, never" }
+  consumer: orchestrator
+  task: |
+    The design set has three files. `index.html` is the homepage: a full-viewport hero and no site header. `about.html` and `services.html` share one header and one footer.
+
+    List every file you will create in the theme for these three views, one per line, each line starting with the file's path and then a few words on what it holds. Then say, in a sentence or two, anything that has to be set up on the site itself.
+  grade:
+    - answer_lacks: '(^|\n)[\s>*\-\d.]*\x60?(templates/)?front-page\.html'
+    - answer_matches: '(?i)page_on_front|show_on_front|static (front|home) ?page|reading settings'
+    - answer_matches: 'customTemplates'
+  pass_example: |
+    - `templates/page-home.html` — the homepage's wrapper: no header part, post content, the footer part
+    - `templates/page.html` — the shared wrapper for About and Services
+    - `parts/header.html` — the shared header
+    - `parts/footer.html` — the shared footer
+    - `theme.json` — tokens, and a `customTemplates` entry for `page-home`
+
+    The three bodies are pages in the database. Set Reading settings to a static front page: `show_on_front` = `page` and `page_on_front` = the Home page's id.
+  fail_example: |
+    - `templates/front-page.html` — the homepage, with its hero
+    - `templates/page.html` — the shared wrapper for About and Services
+    - `parts/header.html` — the shared header
+    - `parts/footer.html` — the shared footer
+
+    Nothing else: WordPress serves `front-page.html` at the site root.
+
+- id: shared-section-is-not-a-pattern
+  covers:
+    - { file: mapping-guide.md, match: "nothing a visitor reads is held in a PHP pattern" }
+    - { file: mapping-guide.md, match: "A section two pages share is repeated in each page's content" }
+  consumer: orchestrator
+  task: |
+    `about.html` and `services.html` each have, in the middle of their body, the same "How we work" section: a heading and three short cards.
+
+    Say where that section's markup will live once the theme is built. List each file or database record that will hold it, one per line, each line starting with the path or the record and then a few words.
+  grade:
+    - answer_lacks: '(^|\n)[\s>*\-\d.]*\x60?(patterns|parts)/'
+    - answer_lacks: '(?i)(^|\n)[\s>*\-\d.]*\x60?(a |the )?(synced|reusable) (pattern|block)'
+    - answer_matches: ['(?i)about', '(?i)services']
+  pass_example: |
+    - The About page's `post_content` — the section, as block markup among the page's other sections
+    - The Services page's `post_content` — the same section again
+
+    It is repeated in each page, so an editor changes it where they expect to.
+  fail_example: |
+    - `patterns/how-we-work.php` — the section, registered as a pattern
+    - The About page's `post_content` — a `core/pattern` reference to it
+    - The Services page's `post_content` — a `core/pattern` reference to it
+
+- id: fonts-are-local-files
+  covers:
+    - { file: mapping-guide.md, match: "declare in `theme.json` `settings.typography.fontFamilies`" }
+  consumer: orchestrator
+  task: |
+    The design's HTML loads its font with the tag below, and its CSS sets `body { font-family: 'Inter', sans-serif; }`.
+
+    ```html
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    ```
+
+    Write the `settings.typography.fontFamilies` entry for theme.json. Reply with the JSON in one fenced code block, then list any other files this needs, one per line.
+  grade:
+    - json_matches: ['"fontFace"', 'file:\./assets/fonts/']
+    - json_lacks: 'fonts\.(googleapis|gstatic)'
+    - answer_lacks: '@import'
+  pass_example: |
+    ```json
+    [{ "slug": "inter", "name": "Inter", "fontFamily": "\"Inter\", sans-serif", "fontFace": [
+      { "fontFamily": "Inter", "fontWeight": "400", "fontStyle": "normal", "src": ["file:./assets/fonts/inter-400.woff2"] },
+      { "fontFamily": "Inter", "fontWeight": "700", "fontStyle": "normal", "src": ["file:./assets/fonts/inter-700.woff2"] }
+    ] }]
+    ```
+
+    - `assets/fonts/inter-400.woff2`
+    - `assets/fonts/inter-700.woff2`
+  fail_example: |
+    ```json
+    [{ "slug": "inter", "name": "Inter", "fontFamily": "\"Inter\", sans-serif" }]
+    ```
+
+    - `functions.php` — enqueue https://fonts.googleapis.com/css2?family=Inter:wght@400;700
+
+- id: block-style-css-per-block
+  covers:
+    - { file: SKILL.md, match: "Register block styles per `block-styles-guide.md`" }
+    - { file: block-styles-guide.md, match: "All custom CSS for a block type lives in **one file**" }
+  consumer: orchestrator
+  guides: [block-styles-guide.md]
+  task: |
+    Buttons across the design use a recurring `.btn-ghost` class: a transparent fill with a 2px border, and a hover that fills it. The button block's own settings cannot express the hover fill.
+
+    List every file you will create or change in the theme for this, one per line, each line starting with the file's path and then a few words. Then give the PHP.
+  grade:
+    - answer_matches: ['register_block_style', 'wp_enqueue_block_style', 'assets/css/blocks/core-button\.css']
+  pass_example: |
+    - `functions.php` — register the variation and enqueue its stylesheet
+    - `assets/css/blocks/core-button.css` — the ghost rules
+
+    ```php
+    register_block_style( 'core/button', array( 'name' => 'ghost', 'label' => 'Ghost' ) );
+    wp_enqueue_block_style( 'core/button', array( 'handle' => 'theme-core-button', 'src' => get_theme_file_uri( 'assets/css/blocks/core-button.css' ), 'path' => get_theme_file_path( 'assets/css/blocks/core-button.css' ) ) );
+    ```
+  fail_example: |
+    - `style.css` — the `.btn-ghost` rules
+    - `functions.php` — enqueue `style.css`
+
+    ```php
+    wp_enqueue_style( 'theme', get_stylesheet_uri() );
+    ```

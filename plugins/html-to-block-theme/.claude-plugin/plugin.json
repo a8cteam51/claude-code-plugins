@@ -1,7 +1,7 @@
 {
   "name": "html-to-block-theme",
-  "version": "0.4.0",
-  "description": "Convert a set of static Claude Design HTML/CSS/JS files into a standards-driven WordPress block theme on a local Studio site, using theme.json, block styles, patterns, and blocks from the A8C Special Projects blocks monorepo, refined to match in the browser via Claude in Chrome. Builds into A8C Special Projects project-template repositories under their conventions and CI gates.",
+  "version": "0.5.0",
+  "description": "Convert a set of static Claude Design HTML/CSS/JS files, or the pages of an existing site, into a standards-driven WordPress block theme on a local Studio site, using theme.json, block styles, editable page content, and blocks from the A8C Special Projects blocks monorepo, refined to match in the browser via Claude in Chrome. Builds into A8C Special Projects project-template repositories under their conventions and CI gates.",
   "author": {
     "name": "Automattic Special Projects"
   },

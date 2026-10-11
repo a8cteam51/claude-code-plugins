@@ -14,7 +14,7 @@ Record every behaviour in the blueprint: the step it resolved at, why each earli
 
 A custom block is justified only when none of these produce the behaviour:
 
-- **A core block already does it.** `core/navigation` has a mobile menu, `core/details` makes accordions (siblings sharing a `name` open one at a time), `core/query` lists content, and `core/cover` handles media backgrounds.
+- **A core block already does it.** `core/navigation` has a mobile menu, `core/accordion` and `core/details` make accordions (an accordion's `autoclose`, or details siblings sharing a `name`, open one at a time), `core/tabs` makes tabs, `core/query` lists content, and `core/cover` handles media backgrounds. The accordion and tabs blocks are in WordPress 7.1: check an older core for them.
 - **A pattern** of existing blocks, for a reusable arrangement.
 - **Block Bindings**, for dynamic values in core blocks (below).
 - **The Interactivity API on an existing block**, for state and interaction. Add the directives to a core block's output with a `render_block_<block>` filter and `WP_HTML_Tag_Processor`, and register the store as a script module.
@@ -25,6 +25,37 @@ A custom block is justified only when none of these produce the behaviour:
 - **Block Bindings** connect a core block's attribute to post meta with no custom block at all. For *formatted* meta, such as a composed "year • publisher" line or a bespoke date form, register a custom source with `register_block_bindings_source()` and format the value in its callback.
 - A paragraph bound to empty meta still renders an empty `<p>`. Pair each bound optional field with a scoped `:empty { display: none; }` rule in the relevant block CSS file.
 - Sitewide date formatting belongs in a `render_block_core/post-date` filter, not in per-instance markup.
+
+### The dynamic pieces of a post type's templates, without a custom block
+
+A post type's templates usually need a handful of things that follow the entry or the archive in view. Each stays a core block, fed from one include:
+
+- **Text and links that depend on the post or one of its terms:** one Block Bindings source with a `key` argument. A `format` argument in which `%s` stands for the value keeps a sentence such as "Back to %s" in the template markup, not in PHP.
+- **The current tab:** the path-matching `render_block_core/navigation-link` filter (`mapping-guide.md` § core/navigation notes), because core marks a link current by post or term id, which differs per environment.
+- **Wording around a date** (a tooltip, a link's accessible name): a `render_block_core/post-date` filter.
+- **A list core cannot query:** a registered block style on a core block as the opt-in, and a render filter that prints the list for that style while keeping core's wrapper and its classes. Bending the block's own query through its argument filters is costlier and more brittle than replacing its inner markup.
+
+Presentation that feeds templates lives with the theme. Routing, and anything stored content depends on, lives where it survives a theme swap: the features plugin in template mode.
+
+### What a block can know
+
+- **Block context cannot tell "inside a query loop" from "top level of an archive template".** `render_block()` gives top-level blocks, including those in template parts, the first post of the main query as `postId` and `postType`. `core/post-template` renders each post from a new block with those same two keys and nothing that identifies the loop. A bindings source or render filter that must follow the view outside a loop needs `in_the_loop()`, which covers inherited queries only, or an explicit argument. The symptom is a wrong rendered value, such as a link in an archive's header that points at the first entry's term.
+- **Core block markup moves between versions.** On WordPress 7.1 `core/post-date` prints the link around the `time` element, not inside it. A render filter that walks tags must not assume their order.
+- **A template's whole output is texturised.** Write a hyphen or quote that a filter prints as a character reference (`mapping-guide.md` § Query loops, archives and pagination).
+- **A post type whose permalink embeds a term answers under any term.** Core finds a single post by its slug alone, so with a structure such as `/<type>/<term>/<slug>/` the same post answers with status 200 under every term. If the original site redirects such an address, that is routing the build has to add. One wrong-term request against the original and one against the build shows it. Write the decision as a function that returns the address or null, so that it can be tested without the `exit` that follows a redirect.
+
+### Test groundwork through a rendered template
+
+The orchestrator often writes these pieces before the builder that uses them starts. Two rules follow from a defect that a block-by-block smoke test missed:
+
+- **Test groundwork through a rendered template**, on an archive and on a single view, before a builder depends on it. Rendering blocks one at a time hides whatever depends on the surrounding template: context, loops, the main query.
+- **Tell the builder the groundwork may be wrong**, and how to report a change to it.
+
+Testing traps:
+
+- A binding source's `uses_context` reaches a block only while its bindings are processed. Test a binding by rendering a block that carries it, with the context passed in.
+- A state the sample data lacks (an entry without its term, an empty field) can be rendered without touching the database: a loose file in `mu-plugins` that applies a filter only when a query parameter is present, one request, then the file is removed.
+- WordPress schedules a post dated in the future instead of publishing it. A fixture meant to be "the newest" needs another way to stand out: compare only the ids the test created.
 
 ## Step 2: check the monorepo
 

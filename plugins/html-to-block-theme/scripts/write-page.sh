@@ -3,17 +3,25 @@
 # write-page.sh — sentinel-verified upsert of a WordPress page from block markup.
 #
 # Wraps the whole staged-write flow the section-builder needs: copies the markup
-# file inside the site dir (Studio's wp sandbox cannot read host /tmp), fills the
-# write-page-content.php.tmpl placeholders, runs it via `studio wp eval-file`
-# (a real file path — `eval-file -` can silently no-op), and greps the output for
-# the H2BT_OK sentinel. Anything but a printed H2BT_OK exits non-zero.
+# file inside the site dir (Studio's wp sandbox cannot read host /tmp), stages the
+# title beside it, fills the write-page-content.php.tmpl placeholders, runs it via
+# `studio wp eval-file` (a real file path — `eval-file -` can silently no-op), and
+# greps the output for the H2BT_OK sentinel. Anything but a printed H2BT_OK exits
+# non-zero.
 #
 #   write-page.sh --site-path <site> --title <title> --slug <slug> \
 #                 [--template <template-slug|default>] --content <markup-file>
 #
-# On success the PHP sentinel line (H2BT_OK id=<id> bytes=<n>) is printed.
+# On success the PHP sentinel line (H2BT_OK id=<id> bytes=<n> php=<version>) is
+# printed and the staged files are removed. The PHP reads the stored title back
+# before it prints the sentinel, so a title WordPress stored differently fails.
 #
 set -euo pipefail
+
+# From bash 5.2 an `&` in the replacement of ${var//pattern/replacement} stands for the
+# matched text. Only validated values are substituted below, and the title never is;
+# switching the option off keeps every bash version on the same behaviour.
+shopt -u patsub_replacement 2>/dev/null || true
 
 usage() {
 	cat <<'EOF'
@@ -50,6 +58,8 @@ done
 [[ -d "$site_path" ]] || { echo "Site path not found: $site_path" >&2; exit 1; }
 [[ -r "$content" && -s "$content" ]] || { echo "Content file missing or empty: $content" >&2; exit 1; }
 [[ "$slug" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]] || { echo "Slug must be lowercase kebab-case: $slug" >&2; exit 2; }
+[[ "$template" =~ ^[A-Za-z0-9_./-]+$ ]] || { echo "Template must be a template slug or \"default\": $template" >&2; exit 2; }
+[[ "$title" != *$'\n'* ]] || { echo "Title must be a single line" >&2; exit 2; }
 command -v studio >/dev/null 2>&1 || { echo "studio CLI not found" >&2; exit 1; }
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -61,28 +71,32 @@ stage_dir="$site_path/.h2bt"
 mkdir -p "$stage_dir"
 
 content_basename="content-${slug}.html"
+title_basename="title-${slug}.txt"
+script_basename="write-${slug}.php"
 cp "$content" "$stage_dir/$content_basename"
 
-# Escape values for the template's single-quoted PHP strings.
-php_escape() {
-	local s="$1"
-	s="${s//\\/\\\\}"
-	s="${s//\'/\\\'}"
-	printf '%s' "$s"
-}
+# The title is free text, so it travels in its own file and is never substituted into PHP.
+printf '%s' "$title" > "$stage_dir/$title_basename"
 
+# The remaining values are validated above: none can hold a quote, a backslash or an ampersand.
 tmpl_body="$(cat "$tmpl")"
-tmpl_body="${tmpl_body//__PAGE_TITLE__/$(php_escape "$title")}"
-tmpl_body="${tmpl_body//__PAGE_SLUG__/$(php_escape "$slug")}"
-tmpl_body="${tmpl_body//__TEMPLATE__/$(php_escape "$template")}"
+tmpl_body="${tmpl_body//__TITLE_FILE__/$title_basename}"
+tmpl_body="${tmpl_body//__PAGE_SLUG__/$slug}"
+tmpl_body="${tmpl_body//__TEMPLATE__/$template}"
 tmpl_body="${tmpl_body//__CONTENT_FILE__/$content_basename}"
-printf '%s\n' "$tmpl_body" > "$stage_dir/write-${slug}.php"
+printf '%s\n' "$tmpl_body" > "$stage_dir/$script_basename"
 
-out="$(cd "$site_path" && studio wp eval-file ".h2bt/write-${slug}.php" --path="$site_path" 2>&1)" || true
-printf '%s\n' "$out"
+out="$(cd "$site_path" && studio wp eval-file ".h2bt/$script_basename" --path="$site_path" 2>&1)" || true
 
-if grep -q '^H2BT_OK' <<<"$out"; then
+# Studio can print PHP notices around the script's output: show only the sentinel line.
+sentinel="$(grep -E '^H2BT_(OK|FAIL)' <<<"$out" | tail -1 || true)"
+
+if [[ "$sentinel" == H2BT_OK* ]]; then
+	printf '%s\n' "$sentinel"
+	rm -f "$stage_dir/$content_basename" "$stage_dir/$title_basename" "$stage_dir/$script_basename"
 	exit 0
 fi
-echo "WRITE FAILED: no H2BT_OK sentinel for page '${slug}'" >&2
+
+printf '%s\n' "$out"
+echo "WRITE FAILED: no H2BT_OK sentinel for page '${slug}' (staged files kept in $stage_dir)" >&2
 exit 1

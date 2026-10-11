@@ -2,23 +2,26 @@
 /**
  * write-page-content.php.tmpl — upsert a WordPress page from block markup.
  *
- * The html-to-block-theme section-builder stages this file inside the site dir
- * (<site-path>/.h2bt/) after substituting the __PLACEHOLDERS__, alongside the
- * content file it references. Run it with:
+ * write-page.sh stages this file inside the site dir (<site-path>/.h2bt/) after
+ * substituting the __PLACEHOLDERS__, alongside the content and title files it
+ * references. Run it with:
  *
  *   studio wp eval-file .h2bt/write-<slug>.php --path=<site-path>
  *
  * It echoes exactly one sentinel line — H2BT_OK ... on success, H2BT_FAIL: ...
  * on failure — which the caller greps for. Do not trust the exit code alone.
  *
- * Placeholders (sed-substituted before running):
- *   __PAGE_TITLE__    page title
+ * Placeholders (substituted before running; the caller validates every value):
+ *   __TITLE_FILE__    basename of a file in this same directory holding the page title
  *   __PAGE_SLUG__     page slug (used for upsert lookup)
  *   __TEMPLATE__      page template slug, or "default"
  *   __CONTENT_FILE__  basename of the block-markup file in this same directory
+ *
+ * The title travels in a file because it is free text: substituting it into this
+ * source corrupts a title holding a character the substitution treats specially.
  */
 
-$title         = '__PAGE_TITLE__';
+$title_file    = __DIR__ . '/__TITLE_FILE__';
 $slug          = '__PAGE_SLUG__';
 $template      = '__TEMPLATE__';
 $content_file  = __DIR__ . '/__CONTENT_FILE__';
@@ -34,13 +37,20 @@ if ( false === $content || '' === trim( $content ) ) {
 	exit;
 }
 
+$title = is_readable( $title_file ) ? file_get_contents( $title_file ) : false;
+if ( false === $title || '' === trim( $title ) ) {
+	echo 'H2BT_FAIL: title file missing or empty: ' . $title_file . "\n";
+	exit;
+}
+$title = trim( $title );
+
 // Preserve block-delimiter comments and raw markup: drop kses for this write.
 kses_remove_filters();
 
 $existing = get_page_by_path( $slug, OBJECT, 'page' );
 
 $postarr = array(
-	'post_title'   => $title,
+	'post_title'   => wp_slash( $title ),
 	'post_name'    => $slug,
 	'post_status'  => 'publish',
 	'post_type'    => 'page',
@@ -68,4 +78,11 @@ if ( $template && 'default' !== $template ) {
 	delete_post_meta( $post_id, '_wp_page_template' );
 }
 
-echo 'H2BT_OK id=' . $post_id . ' bytes=' . strlen( $content ) . "\n";
+// Read the title back: the sentinel describes what was stored, not what was asked for.
+$stored_title = get_post_field( 'post_title', $post_id, 'raw' );
+if ( $stored_title !== $title ) {
+	echo 'H2BT_FAIL: page ' . $post_id . ' was written, but its stored title differs from the requested one: ' . $stored_title . "\n";
+	exit;
+}
+
+echo 'H2BT_OK id=' . $post_id . ' bytes=' . strlen( $content ) . ' php=' . PHP_VERSION . "\n";

@@ -1,0 +1,29 @@
+# Facts about the tools, not about WordPress or the model. `npm run check -- --site` tries
+# each one on the eval site and says whether it still holds there. One that no longer
+# reproduces is a passage to re-examine: these go stale when a tool is updated.
+#
+#   run                       a shell command; $SITE is the eval site's path, which is also
+#                             the working directory
+#   holds_when_output_lacks   the fact holds while the command's output lacks this text
+#   holds_when_output_has     or while it has this text
+
+- id: eval-file-from-stdin
+  covers:
+    - { file: SKILL.md, match: "can silently no-op" }
+  claim: A script piped to `studio wp eval-file -` does not run.
+  run: printf '<?php echo "H2BT_ENV_RAN\n";' | studio wp eval-file - --path="$SITE" 2>&1
+  holds_when_output_lacks: H2BT_ENV_RAN
+
+- id: host-tmp-is-out-of-reach
+  covers:
+    - { file: SKILL.md, match: "cannot see the host `/tmp/`" }
+  claim: Studio's wp cannot read a file in the host's /tmp.
+  run: f="/tmp/h2bt-env-$$.php"; printf '<?php echo "H2BT_ENV_RAN\n";' > "$f"; studio wp eval-file "$f" --path="$SITE" 2>&1; rm -f "$f"
+  holds_when_output_lacks: H2BT_ENV_RAN
+
+- id: bare-wp-is-not-the-site
+  covers:
+    - { file: SKILL.md, match: "never bare `wp`" }
+  claim: A bare `wp` from the host shell does not reach the Studio site.
+  run: if command -v wp >/dev/null 2>&1; then wp option get blogname --path="$SITE" 2>&1; else echo "no wp on PATH"; fi
+  holds_when_output_lacks: h2bt-evals

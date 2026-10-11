@@ -25,6 +25,13 @@ The last line is `H2BT_TEMPLATE mode=template …` or `H2BT_TEMPLATE mode=standa
 
 `clone-into-existing-site` doesn't move loose `mu-plugins/*.php` files back from `wp-content-temp`. Copy local-only ones back yourself, such as a Jetpack offline-mode shim. The template's `.gitignore` already excludes `mu-plugins/*`.
 
+**There is no repository yet, and the user has not approved creating one on GitHub.** Generate it locally:
+1. Run the template's fill-in workflow by hand on a fresh `git init` of the template tree: rename, substitute, re-resolve both lockfiles, format, build, syntax-check, and remove the spent workflow.
+2. Hand the result to `studio-repo-clone` as a local path.
+3. Remove the `origin` remote, which points at the temporary directory.
+
+Creating the GitHub repository and pushing stay the user's decision. Say in the report that the repository exists on this machine only.
+
 ## Preconditions (template mode)
 
 1. **A feature branch.** `trunk` deploys to production and `develop` to staging, so never build on either. Use the repository's branch prefixes (`add/`, `feature/`, `fix/`, `update/`, `remove/`), for example `git switch -c add/block-theme`.
@@ -70,7 +77,8 @@ The template's CI, tests and wp-env configuration depend on these. Read them fro
 | Custom behaviour | The same as standalone (`custom-blocks-guide.md`): core features first, then blocks from the A8C Special Projects blocks monorepo, installed as plugins and never tracked here. Only an approved exclusion is scaffolded into the features plugin (`blocks/src/<slug>/`, `scaffold-custom-block.sh --exclusion-approved`), because page content stores it and a theme swap must not unregister it. Project-side filters that adapt a monorepo block go in `<features-dir>/includes/<concern>.php`. |
 | Site-config mu-plugins (redirects and the like) | `<features-dir>/includes/<feature>.php`. |
 | Local-only shims (for example `jetpack_offline_mode`) | Untracked `mu-plugins/<file>.php`. Never commit them. |
-| `templates/`, `parts/`, `patterns/`, fonts | Same paths. Patterns keep `Slug: <theme_slug>/…` and `Categories: <theme_slug>`. |
+| `templates/`, `parts/`, fonts | Same paths. Parts and templates are plain block markup. |
+| `patterns/` | Only when the blueprint calls for patterns (`mapping-guide.md` § Where content lives). They keep `Slug: <theme_slug>/…` and `Categories: <theme_slug>`. |
 | A dynamic year or other theme-owned text | A block-bindings source in `includes/theme-dynamic-content.php`, following the template's own. |
 
 ## Build pipeline
@@ -89,14 +97,15 @@ The features-plugin block wiring below applies only to approved exclusions. Mono
   - Import `./editor.scss` and reference it as `"editorStyle": "file:./index.css"`.
   - `"viewScript": "file:./view.js"` builds by default. `viewScriptModule` needs `--experimental-modules` added to the build script.
   - The output directory is cleaned on every build, so never hand-edit `blocks/build/`.
-- **Rebuild after every source edit, before reloading the browser.** Use `npm run build:theme:css` (block CSS), `build:theme:style` and `build:theme:style-editor` (root Sass), `build:theme:scripts`, or `build:features:blocks`. `npm run build` does all of them.
+- **Rebuild with `npm run build` after every source edit, before reloading the browser. Always the whole build.** The repository's PostCSS config writes inline source maps unless `NODE_ENV=production`, and only the top-level `build` script sets it. A single `build:theme:*` script leaves a base64 source map in each built stylesheet; committed, that fails the build-integrity gate.
 - **Commit the build output.** CI rebuilds and fails on any byte difference ("Build integrity"), because the committed tree is the deploy artifact.
 
 ## Template example features
 
 Detection lists what generation left behind.
 - **`book-cpt`, `book-cover-reminder`, `woocommerce-cart`:** remove each with the recipe at the top of its own file. The recipe names the scripts, built files, tests and prose to delete.
-- **The template's example theme content** (`parts/header.html`, `parts/footer.html`, `templates/index.html`, `templates/singular.html`, `patterns/footer-default.php`, `patterns/index-query.php`): the build's files replace it.
+- **The template's example theme content** (`parts/header.html`, `parts/footer.html`, `templates/index.html`, `templates/singular.html`, `patterns/footer-default.php`, `patterns/index-query.php`): the build's parts and templates replace it. The example patterns are removed, not replaced, unless the blueprint calls for patterns.
+- **The scaffold's `theme.json` values are not givens.** Fluid typography in particular is decided from the design (`theme-json-guide.md`).
 - **`<features-dir>/.disabled`:** generation creates it. Delete it once the features plugin carries real features, or its blocks and redirects never load.
 - **Replacing the template's `current-year` binding** means updating `SiteBootTest` too.
 
@@ -113,7 +122,8 @@ Detection lists what generation left behind.
   - `next_tag( array( 'tag_name' => 'nav' ) )`, not `next_tag( 'nav' )`;
   - `array<string, mixed>` parameter types, with `$block['attrs']` members guarded by `is_array()`/`is_string()`;
   - `@var array<string, mixed> $attributes` in every `render.php` docblock;
-  - compare `preg_match()` to `1`, and handle `preg_split()` returning `false`.
+  - compare `preg_match()` to `1`, and handle `preg_split()` returning `false`;
+  - `WP_Query::$posts` is nullable: take the posts from `( new \WP_Query() )->query( $args )`.
 - **stylelint (`@wordpress/stylelint-config/scss`):**
   - `npm run format:styles` fixes most issues.
   - A `line-height` in `rem` is disallowed. Where the design fixes the line box, keep it with `// stylelint-disable-next-line declaration-property-unit-allowed-list -- <reason>`. The description is mandatory.
@@ -123,12 +133,18 @@ Detection lists what generation left behind.
 
 ## Checks (Phase 4 in template mode)
 
-- **Standards audit:** `standards-audit.sh --theme-dir <theme-dir>` detects the template layout by itself. It checks one Sass source per block type, each built and enqueued, and counts the SCSS sources as the CSS footprint.
+- **Standards audit:** `standards-audit.sh --theme-dir <theme-dir> --content-dir <site-path>/.h2bt/pages` detects the template layout by itself. It checks one Sass source per block type, each built and enqueued, and counts the SCSS sources as the CSS footprint.
 - **CI gates:** `template-checks.sh --repo <repo> [--tests] [--e2e]` runs CI's gates in order: build integrity, blocks allowlist, `composer lint:php`, `npm run lint`, then the wp-env suites.
   - **It works from a mirror.** The Studio site's `wp-content` also holds Studio's SQLite integration and loader. The lint scripts scan all of `mu-plugins/`, and wp-env mounts it, so checking in place reports hundreds of errors CI never sees. The mirror holds only tracked and unignored files, synced in place so wp-env's bind mounts survive.
+  - **It runs before the first commit.** A tracked file deleted in the working tree, such as the template's removed examples, is left out of the mirror. If the copy into the mirror fails, the run ends with `mirror_copy=fail` and names the step.
   - **It refuses a port another wp-env instance already publishes**, because Playwright would silently test that other site.
-  - **It waits for `afterStart` to activate the theme** before the end-to-end run.
+  - **It waits for `afterStart` to activate the theme** before the end-to-end run. If you run `npm run test:e2e` yourself on a machine where the environment has never been started, start it first (`npm run wp-env:start`) and let it finish: the smoke can otherwise reach the site before the theme is active, and fail on a default theme's page.
+  - **It gives Docker a time limit.** `docker info` hangs when the engine is stuck, which stalls a run with no output. A hung engine is reported as not running; restart it with `docker desktop restart`, and put a time limit on any `docker` call you make yourself.
+- **Linting while building:** run the linters on the tracked paths (`vendor/bin/phpcs <theme-dir> <features-dir>`, `vendor/bin/phpstan analyse -c ./.phpstan.neon <theme-dir> <features-dir> mu-plugins/mu-loader.php`), never the repository's whole-tree scripts in place. In a Studio site those also scan Studio's own untracked files in `mu-plugins/`.
 - **Tests.** Replace the example tests with tests of the build's own promises: render filters (including filters that adapt monorepo blocks), approved-exclusion block output, block style and stylesheet registrations, bindings and redirects. The wp-env sites hold no page content, so these tests cover code, not the design.
+  - **An end-to-end smoke that needs no content can still cover templates.** A missing address exercises the not-found template. A post type archive exercises its template and any render filters with zero entries, which is where a filter that assumes data fails.
+  - **Settings that stored content depends on deserve a test:** the viewport breakpoints, fluid typography, the custom page templates pages are assigned to, and the reserved palette slugs. So do the two standards an editor relies on: no shipped theme file writes a fraction of a pixel, and every template gives post content a constrained layout.
+  - **Fixtures:** WordPress schedules a post dated in the future instead of publishing it, so compare only the ids the test created. Nothing rolls the database back between tests: delete what a test creates.
 
 ## Visual parity guard
 
@@ -149,6 +165,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/parity-check.sh" --repo <repo> --base-url <s
 ## Content and dependencies
 
 - **Content isn't in the repository.** Page content, media and menus live in the Studio database. Deploying ships code only, and moving content to the host is the user's step. Never write to production; the repository's `AGENTS.md` treats production as read-only.
+  - **Stored content names its environment.** Image blocks hold attachment ids and the local site's URLs. A full push to a fresh environment keeps them; merging pages into an existing database needs an id and URL remap. Say in the report which the project needs, and keep each page's source (`.h2bt/pages/*.html`) and the media manifest as the record a migration starts from.
 - **Renaming a block namespace** (for example when porting): update stored content directly, then validate the pages.
   - Replace `<!-- wp:old/` and `<!-- /wp:old/` with a `$wpdb` string replace across *all* posts, revisions included, in a sentinel-echoing `studio wp eval-file` script. Going through `wp_update_post` runs kses under WP-CLI.
   - Apply the same rewrite to `.h2bt/pages/*.html`.
