@@ -9,14 +9,17 @@
 # greps the output for the H2BT_OK sentinel. Anything but a printed H2BT_OK exits
 # non-zero.
 #
-#   write-page.sh --site-path <site> --title <title> --slug <slug> \
+#   write-page.sh --site-path <site> --title <title> --slug <slug> [--parent <page-path>] \
 #                 [--template <template-slug|default>] --content <markup-file>
 #
 # On success the PHP sentinel line is printed and the staged files are removed:
-#   H2BT_OK id=<id> slug=<slug> template=<template> bytes=<n> php=<version>
-# The PHP reads the stored title, slug, template and content back before it prints the
-# sentinel, so anything WordPress stored differently fails. A slug held by a post that is
-# not a page (an attachment, usually) fails before anything is written.
+#   H2BT_OK id=<id> slug=<slug> parent=<id|0> template=<template> bytes=<n> php=<version>
+# The PHP reads the stored title, slug, parent, template and content back before it prints
+# the sentinel, so anything WordPress stored differently fails. A slug held by a post that
+# is not a page (an attachment, usually) fails before anything is written.
+#
+# --parent puts the page under another page, named by its path (about, or about/team): a
+# site whose addresses are nested keeps them. The parent has to exist, so write it first.
 #
 set -euo pipefail
 
@@ -28,12 +31,13 @@ shopt -u patsub_replacement 2>/dev/null || true
 usage() {
 	cat <<'EOF'
 Usage:
-  write-page.sh --site-path <site> --title <title> --slug <slug> \
+  write-page.sh --site-path <site> --title <title> --slug <slug> [--parent <page-path>] \
                 [--template <template-slug|default>] --content <markup-file>
 
 Upserts a WordPress page whose post_content is the block markup in <markup-file>,
 assigned to <template-slug> (or the default page template). <template-slug> is the slug
-of a template of the active theme, such as page-home, not a file path. Prints the H2BT_OK
+of a template of the active theme, such as page-home, not a file path. --parent names the
+page this one sits under, by its path (about, or about/team); it must exist. Prints the H2BT_OK
 sentinel on success; exits non-zero on any failure. Trust the exit code — it is
 derived from the sentinel, not from `studio wp`'s own exit status.
 EOF
@@ -47,6 +51,7 @@ title=""
 slug=""
 template="default"
 content=""
+parent=""
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -55,6 +60,7 @@ while [[ $# -gt 0 ]]; do
 		--slug) need_value "$@"; slug="$2"; shift 2 ;;
 		--template) need_value "$@"; template="$2"; shift 2 ;;
 		--content) need_value "$@"; content="$2"; shift 2 ;;
+		--parent) need_value "$@"; parent="$2"; shift 2 ;;
 		-h|--help) usage; exit 0 ;;
 		*) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
 	esac
@@ -66,6 +72,9 @@ done
 [[ "$slug" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]] || { echo "Slug must be lowercase kebab-case: $slug" >&2; exit 2; }
 [[ "$template" =~ ^[A-Za-z0-9_-]+$ ]] || { echo "Template must be a template slug (page-home, not templates/page-home.html) or \"default\": $template" >&2; exit 2; }
 [[ "$title" != *$'\n'* ]] || { echo "Title must be a single line" >&2; exit 2; }
+parent="${parent#/}"
+parent="${parent%/}"
+[[ -z "$parent" || "$parent" =~ ^[a-z0-9]+(-[a-z0-9]+)*(/[a-z0-9]+(-[a-z0-9]+)*)*$ ]] || { echo "Parent must be a page path of lowercase kebab-case slugs (about, or about/team): $parent" >&2; exit 2; }
 command -v studio >/dev/null 2>&1 || { echo "studio CLI not found" >&2; exit 1; }
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -76,9 +85,12 @@ site_path="$(cd "$site_path" && pwd)"
 stage_dir="$site_path/.h2bt"
 mkdir -p "$stage_dir"
 
-content_basename="content-${slug}.html"
-title_basename="title-${slug}.txt"
-script_basename="write-${slug}.php"
+# Two pages can share a slug under different parents: the staged names carry the parent too.
+stage_key="$slug"
+[[ -z "$parent" ]] || stage_key="$(printf '%s' "$parent" | sed 's|/|--|g')--${slug}"
+content_basename="content-${stage_key}.html"
+title_basename="title-${stage_key}.txt"
+script_basename="write-${stage_key}.php"
 cp "$content" "$stage_dir/$content_basename"
 
 # The title is free text, so it travels in its own file and is never substituted into PHP.
@@ -88,6 +100,7 @@ printf '%s' "$title" > "$stage_dir/$title_basename"
 tmpl_body="$(cat "$tmpl")"
 tmpl_body="${tmpl_body//__TITLE_FILE__/$title_basename}"
 tmpl_body="${tmpl_body//__PAGE_SLUG__/$slug}"
+tmpl_body="${tmpl_body//__PARENT_PATH__/$parent}"
 tmpl_body="${tmpl_body//__TEMPLATE__/$template}"
 tmpl_body="${tmpl_body//__CONTENT_FILE__/$content_basename}"
 printf '%s\n' "$tmpl_body" > "$stage_dir/$script_basename"

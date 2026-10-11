@@ -1,6 +1,6 @@
 # Visual refinement: compare original vs WordPress in the browser
 
-After a section's block markup is written and validated, refine it against the original design in a real browser. Use the **Claude in Chrome** browser tools (`mcp__claude-in-chrome__*`, provided by the Claude in Chrome extension). If the tools are deferred in-session, load everything needed in **one** ToolSearch call — e.g. `select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__tabs_create_mcp,mcp__claude-in-chrome__navigate,mcp__claude-in-chrome__browser_batch,mcp__claude-in-chrome__computer,mcp__claude-in-chrome__javascript_tool,mcp__claude-in-chrome__read_page,mcp__claude-in-chrome__tabs_close_mcp` — never one call per tool. If the extension is unavailable, fall back to the Studio MCP `take_screenshot` tool for the WordPress side.
+After a section's block markup is written and validated, refine it against the original design in a real browser. Use the **Claude in Chrome** browser tools (`mcp__claude-in-chrome__*`, provided by the Claude in Chrome extension). If the tools are deferred in-session, load everything needed in **one** ToolSearch call — e.g. `select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__tabs_create_mcp,mcp__claude-in-chrome__navigate,mcp__claude-in-chrome__browser_batch,mcp__claude-in-chrome__computer,mcp__claude-in-chrome__javascript_tool,mcp__claude-in-chrome__read_page,mcp__claude-in-chrome__tabs_close_mcp` — never one call per tool. There is no substitute for the extension: a screenshot of the WordPress side alone is not a comparison, and a view that was not compared in the harness is not finished.
 
 ## The comparison harness
 
@@ -9,12 +9,13 @@ Do not set a width by resizing the browser window. `resize_window` cannot go bel
 `serve-html.sh` serves it with the design files:
 
 ```bash
-bash "<plugin-root>/scripts/serve-html.sh" --dir "<design-dir>" --site-path "<site-path>"
-# H2BT_SERVE url=<base-url> pid=<pid> pidfile=<path>
+bash "<plugin-root>/scripts/serve-html.sh" --ensure --site-path "<site-path>" --dir "<design-dir>"
+# H2BT_SERVE url=<base-url> pid=<pid> state=<site-path>/.h2bt/serve.json … reused=<yes|no>
 # H2BT_HARNESS url=<base-url>_h2bt/viewport.html site_copy=<site-path>/_h2bt/viewport.html sink=<dir>
 ```
 
-- `--site-path` places a copy of the harness in the site, at `<site-path>/_h2bt/viewport.html`, which the site serves at `<site-url>/_h2bt/viewport.html`. A page on the other origin is reached through that copy, which relays requests to the page it frames. `--stop` removes the copy; it is outside `wp-content`, so never inside a project repository.
+- **The server's address is in `<site-path>/.h2bt/serve.json`** (`url`, `harness`, `sink`), not in anyone's memory. `--ensure` reuses the server when it still answers and starts a new one, on a new port, when it has died: run it whenever the original stops loading, and read the file again. `--dir` is only needed the first time.
+- `--site-path` places a copy of the harness in the site, at `<site-path>/_h2bt/viewport.html`, which the site serves at `<site-url>/_h2bt/viewport.html`. A page on the other origin is reached through that copy, which relays requests to the page it frames. `--stop --site-path <site-path>` stops the server and removes the copy; it is outside `wp-content`, so never inside a project repository.
 - **Everything is loopback-only.** The harness does nothing unless it is served from `localhost`, `127.0.0.1`, `[::1]` or a `*.localhost` name, frames only such addresses, and its relay answers only a loopback origin. Address the Studio site by its `localhost:<port>` URL.
 
 Open one tab on the harness:
@@ -23,12 +24,14 @@ Open one tab on the harness:
 <base-url>_h2bt/viewport.html?a=<original-path>&b=<wordpress-url>&w=<width>&h=<height>
 ```
 
+- `a` is the design file's path on the design server, as it is in the design directory (`about.html`, `about/index.html`), and `b` is the WordPress page's full address on the site's `localhost` URL. A path is read from the server's root, with or without a leading slash.
+
 - `a` and `b` sit side by side as panes 0 and 1, at the same width. `&strip=<n>` shows each page as n consecutive screenfuls, so one capture covers a whole page. `&scale=<n>` sets the stage scale; `&y=<px>` the starting scroll.
 - Drive it with `javascript_tool` through `window.h2bt`:
 
 | Call | What it does |
 |---|---|
-| `await h2bt.ready()` | Resolves when every pane has loaded, with each document's size. Rejects after 30 seconds (`&wait=<seconds>`) when a pane never finishes loading: reload, and if it repeats load each page on its own. |
+| `await h2bt.ready()` | Resolves when every pane has loaded, with each document's size and the HTTP `status` of its address. A pane that says `404` has a wrong address, unless the view is the not-found page: it loads like any page, and comparing against it compares nothing. Rejects after 30 seconds (`&wait=<seconds>`) when a pane never finishes loading: reload, and if it repeats load each page on its own. |
 | `await h2bt.prepare()` | Loads lazy images, switches transitions off, waits for fonts and images in every pane. Reports each pane's pending images and whether the browser prefers a dark scheme. Call it before measuring. |
 | `await h2bt.scroll( y )` | Scrolls every pane together. |
 | `await h2bt.run( index, source )` | Evaluates a function body with `( doc, win )` in one pane and resolves with its JSON-safe result. |
@@ -51,16 +54,16 @@ What the harness cannot show:
 1. Call `tabs_context_mcp` once before any other browser tool — it returns the tab group and valid tab ids. Never reuse tab ids from an earlier session.
 2. Create **one tab** for the harness with `tabs_create_mcp` and `navigate` it to the harness URL. Open a second tab on a page directly only when something needs real interaction with it.
 3. Run `await h2bt.ready()` and `await h2bt.prepare()` before the first measurement, and `prepare()` again after any reload.
-4. This drives the user's **real Chrome** — tabs are visible on their screen, and the extension needs site permission for `127.0.0.1`/`localhost`. Close the tabs with `tabs_close_mcp` when the file's refinement is done; don't leave strays behind.
+4. This drives the user's **real Chrome** — tabs are visible on their screen, and the extension needs site permission for `127.0.0.1`/`localhost`. Close the tabs with `tabs_close_mcp` when the view's refinement is done; don't leave strays behind.
 
 ## The two URLs
 
-- **Original** — the design file served locally by `serve-html.sh`: `<base-url><file>.html`. (Serving, not `file://`, so relative CSS/JS/assets resolve.)
-- **WordPress output** — the site's Local URL plus the path for this file's target: the front page, a template's representative URL, or the page slug for shared-wrapper content.
+- **Original** — the design file served locally by `serve-html.sh`: `<base-url>` followed by the file's path in the design directory (`about.html`, `about/index.html`). (Serving, not `file://`, so relative CSS/JS/assets resolve.)
+- **WordPress output** — the site's `localhost` address (`site.url` in `run.json`) plus the path for this view's target: the front page, a template's representative URL, or the page slug for shared-wrapper content.
 
 ## Widths and heights to check
 
-Read the design CSS media queries to learn its breakpoints. A sensible default set if the design gives no signal: desktop `1440×900`, tablet `768×1024`, mobile `390×844`.
+The run's widths are in `<site-path>/.h2bt/run.json` (`widths`, `narrowest`): the orchestrator settles them once, from the design's media queries, so that every view is swept at the same ones. They follow these rules. A sensible default set if the design gives no signal: desktop `1440×900`, tablet `768×1024`, mobile `390×844`.
 
 - **One pixel either side of every breakpoint.** Where a `max-width` rule and a `min-width` rule overlap at exactly one width, a measurement taken at that width describes that width only.
 - **The narrowest width the design must hold** (320px unless the design says otherwise), for sideways overflow. A closed hover card or menu that is still laid out widens a narrow page.

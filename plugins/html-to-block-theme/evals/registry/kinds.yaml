@@ -19,9 +19,11 @@ files:
       "(frontmatter)": reference
       "Build a WordPress block theme from a set of static HTML designs": reference
       "Inputs": reference
+      "The run's state is on disk": process
       "Critical environment quirks": environment
       "Tooling": reference
       "Preconditions to verify": process
+      "Start or resume": process
       "Phase 1 — Analyze and blueprint (plan the map first)": process
       "After approval — one run, to the report": steering
       "Phase 2 — Foundation (theme.json is the source of truth)": process
@@ -41,7 +43,7 @@ files:
     sections:
       "(frontmatter)": reference
       "(top)": process
-      "Inputs (from the dispatching prompt)": reference
+      "Inputs": reference
       "Build": process
       "Reading values from the site": environment
       "Validate": process

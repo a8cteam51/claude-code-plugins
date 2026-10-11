@@ -237,7 +237,7 @@ The consequence to state in every report: no page content is in the theme or the
 
 ### The homepage rule: no front-page.html
 
-Never create `templates/front-page.html`. The homepage is **content, not a view**: build it as a WordPress page whose `post_content` is the block markup, then point WordPress at it through the Reading settings (`wp option update show_on_front page` + `wp option update page_on_front <page-id>`). Choose its template by wrapper:
+Never create `templates/front-page.html`. The homepage is **content, not a view**: build it as a WordPress page whose `post_content` is the block markup, then point WordPress at it through the Reading settings (`studio wp option update show_on_front page --path=<site-path>`, then `studio wp option update page_on_front <page-id> --path=<site-path>`). Choose its template by wrapper:
 
 - Homepage shares the standard page chrome → the shared page template (`page.html` / `default`).
 - Homepage has its own chrome (different or absent header/footer, full-viewport hero) → a **custom page template** (e.g. `templates/page-home.html`) registered in `theme.json` `customTemplates`, rendering the page's content via `core/post-content` with a constrained layout (§ Post content sits at content width). Its full-width sections are `alignfull` blocks in the page.

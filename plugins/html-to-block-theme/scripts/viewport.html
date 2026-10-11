@@ -27,7 +27,8 @@
  *
  *   ?a=<url>[&b=<url>]&w=<width>&h=<height>[&strip=<n>][&scale=<n>][&y=<scroll>][&sink=<url>][&wait=<s>]
  *
- * Without strip, a and b sit side by side (panes 0 and 1). With strip=<n>, each URL gets a row
+ * a and b are addresses: a full URL, or a path on this server (about.html and /about.html are
+ * the same page). Without strip, a and b sit side by side (panes 0 and 1). With strip=<n>, each URL gets a row
  * of n panes scrolled to consecutive screenfuls, so one capture shows a whole page: a's panes
  * are 0…n-1 and b's are n…2n-1.
  *
@@ -37,8 +38,10 @@
  * on any other host, frames nothing but loopback URLs, and the relay answers only its parent
  * frame and only when that frame is a loopback origin named in its own address.
  *
- *   h2bt.ready()                   resolves when every pane has loaded, with each document's size;
- *                                  rejects after wait seconds (30) when one never finishes
+ *   h2bt.ready()                   resolves when every pane has loaded, with each document's size
+ *                                  and the HTTP status of its address (404: a wrong address,
+ *                                  unless the view is the not-found page); rejects after wait
+ *                                  seconds (30) when one never finishes
  *   h2bt.prepare()                 loads lazy images, switches transitions off, and waits for
  *                                  fonts and images in every pane; call it before measuring
  *   h2bt.scroll( y )               scrolls every pane (strip panes keep their screenful offset)
@@ -108,7 +111,9 @@
 
 	const panes = [];
 	const addPane = ( row, url, offset ) => {
-		const target = new URL( url, location.href );
+		// A relative address is a path on this server, whether or not it starts with a slash:
+		// this page sits in /_h2bt/, and about.html must not come out as /_h2bt/about.html.
+		const target = new URL( url, location.origin + '/' );
 		const sameOrigin = target.origin === location.origin;
 		const frame = document.createElement( 'iframe' );
 		frame.width = width;
@@ -313,7 +318,9 @@
 		.replace( /×/g, 'x' )
 		.replace( / /g, ' ' );
 
-	const WAIT = 'return new Promise( ( done ) => { const check = () => ( doc && doc.readyState === "complete" && doc.fonts.status === "loaded" ) ? done( { h: doc.documentElement.scrollHeight, w: win.innerWidth } ) : setTimeout( check, 150 ); check(); } );';
+	// A page that answers 404 loads like any other, so each pane also says what its address
+	// answered: a wrong address must not pass for a page that is ready.
+	const WAIT = 'return new Promise( ( done ) => { const check = () => ( doc && doc.readyState === "complete" && doc.fonts.status === "loaded" ) ? done( { h: doc.documentElement.scrollHeight, w: win.innerWidth } ) : setTimeout( check, 150 ); check(); } ).then( ( size ) => win.fetch( win.location.href, { method: "HEAD", cache: "no-store" } ).then( ( response ) => ( { ...size, status: response.status } ), () => ( { ...size, status: 0 } ) ) );';
 	// A hidden tab does not advance transitions, so a property under one keeps its old value after
 	// a media query changes. Measuring needs the end state: transitions are switched off.
 	const FREEZE = 'if ( ! doc.getElementById( "h2bt-freeze" ) ) { const s = doc.createElement( "style" ); s.id = "h2bt-freeze"; s.textContent = "*, *::before, *::after { transition: none !important; }"; doc.head.appendChild( s ); } ';

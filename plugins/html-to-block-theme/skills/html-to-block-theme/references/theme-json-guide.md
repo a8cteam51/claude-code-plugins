@@ -144,7 +144,7 @@ A design built on a reset (normalize, a utility framework's base layer) gets beh
 
 Because every design file feeds one theme:
 
-1. Merge each analyzer's detected tokens into one candidate set.
+1. Start from `analysis/tokens.json`: the design's tokens, read once from its stylesheets, each with the custom property or the selectors it comes from and the number of times it is used. Add what each view's report lists under `local_tokens`.
 2. Deduplicate by value and intent; pick one slug per token.
 3. Resolve conflicts (two files, slightly different "primary") by choosing the dominant value and noting the reconciliation in the blueprint.
 4. Only after the unified set is settled do blocks start referencing it.

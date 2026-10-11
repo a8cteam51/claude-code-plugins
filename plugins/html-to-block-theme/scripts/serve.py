@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Static server for a design directory, with the comparison harness and a results sink.
 
-    serve.py --dir <design-dir> --port <port> --harness <viewport.html> --sink-dir <dir>
+    serve.py --dir <design-dir> --port <port> --harness <viewport.html> --sink-dir <dir> [--id <token>]
 
-Serves <design-dir> on 127.0.0.1:<port>, uncached. Two paths are added to it:
+Serves <design-dir> on 127.0.0.1:<port>, uncached. Three paths are added to it:
 
   GET  /_h2bt/viewport.html   the comparison harness, read from --harness and never from the
                               design directory
   POST /_h2bt/sink/<name>     writes the request body to <sink-dir>/<name>.json
+  GET  /_h2bt/id              the token given as --id. serve-html.sh asks for it to tell
+                              whether the server it recorded is still the one on the port: a
+                              process id is reused, and so is a port.
 
 The sink exists because a browser automation tool cuts long results short: the harness posts a
 measurement here and a script reads it from disk.
@@ -29,12 +32,14 @@ HOST = re.compile(r'^%s$' % LOOPBACK_HOST, re.I)
 ORIGIN = re.compile(r'^https?://%s$' % LOOPBACK_HOST, re.I)
 SINK = re.compile(r'^/_h2bt/sink/([A-Za-z0-9_-]{1,60})$')
 HARNESS_PATH = '/_h2bt/viewport.html'
+ID_PATH = '/_h2bt/id'
 MAX_BODY = 32 * 1024 * 1024
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     harness = ''
     sink_dir = ''
+    token = ''
 
     def _refused(self):
         """Answer 403 and return True when the request did not come for a loopback name."""
@@ -65,8 +70,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return super().translate_path(path)
 
     def do_GET(self):
-        if not self._refused():
-            super().do_GET()
+        if self._refused():
+            return
+        if urllib.parse.urlsplit(self.path).path == ID_PATH:
+            body = self.token.encode()
+            self.send_response(200 if body else 404)
+            self.send_header('Content-Type', 'text/plain')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        super().do_GET()
 
     def do_HEAD(self):
         if not self._refused():
@@ -112,10 +126,12 @@ def main():
     parser.add_argument('--port', required=True, type=int)
     parser.add_argument('--harness', required=True)
     parser.add_argument('--sink-dir', required=True)
+    parser.add_argument('--id', default='')
     args = parser.parse_args()
 
     Handler.harness = os.path.abspath(args.harness)
     Handler.sink_dir = os.path.abspath(args.sink_dir)
+    Handler.token = args.id
     os.makedirs(Handler.sink_dir, exist_ok=True)
 
     handler = functools.partial(Handler, directory=os.path.abspath(args.dir))

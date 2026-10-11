@@ -34,8 +34,9 @@ Creating the GitHub repository and pushing stay the user's decision. Say in the 
 
 ## Preconditions (template mode)
 
+0. **No one else's work in the way.** On a new run (one that is not the resumption of an earlier one), a working tree with uncommitted changes, or one whose template examples are already gone, holds work that is not this run's. Say what the run would replace (`theme.json`, the parts, the templates) and ask before going on. Uncommitted work is the only kind that cannot be got back.
 1. **A feature branch.** `trunk` deploys to production and `develop` to staging, so never build on either. Use the repository's branch prefixes (`add/`, `feature/`, `fix/`, `update/`, `remove/`), for example `git switch -c add/block-theme`.
-2. **The site runs the PHP floor.** Run `studio site set --path <site-path> --php <php_floor>`. Below the floor, the features plugin prints an admin notice and loads nothing, so its blocks and redirects silently disappear.
+2. **The site runs the PHP floor.** Run `studio site set --path <site-path> --php <php_floor>`, and record the version it had under `changed` in `run.json`: the report says that it was changed. Below the floor, the features plugin prints an admin notice and loads nothing, so its blocks and redirects silently disappear.
 3. **Toolchain.**
    - Node must meet `engines.node`; switch with `nvm`.
    - Composer needs a PHP CLI at or above the floor. `a8csp/configs` requires it, and `--ignore-platform-req=php+` only lifts *upper* bounds. Studio keeps its PHP builds in `~/.studio/php-bin/<version>/php`, so put that directory first on `PATH`. Switching any site to the floor version downloads it.

@@ -64,7 +64,7 @@ Answers are stored as they come back (`results/<model>@<effort>/samples.jsonl`) 
 
 ## When the model changes
 
-1. `bash ../scripts/model-pin.sh --set <model-id> [--effort <level>]` moves every pin: both subagents, the skill's precondition, `eval.config.json`, the README.
+1. `bash ../scripts/model-pin.sh --set <model-id> [--effort <level>] [--analyzer-effort <level>]` moves every pin: both subagents, the skill's precondition, `eval.config.json`, the README. `--effort` is the builder's, which is also what the evals run at; the analyzer has its own, and no probe covers it yet.
 2. `npm install`, then `npm run check -- --site`.
 3. `npm run eval`, then `npm run report -- --compare <old-model>@<old-effort>`. The comparison reads the old report from `reports/` on this machine. Without one, run the old pin again first with `--model` and `--effort`.
 4. Act on the report. Delete **known** passages and keep their probes. Fix what is **not followed**. Re-examine a fact about a tool that is **not reproduced**.

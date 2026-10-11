@@ -54,7 +54,7 @@ The orchestrator often writes these pieces before the builder that uses them sta
 Testing traps:
 
 - A binding source's `uses_context` reaches a block only while its bindings are processed. Test a binding by rendering a block that carries it, with the context passed in.
-- A state the sample data lacks (an entry without its term, an empty field) can be rendered without touching the database: a loose file in `mu-plugins` that applies a filter only when a query parameter is present, one request, then the file is removed.
+- A state the sample data lacks (an entry without its term, an empty field) can be rendered without touching the database: a loose file in `mu-plugins` that applies a filter only when a query parameter is present, one request, then the file is removed. Record the file under `temporary` in `run.json` when it is made, so that a run that is interrupted still removes it.
 - WordPress schedules a post dated in the future instead of publishing it. A fixture meant to be "the newest" needs another way to stand out: compare only the ids the test created.
 
 ## Step 2: check the monorepo
@@ -128,7 +128,7 @@ Only after steps 1 and 2 have failed. The run builds the block locally; pushing 
    - PHPCS from the clone's root: `composer run-script packages-install` once, then `vendor/bin/phpcs --standard=.phpcs.xml --ignore='*/build/*' <slug>`. CI checks out no `build/`, so skip it locally too.
    - create-block's boilerplate doesn't pass PHPCS as generated. `vendor/bin/phpcbf` fixes some of it. Fix the rest by hand: `render.php` echoes `get_block_wrapper_attributes()` unescaped (wrap it in `wp_kses_data()`), and the entry file's function lacks an `@return` tag.
 5. **Style it for the project from the theme**, exactly as for a reused block (§ Reusing a monorepo block, step 2).
-6. **Check it in the newest Twenty-* theme** on a throwaway Studio site. A fresh Studio site runs core's default theme, which is the newest Twenty-* theme; confirm with `studio wp theme list --status=active`.
+6. **Check it in the newest Twenty-* theme** on a throwaway Studio site. A fresh Studio site runs core's default theme, which is the newest Twenty-* theme; confirm with `studio wp theme list --status=active`. Record the site's path under `temporary` in `run.json` as soon as it is created: it is deleted by path, and that path must not come from memory.
 
    ```bash
    studio site create --path <tmp-site> --name "<slug> check" --skip-browser --skip-log-details

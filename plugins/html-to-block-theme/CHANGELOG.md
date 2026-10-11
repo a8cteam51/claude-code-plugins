@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.6.0] - 2026-10-11
+
+How a run is organised. A run lasts hours and nobody watches it after the blueprint is approved, and a walk through it found places where it could lose work or stand still. The scripts in this release were tried on a throwaway Studio site. The procedure as a whole has not been run end to end yet: the first real run is its test.
+
+### Changed
+- **A run's state is on disk, not in the orchestrator's memory.** Everything is under `<site-path>/.h2bt/`:
+  - `run.json` holds the facts of the run: the design directory, the phase, the approval, the site and its address, the theme, the widths, the builder that is running, what the run must remove and what it changed.
+  - `serve.json` holds where the design server is. `serve-html.sh --ensure` reuses the server when it still answers and starts a new one when it has died. `--stop --site-path` stops it and always removes the harness copy from the site. No pid file has to be remembered.
+  - Each builder writes its hand-back to `results/<name>.json`, and the report is built from those files (`collate-results.py`) and written to `report.md`.
+- **A run that was interrupted is resumed.** Before this, invoking the skill again on a part-built site analysed every file again and wrote a new blueprint, with every status reset and the build notes gone. The skill now reads `run.json` and the blueprint first: an approved run goes on from its target table.
+- **The run does not build into a theme because it is active.** A new site's active theme is a default theme, and the run replaced its `theme.json`, parts and templates under its own name. The run now builds into an existing theme only when the user named it or an earlier run made it, and otherwise makes a new one, inactive until the blueprint is approved. No site is chosen by the look of its name.
+- **The approval covers what the run will change.** The blueprint summary names the site, the theme, the pages that exist and will be overwritten, the change of front page, the plugins to install and any Site Editor overrides stored for the theme.
+- **Everything the unattended part needs is tried before the check-in:** a write into the theme, a staged script, the validator, both panes of the harness, wp-admin, the build. A permission prompt then reaches the user while they are there. The site is not changed before approval beyond an inactive theme and the run's records: development mode and the theme's activation wait for it, and the design server is stopped while the run waits for the answer.
+- **The shared chrome is the first view.** The orchestrator used to write the header and footer parts with no browser, builders were told to stay out of them, and their defects came back one hand-back at a time. The parts and wrapper templates are now the first row of the target table, built and refined by a builder like any view. After any later change to a shared file, the views already checked are swept again.
+- **The design is analysed in two steps.** `group-designs.py` groups the files first. One analyzer reads the stylesheets, and the `<style>` blocks of a design that keeps its CSS in its pages, and reports the tokens once (`analysis/tokens.json`); then one analyzer per distinct view reads that file and reports structure, at most six at a time. Before this, every file's analyzer read the same stylesheets and named its own tokens, and twenty posts of one template got twenty analyses. Reports are named from the file's path, so `a/index.html` and `b/index.html` no longer write the same report.
+- **A builder's brief is the site and the view.** It reads the blueprint, `run.json`, `serve.json`, its analysis and the media manifest itself. Its row of the target table says in full what the view becomes: the files, or the page's title, slug, parent, template and whether it is the front page.
+- **Templates and parts that no view owns are removed** (a scaffold's placeholders, a template repository's examples), all but `templates/index.html`, which belongs to the chrome's row when no view is the posts index. Custom page templates are registered in `theme.json`.
+- **A builder that never reports no longer stops the run.** `wait-for-result.sh` runs in the background beside each builder and ends when the result is there or the time is up; the orchestrator then tells a builder that is working from one that is stuck.
+- **A failed environment is not a failed view.** When the original, the site or the browser is gone, the orchestrator repairs it and continues the same builder. A screenshot of the WordPress side alone no longer counts as a comparison: the `take_screenshot` fallback is gone.
+- **Stopping, when nobody is there.** One view that fails is marked and the next is built. When what failed is the run's, it finishes what does not depend on it, writes the report with what failed, cleans up and ends. Every way out removes the harness from the site.
+- **The run puts back what it borrowed.** `dev-mode.sh` records the site's `WP_DEVELOPMENT_MODE` before turning it on and restores it at the end; temporary files and sites are recorded when they are made and removed. What the run changes and leaves is listed in the report.
+- The standards audit also runs after each hand-back, while the builder that caused a violation can still be continued.
+- The editor check reads and does not edit, and the site's password is never typed into the browser: the user is asked to open WP Admin once, during the smoke test.
+- Live sites: which views are in scope is asked before the mirror is made. Reading aids and script-free copies go under `_h2bt-aids/` and `_h2bt-noscript/` in the mirror, where they are not taken for views.
+
+### Added
+- `scripts/group-designs.py`, `scripts/dev-mode.sh`, `scripts/wait-for-result.sh`, `scripts/collate-results.py`.
+- `write-page.sh --parent <page-path>`, for a site whose addresses are nested. The sentinel gains `parent=`.
+- `serve.py` answers `/_h2bt/id` with the token it was started with, which is how a recorded server is told from another process on the same port.
+
+### Fixed
+- **The harness loaded a 404 for a design file's path given without a leading slash,** and `ready()` accepted it: `a=about.html` was read from the harness's own directory. A path is now read from the server's root, and `ready()` reports each pane's HTTP status.
+- The standards audit ran at the first hand-back against a page-source directory that did not exist yet, and failed. The directory is made with the working directory.
+- Template mode never activated the repository's theme.
+- `mapping-guide.md` showed the Reading-settings commands as a bare `wp`.
+
 ## [0.5.1] - 2026-10-11
 
 Fixes from a review of every script and prompt in the plugin. Nothing here changes how a run is organised. Each script fix was reproduced before and after on a throwaway Studio site or a scratch repository.
@@ -38,7 +74,7 @@ Fixes from a review of every script and prompt in the plugin. Nothing here chang
 - `render-probe.sh` trimmed a PHP warning raised by the markup it rendered.
 - **Guide and prompt passages that were wrong:**
   - Two places told the reader to fall back to `core/html`, which the validator rejects outside its policy: the analyzer's "no clean mapping" rule and the skill's stop list.
-  - `${CLAUDE_PLUGIN_ROOT}` was written into nine commands in the reference guides. Those files are read, not loaded, so nothing filled the path in, and the shell does not have the variable. The guides now write `<plugin-root>`, which the skill and both agents bind once.
+  - `${CLAUDE_PLUGIN_ROOT}` was written into nine commands in the reference guides. Those files are read, not loaded, so nothing filled the path in, and the shell does not have the variable. The guides now write `<plugin-root>`, which the skill and the builder bind once.
   - Both agents expected their guides' paths from the dispatching prompt, which the skill never told the orchestrator to send. They now name their guides themselves.
   - The preconditions were to be run "in parallel", though each depends on the one before, and several changed the site before the checks that can stop the run had passed. They are ordered now, the read-only ones first.
   - "Studio's `wp` cannot see the host `/tmp`" and "`eval-file -` silently does nothing" were stated for every site. They hold on Studio's sandboxed PHP runtime and not on the native one. The rule is unchanged: stage inside the site and check a sentinel.

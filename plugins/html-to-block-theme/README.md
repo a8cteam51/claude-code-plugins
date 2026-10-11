@@ -8,7 +8,7 @@ The source can also be an existing live site: the skill mirrors its pages into a
 
 ## What it does
 
-- **Plans before building.** Analyses every HTML file (and its linked CSS/JS) and writes a blueprint that maps each section to core blocks, maps custom CSS classes to block styles, and records where any behaviour beyond core comes from.
+- **Plans before building.** Reads the design's stylesheets once for its tokens, analyses each distinct view (and its CSS/JS), and writes a blueprint that maps each section to core blocks, maps custom CSS classes to block styles, and records where any behaviour beyond core comes from.
 - **`theme.json` is the source of truth.** Design tokens (colours, typography, spacing, layout widths) are unified across the whole design set into `theme.json`. A value written in pixels is a whole number of pixels, breakpoints included.
 - **Minimal custom CSS.** Styling is expressed first through block supports, then through block style variations registered in `functions.php` with `register_block_style()`. Any block CSS is split into one file per block type under `assets/css/blocks/` and loaded on demand with `wp_enqueue_block_style()` — never a monolithic stylesheet. Hand-written CSS is a last resort and every rule is reported.
 - **Custom blocks kept to a minimum, from the blocks monorepo.** Behaviour beyond core supports tries core features first: patterns, Block Bindings, the Interactivity API on existing blocks, variations and filters.
@@ -32,10 +32,10 @@ On Claude Code 2.1.275 or later, one step: `/plugin install html-to-block-theme 
 
 - **Claude Code on the pinned model.** The plugin runs on `claude-opus-5-5`, on a Claude Code recent enough to offer it: the builder at `xhigh` effort and the analyzer at `medium`. The evals check the guides against that model, so both subagents are pinned to it and the skill stops when the session is on another model. The orchestration follows the session's effort: set it to the builder's. `scripts/model-pin.sh --set <model-id> [--effort <level>] [--analyzer-effort <level>]` moves every pin at once, after the evals have been run on the new pair.
 - **WordPress Studio** with the `studio` CLI on your `PATH` — <https://developer.wordpress.com/studio/>
-- A Studio site with a minimal block-theme scaffold the agent can take over (the skill can scaffold one via the Studio MCP if absent).
+- A Studio site. The skill makes a new theme on it, and builds into an existing one only when you name it or an earlier run of the skill made it. It never builds into the active theme just because it is active.
 - **Google Chrome with the Claude in Chrome extension**, connected to your Claude Code session and granted site permission for `localhost` / `127.0.0.1` (both the served design files and the Studio site are local). The refine phase drives your real browser — expect tabs to open and close.
 - **Python 3** (`python3`) — used by `serve-html.sh` to serve the design files and the comparison harness locally, by `standards-audit.sh`, and by `monorepo-blocks.sh`.
-- **The Safe SVG plugin** on the Studio site, when the design has SVG images: they are stored in the media library.
+- **The Safe SVG plugin**, when the design has SVG images: they are stored in the media library. The skill installs it, and says so in the blueprint summary.
 - **git**, for the blocks monorepo catalog and clone. The GitHub CLI (`gh`), when signed in, is used for release lookups; otherwise the public GitHub API is.
 - **Node/npm and Composer**, only when a run builds a new block in the monorepo.
 - **Studio MCP server**, registered once at user scope (it ships with the `studio` CLI):
@@ -44,7 +44,7 @@ On Claude Code 2.1.275 or later, one step: `/plugin install html-to-block-theme 
   claude mcp add --scope user wordpress-studio -- studio mcp
   ```
 
-  This exposes the block validator (`validate_blocks`), `take_screenshot`, and `scaffold_theme`.
+  The skill uses its block validator (`validate_blocks`) and `scaffold_theme`.
 
 Browser checks use the Claude in Chrome extension's MCP tools (`mcp__claude-in-chrome__*`) directly — the plugin no longer bundles a browser MCP server.
 
@@ -56,16 +56,16 @@ Point the skill at the directory of design files and (optionally) the target Stu
 
 The skill then:
 
-1. Verifies preconditions (Studio CLI, site running, MCP tools, theme scaffold, clean working dir).
-2. Writes a blueprint to `<site-path>/.h2bt/blueprint.md` and surfaces it for review. This is the one check-in: once you approve it, the run goes on to the report without waiting for you, and anything that needs your approval (a push, a pull request, a block proposal) is listed there.
-3. Builds the `theme.json` foundation, template parts and block styles, and installs or builds the blocks the blueprint calls for.
-4. Builds each file section by section, validates the block markup, and refines it against the original in Chrome.
+1. Verifies preconditions (the model, the Studio CLI, the tools, the site) and decides which theme it builds into. If the site holds an interrupted run, it resumes that.
+2. Writes a blueprint to `<site-path>/.h2bt/blueprint.md` and surfaces it for review. The summary names what the run will change: the site, the theme, pages it will overwrite, plugins it will install. This is the one check-in: once you approve it, the run goes on to the report without waiting for you, and anything that needs your approval (a push, a pull request, a block proposal) is listed there. Before it asks, it tries everything the unattended part needs, so that a permission prompt reaches you while you are there.
+3. Builds the `theme.json` foundation and the block styles, and installs or builds the blocks the blueprint calls for.
+4. Builds each view, the shared header and footer first, validates the block markup, and refines it against the original in Chrome.
 5. Reports per-file fidelity, residual drift, custom CSS used (and why), and every block beyond core with its source (and why).
 
 ## Inputs
 
 - **Design directory** (required) — a folder of static `.html` files plus their linked `.css` / `.js` / image / font assets. Or the address of a live site to rebuild, which is mirrored into one.
-- **Studio site** (optional) — path or name. If omitted, it is inferred from `studio site list --format=json`.
+- **Studio site** — path or name. If omitted, the skill lists your sites and asks, unless there is exactly one. It does not pick a site by its name.
 - **Project repository** (optional) — an `a8csp-project-template` repository to build into. If the site's `wp-content` isn't a clone of it yet, the skill sets that up with the [`studio-repo-clone`](../studio-repo-clone) plugin first.
 
 ## Template mode
@@ -96,4 +96,5 @@ The skill works on a feature branch and never commits to `trunk` or `develop`, w
 - All WP-CLI runs go through `studio wp ... --path=<site>` (Studio sites use SQLite); never bare `wp`.
 - Page-content writes are SQLite-serial and use a sentinel-verified staged PHP script — do not parallelise them.
 - Many attribute forms the guides rely on (per-viewport values, hover states, block visibility) need WordPress 7.1 or later. `scripts/render-probe.sh` shows what the installed core prints for a piece of block markup, without writing to the database.
-- A run keeps its records in `<site-path>/.h2bt/`: the blueprint, the page sources, the lessons for that site, and `plugin-findings.md`, the generic findings to port back into this plugin.
+- A run keeps its state and its records in `<site-path>/.h2bt/`: the facts of the run (`run.json`), the blueprint with each view's status, each builder's result, the page sources, the report, the lessons for that site, and `plugin-findings.md`, the generic findings to port back into this plugin. A run that was interrupted is resumed from those files: ask for the build again and it goes on from the blueprint, without analysing again, and without asking again for what was already approved.
+- What the run changes for its own use it puts back: WordPress's development mode, the comparison harness, temporary files. What it changes and leaves (the active theme, the front page, plugins) is listed in the report.
