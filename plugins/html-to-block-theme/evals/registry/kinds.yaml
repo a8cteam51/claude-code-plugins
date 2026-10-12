@@ -1,0 +1,94 @@
+# What kind of thing each passage of the plugin is, which decides what can judge it.
+#
+# Every section of every file in scope is listed. A section that is added to a guide fails
+# `npm run check` until it is given a kind here, so the plugin cannot grow unclassified.
+# `overrides` gives one passage a different kind from its section: `match` is text from the
+# passage, and must find exactly one.
+
+kinds:
+  platform: A fact about WordPress. A model eval can judge it, and a newer model may know it.
+  decision: A decision of this team. No model knows it; an eval checks that the plugin gets it followed.
+  environment: A fact about a tool (Studio, Chrome, the shell, a plugin). It goes stale with the tool, not the model, and a script can try it.
+  process: How a run is organised. Only a scenario run can judge it.
+  steering: Wording that corrects a habit of the model. Re-read it against each model's prompting guide.
+  reference: Orientation. Inputs, pointers, output formats. Not a rule.
+
+files:
+  skills/html-to-block-theme/SKILL.md:
+    sections:
+      "(frontmatter)": reference
+      "Build a WordPress block theme from a set of static HTML designs": reference
+      "Inputs": reference
+      "The run's state is on disk": process
+      "Critical environment quirks": environment
+      "Tooling": reference
+      "Preconditions to verify": process
+      "Start or resume": process
+      "Phase 1 — Analyze and blueprint (plan the map first)": process
+      "After approval — one run, to the report": steering
+      "Phase 2 — Foundation (theme.json is the source of truth)": process
+      "Phase 3 — Build and refine, section by section (serial)": process
+      "Phase 4 — Verify and report": process
+      "Report": reference
+      "Things that should stop the run": process
+    overrides:
+      - { match: "Build files serially", kind: process }
+      - { match: "The homepage is always a page, never", kind: decision }
+      - { match: "Where content and images live", kind: decision }
+      - { match: "Every value in pixels is a whole number of pixels", kind: decision }
+      - { match: "give `core/post-content` a constrained layout", kind: decision }
+      - { match: "Register block styles per `block-styles-guide.md`", kind: decision }
+
+  agents/section-builder.md:
+    sections:
+      "(frontmatter)": reference
+      "(top)": process
+      "Inputs": reference
+      "Build": process
+      "Reading values from the site": environment
+      "Validate": process
+      "Refine": process
+      "Output": reference
+      "Hard gates": process
+    overrides:
+      - { match: "Use **only `<!-- wp ... -->` comments**", kind: decision }
+      - { match: "Three standards of every build", kind: decision }
+      - { match: "Write to the right home", kind: decision }
+      - { match: "A message with no tool call in it ends your run", kind: steering }
+      - { match: "on a progress note or a summary of the build so far", kind: steering }
+      - { match: "on a question for the orchestrator that does not block", kind: steering }
+      - { match: "End the run once, with the JSON object below", kind: steering }
+
+  skills/html-to-block-theme/references/mapping-guide.md:
+    sections:
+      "Mapping guide: HTML/CSS → WordPress blocks": reference
+      "The escalation ladder (apply per design detail)": decision
+      "Read the installed core, then probe": process
+      "Element → core block": platform
+      "CSS → block supports": platform
+      "Per-viewport values, states and visibility (WordPress 7.1 and later)": platform
+      "A value that steps at another width": platform
+      "Pixel values are whole pixels": decision
+      "Layout mapping cheatsheet": platform
+      "Post content sits at content width, in every template": decision
+      "Name every group": decision
+      "Layout recipes that replace CSS": platform
+      "Layout traps (defaults that fight the design)": platform
+      "Images": platform
+      "Buttons": platform
+      "Links, headings and lists": platform
+      "core/navigation notes": platform
+      "Query loops, archives and pagination": platform
+      "Forms (Jetpack)": environment
+      "File classification: template vs part vs page": decision
+      "Where content lives (a blueprint decision, with a default)": decision
+      "The homepage rule: no front-page.html": decision
+      "Long-form and repeated content: generate it": process
+      "Asset routing": decision
+      "JS / interactivity": decision
+      "core/html policy (enforced by the validator)": decision
+      "Fidelity discipline": process
+    overrides:
+      - { match: "Never invent block attribute names", kind: platform }
+      - { match: "**Read the block's `block.json`**", kind: platform }
+      - { match: "**WordPress texturises content on output.**", kind: platform }

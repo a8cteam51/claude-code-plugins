@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>h2bt viewport</title>
+<style>
+	html, body { margin: 0; background: #6b7280; font: 12px/1.4 system-ui, sans-serif; }
+	#bar { position: fixed; inset: 0 0 auto 0; height: 22px; box-sizing: border-box; padding: 3px 8px; background: #111; color: #fff; white-space: nowrap; overflow: hidden; z-index: 10; }
+	#stage { display: flex; flex-direction: column; gap: 16px; padding: 30px 8px 8px; transform-origin: 0 0; width: max-content; }
+	.row { display: flex; gap: 16px; }
+	.pane { flex: none; background: #fff; }
+	.pane iframe { display: block; border: 0; }
+	body.embed { background: #fff; }
+	body.embed #bar { display: none; }
+	body.embed #stage { padding: 0; gap: 0; }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<div id="stage"></div>
+<script>
+/*
+ * A viewport harness for comparing two pages at an exact CSS width. A browser window cannot
+ * always be resized, and never below a few hundred pixels, so each page loads in an iframe that
+ * is w × h CSS pixels and the stage is scaled to fit the window.
+ *
+ *   ?a=<url>[&b=<url>]&w=<width>&h=<height>[&strip=<n>][&scale=<n>][&y=<scroll>][&sink=<url>][&wait=<s>]
+ *
+ * a and b are addresses: a full URL, or a path on this server (about.html and /about.html are
+ * the same page). Without strip, a and b sit side by side (panes 0 and 1). With strip=<n>, each URL gets a row
+ * of n panes scrolled to consecutive screenfuls, so one capture shows a whole page: a's panes
+ * are 0…n-1 and b's are n…2n-1.
+ *
+ * A pane whose page is on another origin is loaded through that origin's own copy of this file
+ * (/_h2bt/viewport.html?embed=1), which relays requests to the page it frames. The relay runs
+ * code it is sent, so everything here is limited to loopback addresses: this page does nothing
+ * on any other host, frames nothing but loopback URLs, and the relay answers only its parent
+ * frame and only when that frame is a loopback origin named in its own address.
+ *
+ *   h2bt.ready()                   resolves when every pane has loaded, with each document's size
+ *                                  and the HTTP status of its address (404: a wrong address,
+ *                                  unless the view is the not-found page); rejects after wait
+ *                                  seconds (30) when one never finishes
+ *   h2bt.prepare()                 loads lazy images, switches transitions off, and waits for
+ *                                  fonts and images in every pane; call it before measuring
+ *   h2bt.scroll( y )               scrolls every pane (strip panes keep their screenful offset)
+ *   h2bt.run( index, source )      evaluates a function body with ( doc, win ) in one pane and
+ *                                  resolves with its JSON-safe result
+ *   h2bt.resize( width[, height] ) sets every pane to a new CSS width (and height) without
+ *                                  reloading, and resolves with each pane's innerWidth. It
+ *                                  switches transitions off for good: reload to see one.
+ *   h2bt.pages()                   each pane's width, document height and sideways overflow,
+ *                                  with the elements that reach past the edge
+ *   h2bt.texts( index[, root] )    the visible text of one pane, grouped by nearest block
+ *   h2bt.compareText( options )    pairs the text groups of panes 0 and 1 in order and resolves
+ *                                  with the differences only. Options: a, b or root (selectors
+ *                                  of the region to compare), tolerance (px, default 0.5),
+ *                                  boxes (also compare each group's block box), types (false
+ *                                  to skip size, weight, colour, line height and underline).
+ *                                  Groups only one pane has are differences too: the first
+ *                                  five are listed with only: "a" or "b", and unpaired
+ *                                  gives their count.
+ *   h2bt.sweep( widths, task[, height] )
+ *                                  resizes to each width in turn. A string task is a function
+ *                                  body run in every pane; only the widths where the panes
+ *                                  disagree are kept. A function task is called once per width
+ *                                  and its result is kept.
+ *   h2bt.sink( name, data )        posts data to the loopback sink, which writes <name>.json;
+ *                                  use it for any result longer than a few hundred characters.
+ *                                  The sink is on the server of the design files: this origin
+ *                                  is tried, then each pane's. Rejects when none stores it.
+ */
+( () => {
+	const params = new URLSearchParams( location.search );
+	const bar = document.getElementById( 'bar' );
+	const stage = document.getElementById( 'stage' );
+
+	const isLoopback = ( value ) => {
+		try {
+			const host = new URL( value, location.href ).hostname;
+			return host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host.endsWith( '.localhost' );
+		} catch ( error ) {
+			return false;
+		}
+	};
+
+	if ( ! isLoopback( location.href ) ) {
+		bar.textContent = 'h2bt viewport runs on loopback hosts only.';
+		return;
+	}
+
+	const width = Number( params.get( 'w' ) ) || 1440;
+	const height = Number( params.get( 'h' ) ) || 900;
+	const strip = Math.max( 1, Number( params.get( 'strip' ) ) || 1 );
+	const embed = params.get( 'embed' ) === '1';
+	const peers = ( params.get( 'peers' ) || '' ).split( ',' ).filter( ( origin ) => origin && isLoopback( origin ) );
+	const urls = [ params.get( 'a' ), params.get( 'b' ) ].filter( Boolean );
+	// Where a result can be stored: the address given, else this origin and then each pane's.
+	let sinkBases = params.get( 'sink' )
+		? [ params.get( 'sink' ) ]
+		: [ ...new Set( [ location.origin, ...urls.map( ( url ) => new URL( url, location.href ).origin ) ] ) ].map( ( origin ) => origin + '/_h2bt/sink/' );
+
+	const refused = urls.filter( ( url ) => ! isLoopback( url ) );
+	if ( refused.length ) {
+		bar.textContent = 'Not a loopback address: ' + refused.join( ', ' );
+		return;
+	}
+
+	document.body.classList.toggle( 'embed', embed );
+
+	const panes = [];
+	const addPane = ( row, url, offset ) => {
+		// A relative address is a path on this server, whether or not it starts with a slash:
+		// this page sits in /_h2bt/, and about.html must not come out as /_h2bt/about.html.
+		const target = new URL( url, location.origin + '/' );
+		const sameOrigin = target.origin === location.origin;
+		const frame = document.createElement( 'iframe' );
+		frame.width = width;
+		frame.height = height;
+		frame.src = sameOrigin
+			? target.href
+			: target.origin + '/_h2bt/viewport.html?embed=1&w=' + width + '&h=' + height + '&a=' + encodeURIComponent( target.href ) + '&peers=' + encodeURIComponent( location.origin );
+		const pane = document.createElement( 'div' );
+		pane.className = 'pane';
+		pane.appendChild( frame );
+		row.appendChild( pane );
+		panes.push( { frame, sameOrigin, origin: target.origin, offset } );
+	};
+
+	if ( strip > 1 ) {
+		urls.forEach( ( url ) => {
+			const row = document.createElement( 'div' );
+			row.className = 'row';
+			stage.appendChild( row );
+			for ( let index = 0; index < strip; index++ ) {
+				addPane( row, url, index * height );
+			}
+		} );
+	} else {
+		const row = document.createElement( 'div' );
+		row.className = 'row';
+		stage.appendChild( row );
+		urls.forEach( ( url ) => addPane( row, url, 0 ) );
+	}
+
+	const perRow = strip > 1 ? strip : Math.max( 1, urls.length );
+	const total = perRow * width + ( perRow - 1 ) * 16 + 16;
+	const scale = embed ? 1 : Number( params.get( 'scale' ) ) || Math.min( 1, innerWidth / total );
+	stage.style.transform = 'scale(' + scale + ')';
+	bar.textContent = width + '×' + height + ( strip > 1 ? ' ×' + strip : '' ) + ' @ ' + scale.toFixed( 3 ) + ' — ' + urls.join( '  |  ' );
+
+	const evaluate = ( pane, source ) => {
+		const fn = new Function( 'doc', 'win', source );
+		return fn( pane.frame.contentDocument, pane.frame.contentWindow );
+	};
+
+	let sequence = 0;
+	const pending = new Map();
+	const request = ( pane, message ) => new Promise( ( resolve, reject ) => {
+		const id = ++sequence;
+		pending.set( id, { resolve, reject } );
+		pane.frame.contentWindow.postMessage( { h2bt: id, ...message }, pane.origin );
+		setTimeout( () => pending.has( id ) && ( pending.delete( id ), reject( new Error( 'h2bt: no reply from ' + pane.origin ) ) ), 20000 );
+	} );
+
+	addEventListener( 'message', async ( event ) => {
+		const data = event.data;
+		if ( ! data || typeof data.h2bt !== 'number' ) {
+			return;
+		}
+		if ( 'reply' in data || 'error' in data ) {
+			const waiter = pending.get( data.h2bt );
+			if ( waiter && panes.some( ( pane ) => pane.frame.contentWindow === event.source ) ) {
+				pending.delete( data.h2bt );
+				'error' in data ? waiter.reject( new Error( data.error ) ) : waiter.resolve( data.reply );
+			}
+			return;
+		}
+		if ( ! embed || event.source !== parent || ! peers.includes( event.origin ) || typeof data.source !== 'string' ) {
+			return;
+		}
+		try {
+			const reply = await Promise.resolve( evaluate( panes[ 0 ], data.source ) );
+			event.source.postMessage( { h2bt: data.h2bt, reply: reply === undefined ? null : reply }, event.origin );
+		} catch ( error ) {
+			event.source.postMessage( { h2bt: data.h2bt, error: String( error ) }, event.origin );
+		}
+	} );
+
+	// Probes are real functions, sent to a pane as source: no nested string escaping to get wrong.
+	const probes = {
+		prepare: ( doc, win, options ) => {
+			doc.querySelectorAll( 'img[loading="lazy"]' ).forEach( ( img ) => {
+				img.loading = 'eager';
+			} );
+			if ( ! doc.getElementById( 'h2bt-freeze' ) ) {
+				const style = doc.createElement( 'style' );
+				style.id = 'h2bt-freeze';
+				style.textContent = '*, *::before, *::after { transition: none !important; }';
+				doc.head.appendChild( style );
+			}
+			const limit = options.timeout || 8000;
+			return doc.fonts.ready.then( () => new Promise( ( done ) => {
+				const started = Date.now();
+				const check = () => {
+					const waiting = [ ...doc.images ].filter( ( img ) => ! img.complete ).length;
+					if ( ! waiting || Date.now() - started > limit ) {
+						done( { images: doc.images.length, pending: waiting, dark: win.matchMedia( '(prefers-color-scheme: dark)' ).matches } );
+					} else {
+						setTimeout( check, 100 );
+					}
+				};
+				check();
+			} ) );
+		},
+		page: ( doc, win ) => {
+			const root = doc.documentElement;
+			const overflow = root.scrollWidth - root.clientWidth;
+			const out = { w: win.innerWidth, h: root.scrollHeight, overflow };
+			if ( overflow > 0 ) {
+				out.past = [ ...doc.body.querySelectorAll( '*' ) ]
+					.filter( ( element ) => element.getBoundingClientRect().right > root.clientWidth + 0.5 )
+					.slice( 0, 8 )
+					.map( ( element ) => element.tagName.toLowerCase() + ( typeof element.className === 'string' && element.className.trim() ? '.' + element.className.trim().split( /\s+/ ).slice( 0, 2 ).join( '.' ) : '' ) );
+			}
+			return out;
+		},
+		texts: ( doc, win, options ) => {
+			const root = options.root ? doc.querySelector( options.root ) : doc.body;
+			if ( ! root ) {
+				return null;
+			}
+			const round = ( value ) => Math.round( value * 100 ) / 100;
+			const scrollY = win.scrollY;
+			const probe = doc.createRange();
+			const blockOf = ( node ) => {
+				let element = node.parentElement;
+				while ( element && element !== root && win.getComputedStyle( element ).display.startsWith( 'inline' ) ) {
+					element = element.parentElement;
+				}
+				return element;
+			};
+			const walker = doc.createTreeWalker( root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT );
+			const groups = [];
+			let current = null;
+			let node;
+			while ( ( node = walker.nextNode() ) ) {
+				let text = null;
+				let emoji = false;
+				if ( node.nodeType === 3 ) {
+					if ( ! node.nodeValue.trim() || node.parentElement.closest( 'script, style, noscript, template' ) ) {
+						continue;
+					}
+					probe.selectNodeContents( node );
+					if ( ! probe.getClientRects().length ) {
+						continue;
+					}
+					text = node.nodeValue;
+				} else if ( node.tagName === 'IMG' && node.classList.contains( 'emoji' ) ) {
+					// WordPress swaps an emoji for an image where the browser cannot draw it.
+					text = node.alt;
+					emoji = true;
+				} else {
+					continue;
+				}
+				const block = blockOf( node );
+				if ( ! current || current.block !== block ) {
+					current = { block, parts: [], nodes: [], emoji: false };
+					groups.push( current );
+				}
+				current.parts.push( text );
+				current.nodes.push( node );
+				current.emoji = current.emoji || emoji || /\p{Extended_Pictographic}/u.test( text );
+			}
+			return groups.map( ( group ) => {
+				const box = group.block.getBoundingClientRect();
+				const types = [ ...new Set( group.nodes.map( ( member ) => {
+					const style = win.getComputedStyle( member.nodeType === 3 ? member.parentElement : member );
+					return [ style.fontSize, style.fontWeight, style.color, style.lineHeight, style.textDecorationLine ].join( ' ' );
+				} ) ) ].join( ' / ' );
+				const item = {
+					tag: group.block.tagName,
+					text: group.parts.join( '' ).replace( /\s+/g, ' ' ).trim(),
+					l: round( box.left ),
+					t: round( box.top + scrollY ),
+					w: round( box.width ),
+					h: round( box.height ),
+					type: types,
+				};
+				// Where the ink starts and ends. Skipped for a group with an emoji: its line
+				// boxes differ between a font glyph and WordPress's replacement image.
+				if ( ! group.emoji ) {
+					const range = doc.createRange();
+					range.setStartBefore( group.nodes[ 0 ] );
+					range.setEndAfter( group.nodes[ group.nodes.length - 1 ] );
+					const rects = [ ...range.getClientRects() ].filter( ( rect ) => rect.width > 0 && rect.height > 0 );
+					if ( rects.length ) {
+						item.x = round( rects[ rects.length - 1 ].right );
+						item.y = round( rects[ 0 ].top + scrollY );
+					}
+				}
+				if ( group.block.tagName === 'LI' ) {
+					const marker = win.getComputedStyle( group.block, '::marker' );
+					item.marker = [ marker.color, marker.fontSize, win.getComputedStyle( group.block ).listStyleType ].join( ' ' );
+				}
+				return item;
+			} );
+		},
+	};
+
+	// WordPress texturises content on output: treat its typographic characters as their plain forms.
+	const plain = ( text ) => text
+		.replace( /[‘’′]/g, "'" )
+		.replace( /[“”″]/g, '"' )
+		.replace( /[–—]/g, '-' )
+		.replace( /…/g, '...' )
+		.replace( /×/g, 'x' )
+		.replace( / /g, ' ' );
+
+	// A page that answers 404 loads like any other, so each pane also says what its address
+	// answered: a wrong address must not pass for a page that is ready.
+	const WAIT = 'return new Promise( ( done ) => { const check = () => ( doc && doc.readyState === "complete" && doc.fonts.status === "loaded" ) ? done( { h: doc.documentElement.scrollHeight, w: win.innerWidth } ) : setTimeout( check, 150 ); check(); } ).then( ( size ) => win.fetch( win.location.href, { method: "HEAD", cache: "no-store" } ).then( ( response ) => ( { ...size, status: response.status } ), () => ( { ...size, status: 0 } ) ) );';
+	// A hidden tab does not advance transitions, so a property under one keeps its old value after
+	// a media query changes. Measuring needs the end state: transitions are switched off.
+	const FREEZE = 'if ( ! doc.getElementById( "h2bt-freeze" ) ) { const s = doc.createElement( "style" ); s.id = "h2bt-freeze"; s.textContent = "*, *::before, *::after { transition: none !important; }"; doc.head.appendChild( s ); } ';
+	const framesLoaded = Promise.all( panes.map( ( pane ) => new Promise( ( done ) => pane.frame.addEventListener( 'load', done, { once: true } ) ) ) );
+
+	let readyPromise = null;
+
+	const h2bt = {
+		panes,
+		scale,
+		run( index, source ) {
+			const pane = panes[ index ];
+			if ( ! pane ) {
+				return Promise.reject( new Error( 'h2bt: no pane ' + index ) );
+			}
+			return pane.sameOrigin ? Promise.resolve().then( () => evaluate( pane, source ) ) : request( pane, { source } );
+		},
+		probe( index, name, options ) {
+			return this.run( index, 'return ( ' + probes[ name ].toString() + ' )( doc, win, ' + JSON.stringify( options || {} ) + ' );' );
+		},
+		resize( newWidth, newHeight ) {
+			const value = Number( newWidth );
+			const tall = Number( newHeight ) || 0;
+			return Promise.all( panes.map( ( pane, index ) => {
+				pane.frame.width = value;
+				if ( tall ) {
+					pane.frame.height = tall;
+				}
+				// A relayed pane frames its page in a second iframe, which has to follow.
+				const inner = pane.sameOrigin ? '' : 'win.frameElement.width = ' + value + '; ' + ( tall ? 'win.frameElement.height = ' + tall + '; ' : '' );
+				// No timer and no animation frame: a hidden tab throttles both. Reading a box forces layout.
+				return this.run( index, FREEZE + inner + 'doc.documentElement.getBoundingClientRect(); return win.innerWidth;' );
+			} ) );
+		},
+		scroll( y ) {
+			return Promise.all( panes.map( ( pane, index ) => this.run( index, 'win.scrollTo( { top: ' + ( Number( y ) + pane.offset ) + ', behavior: "instant" } ); return win.scrollY;' ) ) );
+		},
+		// One promise for every caller: the page calls ready() itself, and a second run would scroll
+		// back to the start after the caller had already scrolled.
+		// It gives up after ?wait=<seconds> (30 by default): a page that never finishes loading,
+		// or a font that never arrives, would otherwise hold its caller for ever.
+		ready() {
+			if ( ! readyPromise ) {
+				const limit = ( Number( params.get( 'wait' ) ) || 30 ) * 1000;
+				readyPromise = Promise.race( [
+					( async () => {
+						await framesLoaded;
+						const sizes = await Promise.all( panes.map( ( _, index ) => this.run( index, WAIT ) ) );
+						await this.scroll( Number( params.get( 'y' ) ) || 0 );
+						return sizes;
+					} )(),
+					new Promise( ( _, reject ) => setTimeout( () => reject( new Error( 'h2bt: the panes were not ready after ' + limit / 1000 + ' seconds. Reload the tab; if it repeats, load each page on its own to see which one does not finish.' ) ), limit ) ),
+				] );
+			}
+			return readyPromise;
+		},
+		prepare( options ) {
+			return Promise.all( panes.map( ( _, index ) => this.probe( index, 'prepare', options ) ) );
+		},
+		pages() {
+			return Promise.all( panes.map( ( _, index ) => this.probe( index, 'page' ) ) );
+		},
+		texts( index, root ) {
+			return this.probe( index, 'texts', { root } );
+		},
+		async compareText( options = {} ) {
+			const tolerance = options.tolerance === undefined ? 0.5 : options.tolerance;
+			const [ a, b ] = await Promise.all( [
+				this.texts( 0, options.a || options.root ),
+				this.texts( 1, options.b || options.root ),
+			] );
+			if ( ! a || ! b ) {
+				return { error: 'region not found', found: [ !! a, !! b ] };
+			}
+			const numeric = options.boxes ? [ 'x', 'y', 'l', 't', 'w', 'h' ] : [ 'x', 'y' ];
+			const diffs = [];
+			for ( let index = 0; index < Math.min( a.length, b.length ); index++ ) {
+				const one = a[ index ];
+				const two = b[ index ];
+				const diff = {};
+				if ( plain( one.text ) !== plain( two.text ) ) {
+					diff.text = [ one.text.slice( 0, 60 ), two.text.slice( 0, 60 ) ];
+				}
+				if ( options.types !== false ) {
+					[ 'type', 'marker' ].forEach( ( key ) => {
+						if ( one[ key ] !== two[ key ] ) {
+							diff[ key ] = [ one[ key ], two[ key ] ];
+						}
+					} );
+				}
+				numeric.forEach( ( key ) => {
+					if ( typeof one[ key ] === 'number' && typeof two[ key ] === 'number' && Math.abs( one[ key ] - two[ key ] ) > tolerance ) {
+						diff[ key ] = [ one[ key ], two[ key ], Math.round( ( two[ key ] - one[ key ] ) * 100 ) / 100 ];
+					}
+				} );
+				if ( Object.keys( diff ).length ) {
+					diffs.push( { i: index, is: one.text.slice( 0, 24 ), ...diff } );
+				}
+			}
+			// Text one page has and the other lacks is a difference too. Without this a page
+			// that ends early, or carries an extra block at its end, compares as equal.
+			const paired = Math.min( a.length, b.length );
+			const longer = a.length > b.length ? a : b;
+			const only = a.length > b.length ? 'a' : 'b';
+			for ( let index = paired; index < Math.min( longer.length, paired + 5 ); index++ ) {
+				diffs.push( { i: index, is: longer[ index ].text.slice( 0, 24 ), only } );
+			}
+			const out = { groups: [ a.length, b.length ], diffs };
+			if ( longer.length > paired ) {
+				out.unpaired = { only, count: longer.length - paired };
+			}
+			return out;
+		},
+		async sweep( widths, task, sweepHeight ) {
+			const out = {};
+			for ( const value of widths ) {
+				await this.resize( value, sweepHeight );
+				if ( typeof task === 'function' ) {
+					out[ value ] = await task( value );
+					continue;
+				}
+				const results = await Promise.all( panes.map( ( _, index ) => this.run( index, task ) ) );
+				const first = JSON.stringify( results[ 0 ] );
+				if ( results.some( ( result ) => JSON.stringify( result ) !== first ) ) {
+					out[ value ] = results;
+				}
+			}
+			return out;
+		},
+		// The sink belongs to the server that serves the design files. When this page is loaded
+		// from the WordPress origin, that is the other pane's origin, not this one: try each
+		// until one stores the data, and say so when none does.
+		async sink( name, data ) {
+			const bases = sinkBases.filter( isLoopback );
+			if ( ! bases.length ) {
+				throw new Error( 'h2bt: the sink must be a loopback address' );
+			}
+			const refused = [];
+			for ( const base of bases ) {
+				try {
+					const response = await fetch( base + encodeURIComponent( name ), { method: 'POST', body: JSON.stringify( data ) } );
+					if ( response.ok ) {
+						sinkBases = [ base ];
+						return name + ':' + ( await response.text() );
+					}
+					refused.push( base + ' ' + response.status );
+				} catch ( error ) {
+					refused.push( base + ' ' + error );
+				}
+			}
+			throw new Error( 'h2bt: no sink stored ' + name + ' (' + refused.join( '; ' ) + ')' );
+		},
+	};
+
+	window.h2bt = h2bt;
+
+	if ( ! embed ) {
+		h2bt.ready().catch( () => {} );
+	}
+} )();
+</script>
+</body>
+</html>

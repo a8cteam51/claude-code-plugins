@@ -14,7 +14,7 @@ Record every behaviour in the blueprint: the step it resolved at, why each earli
 
 A custom block is justified only when none of these produce the behaviour:
 
-- **A core block already does it.** `core/navigation` has a mobile menu, `core/details` makes accordions (siblings sharing a `name` open one at a time), `core/query` lists content, and `core/cover` handles media backgrounds.
+- **A core block already does it.** `core/navigation` has a mobile menu, `core/accordion` and `core/details` make accordions (an accordion's `autoclose`, or details siblings sharing a `name`, open one at a time), `core/tabs` makes tabs, `core/query` lists content, and `core/cover` handles media backgrounds. The accordion and tabs blocks are in WordPress 7.1: check an older core for them.
 - **A pattern** of existing blocks, for a reusable arrangement.
 - **Block Bindings**, for dynamic values in core blocks (below).
 - **The Interactivity API on an existing block**, for state and interaction. Add the directives to a core block's output with a `render_block_<block>` filter and `WP_HTML_Tag_Processor`, and register the store as a script module.
@@ -26,19 +26,50 @@ A custom block is justified only when none of these produce the behaviour:
 - A paragraph bound to empty meta still renders an empty `<p>`. Pair each bound optional field with a scoped `:empty { display: none; }` rule in the relevant block CSS file.
 - Sitewide date formatting belongs in a `render_block_core/post-date` filter, not in per-instance markup.
 
+### The dynamic pieces of a post type's templates, without a custom block
+
+A post type's templates usually need a handful of things that follow the entry or the archive in view. Each stays a core block, fed from one include:
+
+- **Text and links that depend on the post or one of its terms:** one Block Bindings source with a `key` argument. A `format` argument in which `%s` stands for the value keeps a sentence such as "Back to %s" in the template markup, not in PHP.
+- **The current tab:** the path-matching `render_block_core/navigation-link` filter (`mapping-guide.md` § core/navigation notes), because core marks a link current by post or term id, which differs per environment.
+- **Wording around a date** (a tooltip, a link's accessible name): a `render_block_core/post-date` filter.
+- **A list core cannot query:** a registered block style on a core block as the opt-in, and a render filter that prints the list for that style while keeping core's wrapper and its classes. Bending the block's own query through its argument filters is costlier and more brittle than replacing its inner markup.
+
+Presentation that feeds templates lives with the theme. Routing, and anything stored content depends on, lives where it survives a theme swap: the features plugin in template mode.
+
+### What a block can know
+
+- **Block context cannot tell "inside a query loop" from "top level of an archive template".** `render_block()` gives top-level blocks, including those in template parts, the first post of the main query as `postId` and `postType`. `core/post-template` renders each post from a new block with those same two keys and nothing that identifies the loop. A bindings source or render filter that must follow the view outside a loop needs `in_the_loop()`, which covers inherited queries only, or an explicit argument. The symptom is a wrong rendered value, such as a link in an archive's header that points at the first entry's term.
+- **Core block markup moves between versions.** On WordPress 7.1 `core/post-date` prints the link around the `time` element, not inside it. A render filter that walks tags must not assume their order.
+- **A template's whole output is texturised.** Write a hyphen or quote that a filter prints as a character reference (`mapping-guide.md` § Query loops, archives and pagination).
+- **A post type whose permalink embeds a term answers under any term.** Core finds a single post by its slug alone, so with a structure such as `/<type>/<term>/<slug>/` the same post answers with status 200 under every term. If the original site redirects such an address, that is routing the build has to add. One wrong-term request against the original and one against the build shows it. Write the decision as a function that returns the address or null, so that it can be tested without the `exit` that follows a redirect.
+
+### Test groundwork through a rendered template
+
+The orchestrator often writes these pieces before the builder that uses them starts. Two rules follow from a defect that a block-by-block smoke test missed:
+
+- **Test groundwork through a rendered template**, on an archive and on a single view, before a builder depends on it. Rendering blocks one at a time hides whatever depends on the surrounding template: context, loops, the main query.
+- **Tell the builder the groundwork may be wrong**, and how to report a change to it.
+
+Testing traps:
+
+- A binding source's `uses_context` reaches a block only while its bindings are processed. Test a binding by rendering a block that carries it, with the context passed in.
+- A state the sample data lacks (an entry without its term, an empty field) can be rendered without touching the database: a loose file in `mu-plugins` that applies a filter only when a query parameter is present, one request, then the file is removed. Record the file under `temporary` in `run.json` when it is made, so that a run that is interrupted still removes it.
+- WordPress schedules a post dated in the future instead of publishing it. A fixture meant to be "the newest" needs another way to stand out: compare only the ids the test created.
+
 ## Step 2: check the monorepo
 
 List the catalog before planning any block:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/monorepo-blocks.sh" catalog
+bash "<plugin-root>/scripts/monorepo-blocks.sh" catalog
 ```
 
 It refreshes a cached clone and prints one tab-separated line per plugin:
 
 - the plugin directory;
 - the block names it registers, or `-` for a plugin that extends core blocks without registering its own, such as a Query Loop variation or a cover-block style;
-- its latest release, or `unreleased`;
+- its latest release, or `unreleased`. `unknown` in every row means the release lookup failed (no network, or GitHub's limit for callers who are not signed in), and the sentinel then says `releases=unavailable`: sign in with `gh` or try again, and do not read it as unreleased;
 - whether it has a `screenshot.png`;
 - its descriptions.
 
@@ -53,10 +84,10 @@ The last line is the `H2BT_MONOREPO_CATALOG` sentinel.
 1. **Install it from its release**, the way production does:
 
    ```bash
-   bash "${CLAUDE_PLUGIN_ROOT}/scripts/monorepo-blocks.sh" install --site-path <site-path> <plugin-dir> [<plugin-dir>...]
+   bash "<plugin-root>/scripts/monorepo-blocks.sh" install --site-path <site-path> <plugin-dir> [<plugin-dir>...]
    ```
 
-   It installs and activates each plugin's latest release ZIP and prints `H2BT_MONOREPO_INSTALL plugin=<dir> version=<version>`. It refuses a plugin that is also built in a monorepo clone on the same site, because the block would register twice. Validate markup that uses the block only after it is installed.
+   It installs and activates each plugin's latest release ZIP and prints `H2BT_MONOREPO_INSTALL plugin=<dir> version=<version>` once the site reports that version installed. It refuses a plugin that is also built in a monorepo clone on the same site, because the block would register twice. Validate markup that uses the block only after it is installed.
 2. **Style it from the theme**, as for any block type: one stylesheet per block type, named from the block name, and enqueued with `wp_enqueue_block_style()` (`block-styles-guide.md`). For example, `a8csp/modal` becomes `assets/css/blocks/a8csp-modal.css`, or `assets/css/src/blocks/a8csp-modal.scss` in template mode. Register style variations for the monorepo block with `register_block_style()` like any other.
 3. **Adapt its behaviour from the project**, never in the block. Use the block's own PHP filters, `render_block_<block>`, `register_block_type_args`, block variations, and editor filters. The code lives in the theme's includes (standalone), or in the features plugin's `includes/<concern>.php` (template mode), because it serves content that must survive a theme swap.
 4. **Record it as a site dependency.** The plugin is installed on the host and updates itself from opsoasis. It is never tracked in the project repository. List the plugin and version in the report and, in template mode, in the README's "Site dependencies".
@@ -68,7 +99,7 @@ Only after steps 1 and 2 have failed. The run builds the block locally; pushing 
 1. **Clone the monorepo into the site** and branch:
 
    ```bash
-   bash "${CLAUDE_PLUGIN_ROOT}/scripts/monorepo-blocks.sh" clone --site-path <site-path>
+   bash "<plugin-root>/scripts/monorepo-blocks.sh" clone --site-path <site-path>
    git -C <site-path>/wp-content/plugins/special-projects-blocks-monorepo switch -c add/<slug> origin/trunk
    ```
 
@@ -97,7 +128,7 @@ Only after steps 1 and 2 have failed. The run builds the block locally; pushing 
    - PHPCS from the clone's root: `composer run-script packages-install` once, then `vendor/bin/phpcs --standard=.phpcs.xml --ignore='*/build/*' <slug>`. CI checks out no `build/`, so skip it locally too.
    - create-block's boilerplate doesn't pass PHPCS as generated. `vendor/bin/phpcbf` fixes some of it. Fix the rest by hand: `render.php` echoes `get_block_wrapper_attributes()` unescaped (wrap it in `wp_kses_data()`), and the entry file's function lacks an `@return` tag.
 5. **Style it for the project from the theme**, exactly as for a reused block (§ Reusing a monorepo block, step 2).
-6. **Check it in the newest Twenty-* theme** on a throwaway Studio site. A fresh Studio site runs core's default theme, which is the newest Twenty-* theme; confirm with `studio wp theme list --status=active`.
+6. **Check it in the newest Twenty-* theme** on a throwaway Studio site. A fresh Studio site runs core's default theme, which is the newest Twenty-* theme; confirm with `studio wp theme list --status=active`. Record the site's path under `temporary` in `run.json` as soon as it is created: it is deleted by path, and that path must not come from memory.
 
    ```bash
    studio site create --path <tmp-site> --name "<slug> check" --skip-browser --skip-log-details
@@ -164,15 +195,17 @@ For trivial behaviour with no shared state, a plain `view.js` (`viewScript`) is 
 The monorepo allows a block to stay in a project repository when it is so bespoke that no other project could reuse it, but only with an engineering lead's approval. Take this path **only when the user states that approval**. Otherwise the block goes to the monorepo. Standalone runs have no exclusion path.
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold-custom-block.sh" --exclusion-approved \
+bash "<plugin-root>/scripts/scaffold-custom-block.sh" --exclusion-approved \
   --features-dir "<features-dir>" --namespace "<theme_slug>" --slug "<slug>" --title "<Title>"
 ```
 
-The block goes in the **features mu-plugin**, not the theme, because page content stores it and it must survive a theme swap. The scaffold:
+The block goes in the **features mu-plugin**, not the theme, because page content stores it and it must survive a theme swap. In a repository as generated that plugin is disabled, and enabling it also enables the template's example features: remove those by their recipes first, then delete `.disabled` (`project-template-guide.md` § Template example features). The scaffold:
 - writes `blocks/src/<slug>/`, with ES modules and JSX in `index.js` and a strict-types `render.php` whose variables carry the repository's prefix;
 - adds `includes/blocks.php`, which registers everything in the wp-scripts `blocks-manifest.php` via `wp_register_block_types_from_metadata_collection()`;
 - adds the `build:features:blocks`/`start:features:blocks` scripts and the lint paths to `package.json`;
 - lists the block's source and build `block.json` in `.github/blocks-allowlist`, under a comment marking it an approved exclusion. CI's blocks policy fails any unlisted `block.json`.
+
+The scaffold ends `H2BT_BLOCK_OK`. `H2BT_BLOCK_PARTIAL` means the block's files are written but it could not add the scripts to `package.json`: add the `ADD MANUALLY` lines it printed before building. A scaffold that fails part-way removes the block directory it made, so it can be run again.
 
 Build with `npm run build:features:blocks`. Styles and view scripts follow the wp-scripts conventions in `project-template-guide.md` § Build pipeline.
 

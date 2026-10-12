@@ -8,6 +8,8 @@
 # directories and wp-env mounts them, so running in place reports hundreds of errors CI never
 # sees. The checks run in a mirror holding only tracked + unignored files — what CI checks out.
 # The mirror is synced in place (never deleted) so wp-env bind mounts keep their inodes.
+# It works on an uncommitted tree: a tracked file deleted in the working tree is left out, and a
+# failed copy ends the run with mirror_copy=fail instead of failing every later gate.
 #
 # Gates, in order:
 #   build        `npm run build` in the repo must leave every tracked/unignored file unchanged
@@ -36,9 +38,16 @@ Usage:
   --php-bin     PHP CLI to use for Composer. Default: `php` if it meets the repo's floor,
                 else the newest Studio-bundled PHP (~/.studio/php-bin/*/php) that does.
   --mirror-dir  Where to keep the tracked-files mirror. Default: a stable per-repo
-                directory under ${TMPDIR:-/tmp}/h2bt-template-checks/.
+                directory under ${TMPDIR:-/tmp}/h2bt-template-checks/. The mirror is
+                synced with `rsync --delete`, so the directory must be new, empty, or one
+                an earlier run of this script made for the same repository. A directory
+                inside the repository, or holding it, is refused.
 EOF
 }
+
+# A flag that takes a value must be followed by one. Without this check `shift 2` fails on a
+# trailing flag, and with no `set -e` here the loop below would never end.
+need_value() { [[ $# -ge 2 ]] || { echo "$1 needs a value" >&2; exit 2; }; }
 
 repo=""
 run_tests=0
@@ -47,11 +56,11 @@ php_bin=""
 mirror=""
 while [[ $# -gt 0 ]]; do
 	case "$1" in
-		--repo) repo="${2:-}"; shift 2 ;;
+		--repo) need_value "$@"; repo="$2"; shift 2 ;;
 		--tests) run_tests=1; shift ;;
 		--e2e) run_e2e=1; shift ;;
-		--php-bin) php_bin="${2:-}"; shift 2 ;;
-		--mirror-dir) mirror="${2:-}"; shift 2 ;;
+		--php-bin) need_value "$@"; php_bin="$2"; shift 2 ;;
+		--mirror-dir) need_value "$@"; mirror="$2"; shift 2 ;;
 		-h|--help) usage; exit 0 ;;
 		*) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
 	esac
@@ -61,11 +70,35 @@ done
 repo="$(cd "$repo" && pwd -P)"
 [[ -f "$repo/package.json" && -f "$repo/composer.json" ]] || { echo "Not a template repository (no package.json/composer.json): $repo" >&2; exit 2; }
 
+mirror_given=1
 if [[ -z "$mirror" ]]; then
+	mirror_given=0
 	mirror="${TMPDIR:-/tmp}/h2bt-template-checks/$(basename "$(dirname "$repo")")-$(printf '%s' "$repo" | cksum | cut -d' ' -f1)"
 fi
+
+# The mirror is deleted into: everything in it that is not in the repository goes. So it has to
+# be a directory this script owns. A trailing slash would also put the logs inside it.
+while [[ "$mirror" == */ && "$mirror" != "/" ]]; do mirror="${mirror%/}"; done
+mirror_made=0
+[[ -e "$mirror" ]] || mirror_made=1
+mkdir -p "$mirror" || { echo "Could not create the mirror directory: $mirror" >&2; exit 2; }
+mirror="$(cd "$mirror" && pwd -P)"
 logs="$mirror.logs"
-mkdir -p "$mirror" "$logs"
+mirror_owner="$logs/mirror-of"
+refuse_mirror() {
+	[[ "$mirror_made" -eq 1 ]] && rmdir "$mirror" 2>/dev/null
+	echo "Refusing --mirror-dir $mirror: $1" >&2
+	exit 2
+}
+case "$mirror/" in "$repo/"*) refuse_mirror "it is the repository, or inside it. The sync would delete the repository's ignored files (uploads, the database)." ;; esac
+case "$repo/" in "$mirror/"*) refuse_mirror "the repository is inside it." ;; esac
+if [[ -f "$mirror_owner" ]]; then
+	[[ "$(cat "$mirror_owner")" == "$repo" ]] || refuse_mirror "it is the mirror of another repository ($(cat "$mirror_owner"))."
+elif [[ "$mirror_given" -eq 1 && -n "$(ls -A "$mirror" 2>/dev/null)" ]]; then
+	refuse_mirror "it is not empty and this script did not make it. Name a new or empty directory."
+fi
+mkdir -p "$logs"
+printf '%s' "$repo" >"$mirror_owner"
 
 # --- Toolchain -------------------------------------------------------------------------------
 
@@ -121,8 +154,18 @@ record() { # record <gate> <status> [log]
 	fi
 }
 
+# Tracked and unignored paths that exist in the working tree, NUL-separated. `git ls-files -c`
+# also lists a tracked file that was deleted and not yet staged, and every consumer below trips
+# over such a path. A template-mode run has those deletions until its first commit, because
+# removing the template's examples is the first thing it does.
+repo_files() {
+	( cd "$repo" && git ls-files -co --exclude-standard -z | while IFS= read -r -d '' path; do
+		if [[ -e "$path" || -L "$path" ]]; then printf '%s\0' "$path"; fi
+	done )
+}
+
 tracked_hashes() {
-	( cd "$repo" && git ls-files -co --exclude-standard -z | xargs -0 shasum 2>/dev/null | sort -k2 )
+	( cd "$repo" && repo_files | xargs -0 shasum 2>/dev/null | sort -k2 )
 }
 
 # --- build: byte-stable rebuild -------------------------------------------------------------
@@ -152,22 +195,31 @@ allowed=""
 while IFS= read -r block_json; do
 	[[ -z "$block_json" ]] && continue
 	grep -qxF -- "$block_json" <<<"$allowed" || echo "UNLISTED $block_json — add it to .github/blocks-allowlist" >>"$logs/blocks.log"
-done < <(cd "$repo" && git ls-files -co --exclude-standard | grep -E '(^|/)block\.json$')
+done < <(repo_files | tr '\0' '\n' | grep -E '(^|/)block\.json$')
 if [[ -s "$logs/blocks.log" ]]; then record blocks fail "$logs/blocks.log"; else record blocks pass; fi
 
 # --- mirror ---------------------------------------------------------------------------------
 
 staging="$mirror.staging"
 rm -rf "$staging" && mkdir -p "$staging"
-( cd "$repo" && git ls-files -co --exclude-standard -z | rsync -a --from0 --files-from=- ./ "$staging/" )
-rsync -a --delete --exclude=/vendor --exclude=/node_modules --exclude=/tests/.cache "$staging/" "$mirror/"
+# The lint and test gates run in the mirror. If the copy fails, every one of them would fail for
+# a reason that has nothing to do with the code, so stop here and name the step.
+if ! ( cd "$repo" && repo_files | rsync -a --from0 --files-from=- ./ "$staging/" ) >"$logs/mirror.log" 2>&1 \
+	|| ! rsync -a --delete --exclude=/vendor --exclude=/node_modules --exclude=/tests/.cache "$staging/" "$mirror/" >>"$logs/mirror.log" 2>&1; then
+	record mirror_copy fail "$logs/mirror.log"
+	rm -rf "$staging"
+	echo "H2BT_TEMPLATE_CHECKS_FAIL build=${result_build:-} blocks=${result_blocks:-} mirror_copy=fail mirror=$mirror logs=$logs"
+	exit 1
+fi
 rm -rf "$staging"
 if [[ "$run_tests" -eq 1 ]]; then
 	# The tests container cannot follow a symlink out of its mount, so vendor/ is a real copy.
 	[[ -L "$mirror/vendor" ]] && rm "$mirror/vendor"
 	rsync -a --delete "$repo/vendor/" "$mirror/vendor/"
-elif [[ ! -e "$mirror/vendor" ]]; then
-	ln -s "$repo/vendor" "$mirror/vendor"
+else
+	# A copy left by an earlier --tests run goes stale: lint against the repository's own.
+	[[ -d "$mirror/vendor" && ! -L "$mirror/vendor" ]] && rm -rf "$mirror/vendor"
+	[[ -e "$mirror/vendor" ]] || ln -s "$repo/vendor" "$mirror/vendor"
 fi
 [[ -e "$mirror/node_modules" ]] || ln -s "$repo/node_modules" "$mirror/node_modules"
 
@@ -181,17 +233,38 @@ if ( cd "$mirror" && npm run lint ) >"$logs/js-css-lint.log" 2>&1; then record j
 
 # --- tests ----------------------------------------------------------------------------------
 
-docker_up() { docker info >/dev/null 2>&1; }
+# `docker info` hangs when the engine is stuck, which would stall the run with no output. Give it
+# a time limit (H2BT_DOCKER_WAIT seconds, default 20): a hung engine counts as not running.
+docker_wait="${H2BT_DOCKER_WAIT:-20}"
+docker_down_message="Docker is not running, or did not answer within ${docker_wait} seconds. Start it, or restart a stuck engine with \`docker desktop restart\`."
+docker_up() {
+	local pid waited=0
+	docker info >/dev/null 2>&1 &
+	pid=$!
+	while kill -0 "$pid" 2>/dev/null; do
+		if [[ "$waited" -ge "$docker_wait" ]]; then
+			kill "$pid" 2>/dev/null
+			wait "$pid" 2>/dev/null
+			return 1
+		fi
+		sleep 1
+		waited=$((waited + 1))
+	done
+	wait "$pid"
+}
 
-# wp-env names containers after the config's directory, so this mirror's containers start with
-# wp-env-<mirror basename>. Anything else publishing the port is another checkout of the repo
-# (or another project): wp-env start then fails, and Playwright silently reuses that other
-# server for end-to-end runs. Refuse rather than test the wrong site.
+# wp-env names its containers after its work directory for a config file: the md5 of the config
+# file's path when a work directory of that name already exists, else
+# wp-env-<directory>[-<variant>]-<hash>. So this mirror's containers start with one of the two.
+# Anything else publishing the port is another checkout of the repo (or another project): wp-env
+# start then fails, and Playwright silently reuses that other server for end-to-end runs. Refuse
+# rather than test the wrong site.
 port_owner_conflict() { # port_owner_conflict <config file> <log>
-	local port owners
+	local port owners legacy
 	port="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("port",""))' "$mirror/$1" 2>/dev/null || true)"
 	[[ -n "$port" ]] || return 1
-	owners="$(docker ps --filter "publish=$port" --format '{{.Names}}' 2>/dev/null | grep -v "^wp-env-$(basename "$mirror")-" || true)"
+	legacy="$(python3 -c 'import hashlib,sys; print(hashlib.md5(sys.argv[1].encode()).hexdigest())' "$mirror/$1")"
+	owners="$(docker ps --filter "publish=$port" --format '{{.Names}}' 2>/dev/null | grep -v -e "^wp-env-$(basename "$mirror")-" -e "^${legacy}[-_]" || true)"
 	[[ -n "$owners" ]] || return 1
 	{
 		echo "Port $port is published by another environment: $owners"
@@ -204,7 +277,7 @@ result_integration="skipped"
 if [[ "$run_tests" -eq 1 ]]; then
 	echo "==> integration tests (wp-env)"
 	if ! docker_up; then
-		echo "Docker is not running." >"$logs/integration.log"
+		echo "$docker_down_message" >"$logs/integration.log"
 		record integration fail "$logs/integration.log"
 	elif port_owner_conflict .wp-env.tests.json "$logs/integration.log"; then
 		record integration fail "$logs/integration.log"
@@ -220,20 +293,24 @@ if [[ "$run_e2e" -eq 1 ]]; then
 	echo "==> end-to-end tests (wp-env + Playwright)"
 	theme_slug="$(cd "$repo" && git ls-files themes | awk -F/ 'NF > 2 { print $2 }' | sort -u | head -1)"
 	if ! docker_up; then
-		echo "Docker is not running." >"$logs/e2e.log"
+		echo "$docker_down_message" >"$logs/e2e.log"
 		record e2e fail "$logs/e2e.log"
 	elif port_owner_conflict .wp-env.json "$logs/e2e.log"; then
 		record e2e fail "$logs/e2e.log"
 	else
 		# A first start answers HTTP before afterStart has activated the theme; wait for it so
 		# the theme smoke does not race the activation.
-		( cd "$mirror" && npm run wp-env:start ) >"$logs/e2e.log" 2>&1
-		for _ in $(seq 1 60); do
-			active="$(cd "$mirror" && ./node_modules/.bin/wp-env run cli wp option get stylesheet 2>/dev/null | tr -d '\r' | tail -1)"
-			[[ "$active" == "$theme_slug" ]] && break
-			sleep 2
-		done
-		if ( cd "$mirror" && npm run test:e2e ) >>"$logs/e2e.log" 2>&1; then record e2e pass; else record e2e fail "$logs/e2e.log"; fi
+		if ! ( cd "$mirror" && npm run wp-env:start ) >"$logs/e2e.log" 2>&1; then
+			# No environment: waiting for its theme and running the suite would only add noise.
+			record e2e fail "$logs/e2e.log"
+		else
+			for _ in $(seq 1 60); do
+				active="$(cd "$mirror" && ./node_modules/.bin/wp-env run cli wp option get stylesheet 2>/dev/null | tr -d '\r' | tail -1)"
+				[[ "$active" == "$theme_slug" ]] && break
+				sleep 2
+			done
+			if ( cd "$mirror" && npm run test:e2e ) >>"$logs/e2e.log" 2>&1; then record e2e pass; else record e2e fail "$logs/e2e.log"; fi
+		fi
 	fi
 fi
 

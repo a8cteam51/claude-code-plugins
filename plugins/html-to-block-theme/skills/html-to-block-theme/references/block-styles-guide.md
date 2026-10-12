@@ -124,11 +124,59 @@ When structure alone identifies the target (there is one header part, one footer
 
 The moment a rule needs a **custom class as a CSS hook** to disambiguate ("this group, not the others"), that hook must be a **registered block style**: `register_block_style()` in `functions.php`, applied as `is-style-<slug>`, CSS in the block type's file. Never ship an unregistered bespoke className as a CSS hook — if it is worth a class, it is worth a registration the editor can see. This includes structural/responsive utilities (`is-style-pull-up`, `is-style-hide-below-1024`, `is-style-full-width-below-640`) and variations that restyle a block's inner markup (e.g. swapping a social icon's glyph via mask) — behaviour stays in the block; the variation only restyles it.
 
+**Check the viewport states before registering a responsive utility.** On WordPress 7.1 and later, hiding a block, restacking a row or changing one value at either of the theme's two breakpoints is a block attribute (`mapping-guide.md` § Per-viewport values). A hide-below or stack-below variation is only for a width that is not a viewport state, or for an older core.
+
 Scoping rules either way:
 
 - Never emit an `is-style-*` class that has no `register_block_style()` registration behind it.
 - Never style the design's original class names — name variations by intent.
 - Keep every rule token-driven (`var(--wp--preset--…)`) and listed in the report.
+
+## Recipes and traps
+
+### A property that steps at a width the viewport states cannot express
+
+Put **every** value of that property in the registered style and leave the block's attribute unset. An attribute prints an inline style, which a media query cannot beat without `!important`, so a base value in the attribute and its steps in CSS is the combination that forces `!important` (`mapping-guide.md` § A value that steps at another width).
+
+### Breakpoints in a block stylesheet
+
+Whole pixels only (`mapping-guide.md` § Pixel values are whole pixels):
+
+- A rule that must switch together with one of the two viewport states uses the state's bound from `settings.viewport`: `@media (max-width: 767px)`. Keep those bounds in one place, such as a Sass map, so that a stylesheet and `theme.json` cannot disagree.
+- The other side of a design's `min-width: N` rule is `@media (width < N)`, never `(max-width: N - 0.02px)`. With `(max-width: N - 1px)` beside a `(min-width: N)` rule, neither applies at a fractional width between the two.
+- A design's own `max-width: N` rule stays `@media (max-width: N)`.
+
+### Gradient text
+
+- **A gradient preset class needs `!important` to be clipped to text.** `has-<slug>-gradient-background` sets the `background` shorthand with `!important`, which resets `background-clip`. A gradient-text style therefore needs `background-clip: text !important` with `color: transparent`. Without it the block renders as a solid gradient bar.
+- **Gradient text on a button that keeps its fill** has no support. Use two background layers: `background-image: <gradient>, none; background-clip: text, border-box`. The gradient spans the button, not the label, so pull its stops in to the label's share of the width. Checked in Chrome only.
+
+### Icons in buttons
+
+`core/button` has no icon, and the `core/html` policy rejects an SVG inside a link. Paint a decorative icon from the button's registered style: a `::before` on the link, sized like the icon, with `background: currentcolor`, the SVG as a `mask` data URI, and a flex link with a gap. No image file, and the icon follows the label colour.
+
+- **Which flex depends on the original.** Where the original control is block-level, use `display: flex`: an `inline-flex` link sits on a text line of its wrapper and grows the block by a pixel. Where it is an inline box inside running text, keep `inline-flex`, because its line is part of the rhythm.
+- **A glyph the font has** can be printed as generated text instead. It is then part of the control's accessible name unless written `content: "x"; content: "x" / "";`.
+- **Sass turns a CSS escape into the character** and adds `@charset` to the built file unless the value is wrapped in `string.unquote()`.
+
+### A second colour scheme for a template part
+
+`core/template-part` has `className` among its attributes and prints the block wrapper attributes, so a registered block style can be put on a part from the template that includes it. A recoloured variant of a shared part (a dark footer on one template, say) is then a style, not a copy of the part.
+
+- The style redefines, on the wrapper, the `--wp--preset--color--<slug>` properties the part's blocks use. Preset classes are `!important` but read the variable where the block is, so no selector on the part's inner blocks is needed.
+- A fill is removed by setting its preset to `transparent` and painting the wrapper.
+- **Not reached this way:** a custom colour (an inline style: set the colour on the children that inherit it), a duotone filter (override the printed duotone rule with one more class), and hover rules written against a fixed preset.
+- **Costs:** that block type's stylesheet loads on every page, and a block later given a custom colour stops following the style. The editor's style picker for a part was not exercised.
+
+### Selectors that surprise
+
+These are stated where the block is mapped; a stylesheet has to honour them:
+
+- `core/navigation` with no overlay menu prints its classes on both `nav` and `ul`: scope to `nav.wp-block-navigation.is-style-x` (`mapping-guide.md` § core/navigation notes).
+- A content image rule must exclude `img.emoji` (§ Images).
+- A link colour set on a block removes the theme's link hover inside it, and a background colour on one button removes the theme's button hover (§ Links, headings and lists; § Buttons).
+- `core/query-pagination` is styled on the block itself, never on a wrapper (§ Query loops, archives and pagination).
+- A list inside a query loop is a nested list, with a different default marker (same section).
 
 ## Discipline
 

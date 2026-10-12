@@ -1,131 +1,128 @@
 # html-to-block-theme evals
 
-Promptfoo evals for the `html-to-block-theme` skill. Each case asks one design question and
-asserts that the skill's rule wins over the model's default instinct.
+These evals answer one question: **on the model this plugin is pinned to, which of its passages does the model need, and which does it already do unaided?** Run them when the model changes, to decide what to delete and what to fix, and when a guide changes, to check the new text earns its place.
 
 ```bash
 cd plugins/html-to-block-theme/evals
 npm install
-npm run eval        # 3 repeats
-npm run eval -- 1   # 1 repeat, for a quick check
+npm run site              # once: create the Studio eval site and install the fixture theme
+npm run check -- --site   # no model: pins, registry, graders, facts about the tools
+npm run eval              # the model. Resumable. About 370 answers: 75 minutes at xhigh, 13 at medium
+npm run report            # writes reports/<model>@<effort>.md
+npm run routing           # does SKILL.md send its reader to the right guide?
 ```
 
-Requires Claude Code installed and signed in (`claude auth status`), or `ANTHROPIC_API_KEY`.
+Requires Claude Code signed in (`claude auth status`), the `studio` CLI, and Node 22. The model calls go through the Agent SDK, which bundles its own Claude Code: one too old for the pinned model fails every call with `does not support this model`, so run `npm install` again after a model change.
 
-Run it through `npm run eval`, not bare `promptfoo eval`. The config reaches its workspaces
-through `{{ env.H2BT_WORKSPACES }}`, which `scripts/run-eval.mjs` sets; without it the
-template is left unrendered and the providers get a junk working directory.
+`npm run report` writes the report for the current pin to `reports/`. Reports and the answers behind them (`results/`) stay on the machine that ran them: both directories are ignored by git. Keep them when the pin moves, so the next model's report can be read against the last one.
 
-## What is measured
+## What is measured, and what is not
 
-Two arms, same prompt:
+A plugin's text is not all one kind of thing, and only some of it is a question about the model. `registry/kinds.yaml` gives every section of every file in scope a kind:
 
-| Arm | Skill |
-|---|---|
-| `Claude Code with no skill` | none discovered — no `setting_sources`, no `skills` |
-| `Claude Code with html-to-block-theme` | the skill, copied from `../skills/` |
-
-**A case earns its slot only when the skill-off arm fails it.** If both arms pass, the base
-model already knows the rule and the case measures nothing. `run-eval.mjs` prints the split
-per case and labels dead-weight cases and regressions explicitly rather than leaving them to
-be spotted in a green table.
-
-## Cases
-
-| Case | Rule under test | Source |
+| Kind | What it is | What can judge it |
 |---|---|---|
-| The homepage is a page, never front-page.html | Homepage is content, not a view: a WP page plus `show_on_front`/`page_on_front`; own chrome means a `customTemplates` entry | `references/mapping-guide.md` § The homepage rule |
-| Block style CSS is one file per block type | `register_block_style()` + `assets/css/blocks/core-button.css` + `wp_enqueue_block_style()`, never a monolithic stylesheet | `references/block-styles-guide.md` § The rule |
-| core/html policy rejects an anchor-wrapped SVG | Bare inline SVG is allowed; wrapping it in `<a>` is not, and icon links belong in `core/social-links`. Real embeds stay allowed | `references/mapping-guide.md` § core/html policy |
-| Custom behaviour checks the blocks monorepo | Progressive disclosure — does SKILL.md's pointer actually retrieve? Core first, then the A8C Special Projects blocks monorepo (`a8csp` namespace, `npm run new-block`), styled from the theme. Replaced the build-less registration case in 0.4.0; not yet run | `references/custom-blocks-guide.md` |
-| Template mode keeps only an approved exclusion in the features plugin | Progressive disclosure for template mode: an approved exclusion in the features mu-plugin, manifest registration, `.github/blocks-allowlist`, `--exclusion-approved`, `assets/css/src/blocks/*.scss`. Reworded in 0.4.0; not yet run | `references/project-template-guide.md` |
+| `platform` | A fact about WordPress: an attribute form, what core prints, what it drops. | **A probe.** A newer model may know it. |
+| `decision` | A decision of this team: the homepage is a page, pixels are whole, blocks come from the monorepo. | **A probe**, for whether the plugin gets it followed. No model knows it; one may happen to default to it. |
+| `environment` | A fact about a tool: Studio, the Chrome extension, the shell, a third-party plugin. | **A script** (`registry/environment.yaml`), tried on the eval site. It goes stale with the tool, not the model. |
+| `process` | How a run is organised: phases, serial builders, hand-backs, gates. | A scenario run. Not built. |
+| `steering` | Wording that corrects a habit of the model: when to end a turn, when to look closer. | A scenario run, and the model's own prompting guide. Not built. |
+| `reference` | Orientation: inputs, pointers, output formats. | Nothing. It is not a rule. |
 
-### The disclosure case is not an A/B
+So a verdict of "the model knows this" is only ever given to `platform` and `decision` passages. The report's coverage table shows how much of each file is each kind, and how much of the judgeable part has a probe. **A passage with no probe is untested, not unneeded.**
 
-The first three cases ask whether the skill knows a rule. The fourth asks something different:
-**does SKILL.md's pointer to a reference file work?** The monorepo-first process it asserts —
-the `special-projects-blocks-monorepo` catalog, the `a8csp` namespace, `npm run new-block` —
-is spelled out only in `custom-blocks-guide.md`; SKILL.md names the monorepo and points there.
+### A probe is a task with three arms
 
-`assertions/opened-reference.cjs` checks the retrieval itself by reading
-`metadata.toolCalls` for a read of the named file. That splits the result four ways:
+A probe (`registry/probes/*.yaml`) is a small piece of real work: a fragment of a design to convert, a plan to list. It is anchored to the passages that state its rule, and it is asked three ways:
 
-| | correct | wrong |
+| Arm | The model has | It asks |
 |---|---|---|
-| **opened** | pointer works, guide is clear | pointer works; the guide's wording is the problem |
-| **not opened** | base knowledge — proves nothing about disclosure | **the pointer failed** — what this case exists to catch |
+| `bare` | The task, the WordPress version and the theme's `theme.json`. Nothing of the plugin. | Does the model do this unaided? |
+| `guided` | What the rule's reader has loaded in a real run: the builder's instructions with the mapping and standards guides, or the skill with the mapping guide. | Does the plugin get it done? |
+| `ablated` | The same, with the probe's passages cut out. | Would the plugin still get it done without them? |
 
-**Do not read this case as skill-vs-no-skill.** The baseline has no reference file in its
-workspace, so it can never pass the retrieval assertion — scoring it as "separates" would be
-a tautology. `run-eval.mjs` detects the `Opened the guide` metric and prints the quadrant
-instead of a separation verdict.
+The answers are graded by checks on the block markup, by the plugin's own `standards-audit.sh`, and by `render-probe.sh` on the eval site, which shows what WordPress prints for the answer.
 
-An earlier version of this case, for the build-less in-theme blocks that 0.4.0 removed, made
-exactly that mistake. It asserted only `viewScriptModule` / `editorScript` / `createElement` /
-`wp.blocks`, and the unaided arm passed all four without opening anything — those are standard
-WordPress knowledge. The lesson carries over: a content assertion discriminates only when it
-checks a house convention rather than public knowledge. Here that is
-`special-projects-blocks-monorepo`, `a8csp` and `npm run new-block`; `wp_enqueue_block_style`
-and the core-first check are likely base knowledge and guard against regressions rather than
-prove retrieval.
+### Verdicts
 
-## Measured separation
+| Verdict | Means | Do |
+|---|---|---|
+| **needed** | Unaided the model does not do it; with the plugin it does. | Keep. |
+| **known** | Unaided it does it every time, and still does with the passage cut. | Delete the passage. Keep the probe: a later model that fails it is the signal to restore the text from history. |
+| **counterweight** | Unaided it passes, but inside the plugin without the passage it fails. Something else in the plugin pulls the other way. | Keep. |
+| **partly known** | Unaided it passes some of the time. | Keep; perhaps shorten. |
+| **not followed** | It fails even with the plugin. | The passage is unclear, or the probe is wrong. Read the failures in the report. |
+| **worse with plugin** | Unaided it passes every time, and with the plugin it does not. | Find what in the plugin misleads. |
 
-3 repeats, Claude Opus, 2026-07-29. Case-level pass rate, skill-off vs skill-on:
+"Every time" is deliberate. Keeping a passage the model did not need costs tokens. Deleting one it did need costs a build.
 
-| Case | skill-off | skill-on | Verdict |
-|---|---|---|---|
-| The homepage is a page, never front-page.html | 0/3 | 3/3 | Separates cleanly |
-| Block style CSS is one file per block type | 3/3 | 3/3 | Dead weight — base model knows this |
-| core/html policy rejects an anchor-wrapped SVG | 1/3 | 3/3 | Separates, noisier |
-| Build-less custom block registration | — | — | Disclosure case, added later; not an A/B (see below). Replaced in 0.4.0 by the monorepo case, which has not been run |
+### Sampling
 
-Read it per assertion, not just per case. In case 1 the work is done by `Avoids
-front-page.html` (0/3 → 3/3) and `customTemplates` (0/3 → 3/3); `show_on_front` /
-`page_on_front` is 6/6 on both arms. In case 3 only `Anchor-wrapped SVG rejected` (1/3 → 3/3)
-carries signal — `core/social-links` is 3/3 unaided.
+Each arm starts with three answers. A clear **needed** (0 of 3 unaided, 3 of 3 with the plugin) stops there. Anything else goes to five, and a probe that passes unaided five times out of five gets the ablated arm, five times. Thresholds and counts are in `eval.config.json`.
 
-The block-style case is worth reconsidering. An unaided Opus reproduces
-`assets/css/blocks/core-button.css` + `register_block_style()` + `wp_enqueue_block_style()`
-verbatim, because it is the Twenty Twenty-Four convention rather than anything specific to
-this skill. It still guards against a bad edit to `block-styles-guide.md`, but it does not
-show the skill earning its context. Rules with no public equivalent would separate better —
-the SQLite-serial subagent constraint or the `studio wp eval-file -` stdin no-op and its
-sentinel grep, neither of which a base model can know.
+Answers are stored as they come back (`results/<model>@<effort>/samples.jsonl`) and graded when read. A run that stops is started again and asks only for what is missing. A grader that turns out wrong is fixed and `npm run report` grades the stored answers again; no model is called.
 
-## Design notes
+## When the model changes
 
-Three of these were learned by running the suite and reading what came back. They are worth
-keeping in mind before adding a fourth case.
+1. `bash ../scripts/model-pin.sh --set <model-id> [--effort <level>] [--analyzer-effort <level>]` moves every pin: both subagents, the skill's precondition, `eval.config.json`, the README. `--effort` is the builder's, which is also what the evals run at; the analyzer has its own, and no probe covers it yet.
+2. `npm install`, then `npm run check -- --site`.
+3. `npm run eval`, then `npm run report -- --compare <old-model>@<old-effort>`. The comparison reads the old report from `reports/` on this machine. Without one, run the old pin again first with `--model` and `--effort`.
+4. Act on the report. Delete **known** passages and keep their probes. Fix what is **not followed**. Re-examine a fact about a tool that is **not reproduced**.
+5. Read the model's prompting guide against the `steering` passages. No eval here judges those.
 
-**Workspaces live outside the repo.** They are created under `os.tmpdir()`. When they sat in
-`evals/.workspaces`, the skill-off arm walked up out of its working directory, found
-`plugins/html-to-block-theme/skills/.../references/mapping-guide.md`, and answered from the
-file under test — citing line numbers. Every case looked like the base model already knew the
-rule. A baseline arm must have nothing to find.
+To compare two efforts on one model, run `npm run eval -- --effort medium` and `npm run report -- --effort medium`: each model and effort has its own results and its own report.
 
-**Negative assertions punish correct answers.** `not-icontains: front-page.html` failed a
-skill-arm answer that opened with "**Not `templates/front-page.html`.**" — naming the
-anti-pattern in order to reject it. `assertions/homepage-rule.cjs` checks for *endorsement*
-instead: every mention must carry a rejection cue tight against it. The window is small on
-purpose; a wider one passed an answer that recommended the file outright, because unrelated
-prose drifted into range.
+## When a guide changes
 
-**Path rewriting.** `SKILL.md` addresses its references through `${CLAUDE_PLUGIN_ROOT}`, which
-only resolves when Claude Code loads the skill as an installed plugin. `reset-workspaces.mjs`
-copies the skill into `.claude/skills/` and rewrites those paths to `${CLAUDE_SKILL_DIR}`. It
-exits non-zero if any `${CLAUDE_PLUGIN_ROOT}` reference survives, because a dangling path
-means the agent cannot open the references and the run measures a broken copy. The provider's
-`plugins:` config key is the alternative — it loads the plugin directly and makes
-`${CLAUDE_PLUGIN_ROOT}` resolve natively. Worth switching to if the rewrite list grows.
+- A new section fails `npm run check` until it has a kind in `registry/kinds.yaml`.
+- A passage that was edited no longer matches its probe's anchor, and `check` says which. Fix the anchor, and the probe if the rule changed. Its stored answers for the plugin arms are then stale and are asked for again.
+- A new `platform` or `decision` rule wants a probe. Until it has one, it counts as untested.
 
-**No side effects.** With `working_dir` set and no tool overrides, this provider allows only
-`Read`, `Grep`, `Glob`, and `LS`. The skill's `studio` preconditions cannot run.
+## Writing a probe
 
-**Regex assertions compile with no flags.** No `i`, no `s`. Spell case out as `[Ww]rapp`, and
-use `[\s\S]{0,240}` rather than `.{0,240}` for proximity across line breaks.
+```yaml
+- id: blockgap-drops-functions
+  covers:                       # every passage that states the rule
+    - { file: mapping-guide.md, match: "It drops any value that contains a parenthesis" }
+  consumer: builder             # whose context the rule lives in: builder or orchestrator
+  task: |                       # the message the model gets
+    Convert this fragment …
+  grade:                        # all must hold
+    - no_block: { attrs_match: '"blockGap":"[^"]*[()]' }
+  pass_example: |               # an answer the checks must accept
+  fail_example: |               # what a model writes when it does not know the rule
+```
 
-**Scope.** These are recall cases: they test whether the skill's rules survive an edit to
-`SKILL.md` or its references. They do not test Phase 1–4 orchestration, block markup
-generation, or whether the skill triggers on a given user request — all of which need a
-running Studio site, a fixture-driven generation case, or different harness plumbing.
+- **A task, never a question.** Present the work as the design would. A question that names the shape of its answer measures the question: in the suite this replaced, the two cases that asked "is X allowed under our policy" and "which function loads the CSS" were the ones an unaided model passed.
+- **Never name the rule.** No "per viewport", no "whole pixels", no "policy". The design's own CSS carries the situation.
+- **One rule to a probe.** A check for a second rule makes the first look needed when only the second was missed: a probe for "no attribute carries a text shadow" that also wanted a registered style class failed unaided on the class alone.
+- **Check the task, not the guide's answer.** Where WordPress offers two right answers, accept both (`any_of`). A probe that wanted only the guide's way of building an accordion failed a model that used core's accordion block.
+- **Both examples, always.** `npm run check` runs the checks on them. A check that cannot tell them apart is caught there and not after a run: the old suite carried a pattern that did not compile, and it read as a failing guide.
+- **Cover every copy.** A rule stated in three files survives an ablation that cuts one. List each passage under `covers`.
+- **Check what WordPress prints** where the rule is about output: a `render` check runs the answer on the eval site.
+- **For a plan, ask for a list** with each line starting with a path. A check can then tell a file that is created from one that is named in order to reject it.
+
+The checks: `answer_`, `markup_`, `css_` and `json_` with `matches` or `lacks` (regular expressions; a leading `(?i)` ignores case); `some_block`, `no_block` and `every_block` over the answer's block delimiters (`name`, `attrs_match`, `attrs_lack`, `top_level`); `valid_blocks`; `audit` (counters of `standards-audit.sh` that must be 0); `render` (`html_` and `css_` `matches` or `lacks` on what the eval site prints); and `any_of`, a list of check lists of which one must hold, for a task with more than one right answer. CSS is checked without its comments, where a model explains what it did not do.
+
+## What this does not tell you
+
+- **The arms approximate a run.** The guides are put in the system prompt, where a real builder reads them as files, and the model has no tools, where a real builder can read core's `block.json` and probe. So **needed** means "not in the model's knowledge", which is a little stronger than "not discoverable in a run".
+- **Five answers is a small sample.** It separates "never" from "always" well, and the middle badly. That is why only "always" leads to a deletion.
+- **A probe speaks for its task.** A model that writes the right attribute for a padding may not for a border. A rule with one probe is tested once.
+- **Process and steering are not judged.** Whether serial builders, the hand-back checks or the turn-ending rules earn their place needs scenario runs on a small design, which are not built.
+- **Routing is judged only where `registry/routing.yaml` has a case.**
+- **Environment facts are tried on one site.** The eval site is new, and runs Studio's native PHP runtime. A fact that is not reproduced there may still hold on a site created by an older Studio or on the sandbox runtime.
+
+## The suite this replaced
+
+Until 0.5.0 this was five recall questions run through promptfoo, each asserting that a skill arm named a rule an unaided arm did not. Its measurements, for the record:
+
+| Case | Claude Sonnet 5, 2026-07-29 | Claude Opus 5.5 at medium, 2026-10-11 |
+|---|---|---|
+| The homepage is a page, never front-page.html | 0/3 unaided, 3/3 with the skill | 0/3, 3/3 |
+| Block style CSS is one file per block type | 3/3, 3/3 | 2/3, 3/3 |
+| core/html policy rejects an anchor-wrapped SVG | 1/3, 3/3 | 3/3, 3/3 |
+| Custom behaviour checks the blocks monorepo (opens its guide) | not run | opened 3/3, answered 3/3 |
+| Template mode keeps only an approved exclusion (opens its guide) | not run | opened 3/3, answered 3/3 |
+
+The first three are probes now (`homepage-is-a-page`, `block-style-css-per-block`, `icon-links-are-social-links`), reworded as tasks. The last two are the routing cases.

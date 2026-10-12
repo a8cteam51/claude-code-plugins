@@ -1,0 +1,21 @@
+# Does the skill send its reader to the right guide? The probes put a guide's text in front
+# of the model; these check the step before that, on the skill as it is installed: the
+# model reads SKILL.md, and has to open the reference a pointer names.
+#
+#   opens   the reference file a correct run reads
+#   task    the question
+#   grade   what the answer must hold: house conventions that are written only in that file
+
+- id: custom-behaviour-opens-custom-blocks-guide
+  opens: custom-blocks-guide.md
+  task: |
+    One section is a before-and-after image comparison: the visitor drags a handle across two photographs. Before building anything, what do you check, and in what order? If nothing fits, where is the new block built, under which block namespace, and how does this project style it?
+  grade:
+    - answer_matches: ['special-projects-blocks-monorepo', 'a8csp', 'npm run new-block']
+
+- id: template-mode-opens-project-template-guide
+  opens: project-template-guide.md
+  task: |
+    Our Studio site's wp-content is a git clone of a repository generated from a8cteam51/a8csp-project-template. An engineering lead approved keeping one bespoke block in this project instead of the blocks monorepo, and the design also needs custom CSS for a core/group block style. Where does each go in the repository, how is the block registered, and what else must change so the repository's CI passes?
+  grade:
+    - answer_matches: ['blocks-allowlist', '[Ff]eatures (mu-)?plugin', 'exclusion-approved', 'assets/css/src/blocks/']

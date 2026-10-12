@@ -2,24 +2,29 @@
 /**
  * write-page-content.php.tmpl — upsert a WordPress page from block markup.
  *
- * The html-to-block-theme section-builder stages this file inside the site dir
- * (<site-path>/.h2bt/) after substituting the __PLACEHOLDERS__, alongside the
- * content file it references. Run it with:
+ * write-page.sh stages this file inside the site dir (<site-path>/.h2bt/) after
+ * substituting the __PLACEHOLDERS__, alongside the content and title files it
+ * references. Run it with:
  *
  *   studio wp eval-file .h2bt/write-<slug>.php --path=<site-path>
  *
  * It echoes exactly one sentinel line — H2BT_OK ... on success, H2BT_FAIL: ...
  * on failure — which the caller greps for. Do not trust the exit code alone.
  *
- * Placeholders (sed-substituted before running):
- *   __PAGE_TITLE__    page title
+ * Placeholders (substituted before running; the caller validates every value):
+ *   __TITLE_FILE__    basename of a file in this same directory holding the page title
  *   __PAGE_SLUG__     page slug (used for upsert lookup)
+ *   __PARENT_PATH__   path of the page this one sits under (about, or about/team), or empty
  *   __TEMPLATE__      page template slug, or "default"
  *   __CONTENT_FILE__  basename of the block-markup file in this same directory
+ *
+ * The title travels in a file because it is free text: substituting it into this
+ * source corrupts a title holding a character the substitution treats specially.
  */
 
-$title         = '__PAGE_TITLE__';
+$title_file    = __DIR__ . '/__TITLE_FILE__';
 $slug          = '__PAGE_SLUG__';
+$parent_path   = '__PARENT_PATH__';
 $template      = '__TEMPLATE__';
 $content_file  = __DIR__ . '/__CONTENT_FILE__';
 
@@ -34,24 +39,66 @@ if ( false === $content || '' === trim( $content ) ) {
 	exit;
 }
 
+$title = is_readable( $title_file ) ? file_get_contents( $title_file ) : false;
+if ( false === $title || '' === trim( $title ) ) {
+	echo 'H2BT_FAIL: title file missing or empty: ' . $title_file . "\n";
+	exit;
+}
+$title = trim( $title );
+
+$parent_id = 0;
+if ( '' !== $parent_path ) {
+	$parent = get_page_by_path( $parent_path, OBJECT, 'page' );
+	if ( ! $parent instanceof WP_Post || 'page' !== $parent->post_type ) {
+		echo 'H2BT_FAIL: there is no page at "' . $parent_path . '" to put "' . $slug . '" under. Write the parent page first.' . "\n";
+		exit;
+	}
+	$parent_id = $parent->ID;
+}
+$path = '' === $parent_path ? $slug : $parent_path . '/' . $slug;
+
+// get_page_by_path() also searches attachments, and returns one when no page has the slug.
+// Updating that post would turn the media item into a page, so only a page counts as existing.
+$existing = get_page_by_path( $path, OBJECT, 'page' );
+if ( $existing instanceof WP_Post && 'page' !== $existing->post_type ) {
+	echo 'H2BT_FAIL: the slug "' . $slug . '" is held by ' . $existing->post_type . ' ' . $existing->ID . ', so a page cannot take it. Give that post another slug first (wp post update ' . $existing->ID . ' --post_name=<other>), or choose another page slug.' . "\n";
+	exit;
+}
+
+// A template slug that names no template falls back to the default one without a word.
+if ( 'default' !== $template ) {
+	if ( wp_is_block_theme() ) {
+		$known = array();
+		foreach ( get_block_templates( array(), 'wp_template' ) as $block_template ) {
+			$known[] = $block_template->slug;
+		}
+	} else {
+		$known = array_keys( wp_get_theme()->get_page_templates( null, 'page' ) );
+	}
+	if ( ! in_array( $template, $known, true ) ) {
+		echo 'H2BT_FAIL: the active theme (' . get_stylesheet() . ') has no template "' . $template . '". Its templates: ' . implode( ', ', $known ) . '. Pass "default" for the default page template.' . "\n";
+		exit;
+	}
+}
+
 // Preserve block-delimiter comments and raw markup: drop kses for this write.
 kses_remove_filters();
 
-$existing = get_page_by_path( $slug, OBJECT, 'page' );
-
 $postarr = array(
-	'post_title'   => $title,
+	'post_title'   => wp_slash( $title ),
 	'post_name'    => $slug,
 	'post_status'  => 'publish',
 	'post_type'    => 'page',
+	'post_parent'  => $parent_id,
 	'post_content' => wp_slash( $content ),
 );
 
-if ( $existing instanceof WP_Post ) {
+$created = ! $existing instanceof WP_Post;
+if ( $created ) {
+	$post_id = wp_insert_post( $postarr, true );
+} else {
 	$postarr['ID'] = $existing->ID;
 	$post_id       = wp_update_post( $postarr, true );
-} else {
-	$post_id = wp_insert_post( $postarr, true );
 }
 
 kses_init_filters();
@@ -68,4 +115,39 @@ if ( $template && 'default' !== $template ) {
 	delete_post_meta( $post_id, '_wp_page_template' );
 }
 
-echo 'H2BT_OK id=' . $post_id . ' bytes=' . strlen( $content ) . "\n";
+// Read everything back: the sentinel describes what was stored, not what was asked for.
+$stored_slug = get_post_field( 'post_name', $post_id, 'raw' );
+if ( $stored_slug !== $slug ) {
+	// WordPress renames a slug it will not store (a reserved word, or one in use), and the
+	// next run would then insert another page. Do not leave the stray page behind.
+	if ( $created ) {
+		wp_delete_post( $post_id, true );
+	}
+	echo 'H2BT_FAIL: WordPress would not store the slug "' . $slug . '" (it gave "' . $stored_slug . '")' . ( $created ? '; the page was not kept' : '' ) . ". Choose another slug.\n";
+	exit;
+}
+
+if ( (int) get_post_field( 'post_parent', $post_id, 'raw' ) !== $parent_id ) {
+	echo 'H2BT_FAIL: page ' . $post_id . ' was written, but it is not under "' . $parent_path . "\".\n";
+	exit;
+}
+
+$stored_title = get_post_field( 'post_title', $post_id, 'raw' );
+if ( $stored_title !== $title ) {
+	echo 'H2BT_FAIL: page ' . $post_id . ' was written, but its stored title differs from the requested one: ' . $stored_title . "\n";
+	exit;
+}
+
+$stored_template = (string) get_post_meta( $post_id, '_wp_page_template', true );
+if ( $stored_template !== ( 'default' === $template ? '' : $template ) ) {
+	echo 'H2BT_FAIL: page ' . $post_id . ' was written, but its stored template is "' . $stored_template . '", not "' . $template . "\".\n";
+	exit;
+}
+
+$stored_content = (string) get_post_field( 'post_content', $post_id, 'raw' );
+if ( $stored_content !== $content ) {
+	echo 'H2BT_FAIL: page ' . $post_id . ' was written, but its stored content differs from the source (' . strlen( $content ) . ' bytes given, ' . strlen( $stored_content ) . " stored).\n";
+	exit;
+}
+
+echo 'H2BT_OK id=' . $post_id . ' slug=' . $stored_slug . ' parent=' . $parent_id . ' template=' . $template . ' bytes=' . strlen( $stored_content ) . ' php=' . PHP_VERSION . "\n";

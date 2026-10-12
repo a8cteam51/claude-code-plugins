@@ -1,4 +1,4 @@
 node_modules/
-.workspaces/
 results/
+reports/
 package-lock.json
