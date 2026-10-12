@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.7.1] - 2026-10-12
+
+From the feedback on issue #11 (a review of a built site, and a run of 0.4.0 on a one-page design) and a code review of 0.7.0. Each fact about WordPress below was checked on WordPress 7.1.3, by rendering or in its source, and the one about Jetpack in the source of Jetpack Forms 16.1.2. Each script defect was reproduced on 0.7.0 and tried again after its fix. Two things were not checked. That a preset class with no attribute validates was; that the editor then lists it under Additional CSS class(es) is how the block parser treats such a class, and what the site review reported. And no build has followed the new section on the editor canvas yet. No run has been made end to end with these changes.
+
+### Changed
+- **Builders look at their view in the editor.** 0.7.0 kept builders to the front end, because loading an editor stores an empty `wp_global_styles` post. The skill builds on new sites, where that post overrides nothing, so it is now left alone: nobody records it or removes it. Each builder opens its view in the block editor or the Site Editor once, after its final validation, reads and does not edit, fixes what the theme causes and records the rest as drift. Its result says what it found (`checks.editor_canvas`), the report's table has the column, and `visual-refinement.md` has a section on the canvas: what to check, and where to look when a section is right on the front end and broken there.
+- **A new block has to be usable in the editor.** The monorepo rules for a new block say what its `edit` shows, and the Twenty-* check opens the block in the editor as well as on the front end.
+- **`group-designs.py` compares the CSS in `<style>` blocks.** A page whose `<style>` block differed from its representative's was `same`, and got no analysis of its own. It is now `differs`, with `inline_styles` in `differs_by`. What it costs: WordPress prints per-page block CSS, so on a mirror of a WordPress site pages of one template that use different blocks are each analysed. In a sample of four pages, one of the two `same` pages changed.
+
+### Added
+- **Three checks in the standards audit:**
+  - `class_hooks`: a setting written as a class. It fails on a `has-*` class in a block's `className`, on a font family or font size class with no `fontFamily` or `fontSize` attribute behind it, and on a `className` the theme's own stylesheets select that is not a registered style. A preset class without its attribute validates, and the editor then shows it as an additional CSS class and in no control. Two themes built by earlier versions had this.
+  - `template_parts`: a file under `parts/` that `theme.json` does not declare in `templateParts`. Without its area a header or footer part prints as a `<div>`: the page loses both landmarks, and the guides' own `header.wp-block-template-part` selectors match nothing.
+  - `css_comments`, in a standalone theme: a comment in `style.css` or a block stylesheet after the file's header. A scaffold's explanatory comments were kept with its rules.
+- **In the guides:**
+  - `theme-json-guide.md`: a section on `templateParts`; the root padding properties are declared on `body`, so `:root:root` does not reach them and `:root body` does.
+  - `mapping-guide.md`: the template's `main` group, and no rebuilt skip link, since core prints one; the navigation overlay switches at 600px whatever the theme's viewport breakpoints are, with the two rules that move it; `hasIcon: false` prints the words "Menu" and "Close"; a Jetpack form's submit button is a `core/button`, and the form prints its own when it finds none; a new site's "Hello world!" post takes a slot in a query loop; a column's width and a named colour cannot be stepped from a stylesheet.
+  - `block-styles-guide.md` and `standards.md`: a class never stands in for a block setting.
+
+### Fixed
+- **`standards-audit.sh` reported every root stylesheet as stray when `--theme-dir` ended with a slash**: 43 false violations on one built theme.
+- **`dev-mode.sh` could delete a `WP_DEVELOPMENT_MODE` the site had.** When `studio wp` could not read the site, `on` recorded the constant as absent, kept that record, and `restore` later removed the constant. `on` now fails with `reason=no-config` before it records anything, and drops a record it made when the set fails. `restore` makes the same check: it used to report the constant removed when it had not been able to look.
+- **`mirror-site.py` ended in a traceback** on a page whose `<meta charset>` names an encoding Python does not know. It reads such a page as UTF-8.
+- **`monorepo-blocks.sh` could not list releases with an older `gh`**, which has no `--json` for `gh release list`. The lookup is now an API call that an older `gh` has too. Not tried on one.
+- `theme-json-guide.md` said a Fontsource `-latin-full-normal.woff2` file does not exist. Some families ship one. The file name says which axes a file holds, and the set differs per family.
+- `visual-refinement.md`: a fix is confirmed by reading the value it was meant to change, not by the capture.
+
+### Not in this release
+- What the feedback says about converting a design, which is the next piece of work: fluid type and spacing, palette slugs, a design's handoff documents (issue #13), and a project template's own `theme.json` being replaced whole.
+- Not checked: a navigation breakpoint below 600px; the minimum height and the "(required)" marker Jetpack adds to a form.
+- The audit's class check covers a colour preset class only where it is in `className`. In the markup alone it is not checked, because blocks name their colour attributes differently.
+
 ## [0.7.0] - 2026-10-12
 
 From the first end-to-end run of 0.6.0: a live site's header, footer and homepage, built into a project-template repository on a new Studio site. The run got from an address to two built and compared views with one check-in, and its state on disk, the builder clock and the chrome-first order held. It also showed the defects fixed here, and its result prompted two decisions by the developer, which are the first two entries. Not exercised by that run, so still unproven: resuming an interrupted run, a builder that is stuck, a continuation, a failed view.

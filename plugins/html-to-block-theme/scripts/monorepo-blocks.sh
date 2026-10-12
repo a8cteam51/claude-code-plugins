@@ -57,7 +57,9 @@ need_value() { [[ $# -ge 2 ]] || { echo "$1 needs a value" >&2; exit 2; }; }
 # Prints every published, non-prerelease tag of the monorepo, one per line.
 release_tags() {
 	if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-		gh release list --repo "$repo" --limit 1000 --exclude-drafts --exclude-pre-releases --json tagName --jq '.[].tagName'
+		# The API call, not `gh release list --json`: an older gh has no --json for releases and
+		# fails there, which read as a failed lookup.
+		gh api --paginate "repos/${repo}/releases?per_page=100" --jq '.[] | select((.draft or .prerelease) | not) | .tag_name'
 		return
 	fi
 	local page=1 body

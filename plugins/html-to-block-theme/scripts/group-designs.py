@@ -15,9 +15,10 @@ analyses to twenty posts of one template. This script reads only what tells file
   css_set      the stylesheets one file links, by content
   template     files with the same body classes and the same landmark structure are taken
                to be one template. One of them is the representative.
-  role         representative; same (its sections and its stylesheets match the
-               representative's: it needs no analysis of its own); or differs, with
-               differs_by saying whether its sections, its stylesheets or both do.
+  role         representative; same (its sections, its stylesheets and the CSS in its
+               <style> blocks match the representative's: it needs no analysis of its own);
+               or differs, with differs_by naming which of sections, stylesheets and
+               inline_styles do not.
 
 The groups are a proposal, made from markup alone. What sits inside a post-content
 container is content and is not compared. The orchestrator decides what to merge.
@@ -244,7 +245,7 @@ def main():
             if member is representative:
                 member['role'] = 'representative'
                 continue
-            by = [what for what, key in (('sections', 'sections'), ('stylesheets', 'css_set')) if member[key] != representative[key]]
+            by = [what for what, key in (('sections', 'sections'), ('stylesheets', 'css_set'), ('inline_styles', 'inline_css')) if member[key] != representative[key]]
             member['role'] = 'differs' if by else 'same'
             member['like'] = representative['name']
             if by:

@@ -122,6 +122,7 @@ Only after steps 1 and 2 have failed. The run builds the block locally; pushing 
    - **One block per plugin.** The exception is a tightly coupled family, such as a tabs container with its child tab.
    - **Extensible output.** A dynamic block builds its wrapper with `get_block_wrapper_attributes()`, escapes everything, and adds `apply_filters()` hooks generously for the next project to adapt it.
    - **Accessible state.** Interactive blocks expose state through ARIA (`aria-expanded`, `aria-pressed`, `hidden`). Prefer the Interactivity API for state-driven UI (below).
+   - **Usable in the editor.** The block's `edit` shows what the block shows: its own wrapper (`useBlockProps`), every part of it present and editable in place (`InnerBlocks`, `RichText`), and a complete, static state where the front end depends on the view script, which does not run in the canvas: every slide, every panel, a modal's content. It need not look like the front end. It must not look broken, and it must not hide what an editor has to edit.
    - **Verbose descriptions.** Tooling reuses the plugin and `block.json` descriptions, so write them fully. Fill in the `readme.txt` description and FAQ, and add the plugin's row to the README inventory.
 4. **Build and lint the way the monorepo's CI does:**
    - In the block's directory: `npm run build`, then `npm run lint:js` and `npm run lint:css`.
@@ -138,7 +139,7 @@ Only after steps 1 and 2 have failed. The run builds the block locally; pushing 
      --post_content='<!-- wp:a8csp/<slug> /-->' --porcelain --path=<tmp-site>
    ```
 
-   Open the page in Chrome at desktop and mobile widths. The block must render unbroken: visible, not overflowing, with working interactions and no console errors. Then delete the site with `studio site delete --path <tmp-site>`.
+   Open the page in Chrome at desktop and mobile widths. The block must render unbroken: visible, not overflowing, with working interactions and no console errors. Open the same page in the block editor as well: the block draws with no error notice, shows every part of itself and can be selected. Then delete the site with `studio site delete --path <tmp-site>`.
 7. **Add the screenshot.** `<clone>/<slug>/screenshot.png` must be a 1200×800 PNG of the block **as it looks in the project**. Capture it from the project site in Chrome at full scale, then size it (on macOS):
 
    ```bash

@@ -85,9 +85,10 @@ def main():
         checks = result.get('checks') if isinstance(result.get('checks'), dict) else {}
         rows.append((name, result.get('target', ''), status, result.get('failure_reason') or '',
                      '%s / %s / %s' % (validation.get('validated_ok', '?'), validation.get('auto_fixed', '?'), validation.get('downgraded', '?')),
-                     checks.get('widths_swept', ''), checks.get('overflow_at_narrowest', ''), checks.get('first_screen_image_loading', '')))
+                     checks.get('widths_swept', ''), checks.get('overflow_at_narrowest', ''), checks.get('first_screen_image_loading', ''),
+                     checks.get('editor_canvas', '')))
     if rows:
-        out += ['## Views', ''] + table(['View', 'Target', 'Status', 'Reason', 'Valid / fixed / rebuilt', 'Widths swept', 'Overflow at narrowest', 'First-screen image'], rows) + ['']
+        out += ['## Views', ''] + table(['View', 'Target', 'Status', 'Reason', 'Valid / fixed / rebuilt', 'Widths swept', 'Overflow at narrowest', 'First-screen image', 'Editor canvas'], rows) + ['']
         out += ['Validation in all: %d valid, %d fixed by the validator, %d rebuilt.' % (totals['validated_ok'], totals['auto_fixed'], totals['downgraded']), '']
     if unreadable:
         out += ['## Results that could not be read', ''] + table(['View', 'Why'], unreadable) + ['']

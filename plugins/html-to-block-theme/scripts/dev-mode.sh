@@ -59,6 +59,10 @@ wp() { ( cd "$site_path" && studio wp "$@" --path="$site_path" ); }
 
 has_constant() { wp config has "$name" >/dev/null 2>&1; }
 
+# `config has` answers non-zero both when the constant is not there and when the CLI could not
+# look. Only the first is an answer, so make sure the CLI reads the config before asking.
+reads_config() { wp config path >/dev/null 2>&1; }
+
 # The constant's value. Studio can print notices around it, so the value is the last line.
 current_value() { wp config get "$name" 2>/dev/null | tr -d '\r' | tail -1; }
 
@@ -70,14 +74,21 @@ fail() { # fail <reason, no spaces> <message>
 
 if [[ "$action" == "on" ]]; then
 	mkdir -p "$site_path/.h2bt"
+	recorded_now=""
 	if [[ ! -f "$prior_file" ]]; then
+		reads_config || fail no-config "studio wp could not read the site's wp-config.php, so the value $name had was not recorded"
 		if has_constant; then
 			printf 'value=%s\n' "$(current_value)" >"$prior_file"
 		else
 			printf 'absent\n' >"$prior_file"
 		fi
+		recorded_now=1
 	fi
-	wp config set "$name" theme >/dev/null 2>&1 || fail set-failed "Could not set $name in wp-config.php"
+	if ! wp config set "$name" theme >/dev/null 2>&1; then
+		# Nothing was changed, so a record made by this call is not kept: the next one looks again.
+		[[ -z "$recorded_now" ]] || rm -f "$prior_file"
+		fail set-failed "Could not set $name in wp-config.php"
+	fi
 	[[ "$(current_value)" == "theme" ]] || fail not-set "$name is not \"theme\" after setting it"
 	prior="$(cat "$prior_file")"
 	echo "H2BT_DEV_MODE on prior=${prior#value=}"
@@ -89,6 +100,7 @@ if [[ ! -f "$prior_file" ]]; then
 	exit 0
 fi
 prior="$(cat "$prior_file")"
+reads_config || fail no-config "studio wp could not read the site's wp-config.php, so $name was not put back"
 if [[ "$prior" == "absent" ]]; then
 	if has_constant; then
 		wp config delete "$name" >/dev/null 2>&1 || fail delete-failed "Could not remove $name from wp-config.php"
