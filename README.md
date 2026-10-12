@@ -21,7 +21,7 @@ Add the marketplace once, then install whichever plugins you need:
 | [figma-extract](#figma-extract) | Pull images and design context out of the current Figma selection | `/figma-extract:extract` |
 | [page-annotator](#page-annotator) | Annotate a page in Chrome and file each note as a GitHub issue with a screenshot | `/page-annotator:annotate` |
 | [poseidon-local](#poseidon-local) | Run the Poseidon plan/implement agents locally instead of via GitHub Actions | `/poseidon-plan`, `/poseidon-implement` |
-| [ai-canvas](#ai-canvas) | Connect a WordPress site once, then vibe-code pages and posts as a full-width Custom HTML block through the REST API, verified in the browser | Natural language |
+| [ai-canvas](#ai-canvas) | Design a WordPress page locally as a full-width Custom HTML block, then move it to the site through your logged-in Chrome with no connection setup | Natural language |
 | [site-launch-comparison](#site-launch-comparison) | Screenshot two versions of a site and build a side-by-side before/after report | Natural language |
 | [vip-plugin-updates](#vip-plugin-updates) | Turn a folder of plugin zips into one PR per plugin against a VIP repo that vendors its plugins | Natural language |
 
@@ -329,37 +329,38 @@ Run the [Poseidon](https://github.com/a8cteam51/poseidon-actions) **plan** and *
 
 ## ai-canvas
 
-Vibe-code pages and posts on any WordPress site. Connect a site once with an Application Password, then describe the page you want; Claude writes it as a single full-width Custom HTML block (markup, CSS, and JS), publishes it through the site's built-in REST API, and checks the result in your browser. The site needs only [Jamie's Visual HTML Editor](https://wordpress.org/plugins/jamies-visual-html-editor/) from the plugin directory, which gives the block full-width alignment and lets the site owner click text and images on the finished page to edit them in wp-admin. Both skills are written for non-technical users.
+Design a WordPress page with Claude on your own computer, then move it to your site when it is ready. Claude writes the page as a single full-width Custom HTML block (markup, CSS, and JS) in a local folder, shows it in a local preview, and changes it on your feedback. Nothing touches the site until you ask; then the page goes in through your own logged-in Chrome, with no password, key, or connection to set up. The site needs [Jamie's Visual HTML Editor](https://wordpress.org/plugins/jamies-visual-html-editor/) from the plugin directory, which gives the block full-width alignment and lets the site owner click text and images on the finished page to edit them in wp-admin. Both skills are written for non-technical users.
 
 **What's included:**
 
-- **setup skill** - Guided connection with a strict role split: the user performs every site-changing step in wp-admin (plugin install, dedicated Administrator user, Application Password) with beginner-level click-path instructions; Claude then saves the connection and verifies credentials and capabilities, including `unfiltered_html` and `edit_theme_options`, then creates the two AI Canvas page templates (site header and footer, or blank) by copying the theme's own header and footer parts
-- **vibe skill** - Page and post building as one scoped HTML block: read-before-write, "undo that" through WordPress revisions, right-sized Media Library images, performance rules on the first write, a Claude-in-Chrome verification loop, and plain-language reporting (link plus screenshot, never file or API talk)
-- **scripts/wp.sh** - REST client that needs only bash and curl; credentials live in a private per-site file under `~/.claude/ai-canvas/sites/` so the Application Password never appears on a command line after setup
+- **design skill** - Local design loop: one block per page in `ai-canvas/<slug>/block.html`, saved where the user chooses (the skill asks; the Desktop is the usual answer), a lint for the rules WordPress enforces silently, five preview pages (the page inside a stand-in header and footer, the page alone, the page as wp-admin's editor shows it, the page under a hostile theme stylesheet, the page at phone width), snapshots for "undo that", and performance and WCAG 2.1 AA rules applied on the first draft
+- **publish skill** - Asks whether the page keeps the site's header and footer (**AI Canvas** template) or stands alone (**AI Canvas (blank)**), creates whichever template the site lacks, moves the page into wp-admin by clipboard through the post editor's Code editor, refuses to save unless the editor holds exactly the local page, saves a draft, and checks the result on the site; also sends later changes, brings a page edited on the site back down, and makes a draft live on request
+- **scripts/canvas.sh** - Local helper that never contacts a site: `lint`, `preview`, `serve`, `keep`, `undo`, `hash`, `copy`, `paste`, `record`, `status`, `contrast`; needs only bash and the system's standard tools
+- **scripts/report.js** - `aiCanvasReport()` in every preview page: one line of JSON covering script errors, heading structure, overflow, images, target sizes, and which theme styles reached the block
 
 **What it does:**
 
-- Finds or creates pages and posts, writes complete `<!-- wp:html {"align":"full"} -->` blocks, and keeps the markup human-editable (plain text elements, `<img>` tags, `data-vc-bg` hero backgrounds)
-- Uploads and reuses Media Library assets, referencing right-sized generated variants instead of full-size originals
-- Verifies like a user: opens the live URL in Chrome, screenshots, exercises the JS, reads the console, checks phone width; without the browser, `wp.sh check` confirms the page is served with style and script intact and whether the full-width wrapper is present
-- Translates every error into plain language and routes setup problems (missing capabilities, stripped Authorization header) back through the setup skill or the host's support
+- Keeps the page on your computer while you and Claude work on it, and moves it to the site only when you ask
+- Verifies like a user: opens the preview in Chrome, reads the report, screenshots, uses the widgets by mouse and keyboard, checks phone width; after publishing, checks the page inside the real theme
+- Publishes byte for byte: the page travels by clipboard rather than through the model, and matching hashes are required before and after the save
+- Notices when a page was edited in wp-admin since it was last sent, and brings that version down before changing anything
 
 **Requirements:**
 
-- A WordPress site over HTTPS (local Studio sites excepted) with [Jamie's Visual HTML Editor](https://wordpress.org/plugins/jamies-visual-html-editor/) active; a block theme is required
-- A dedicated Administrator user with an Application Password (templates need `edit_theme_options`) — the setup skill walks the user through it
-- Optional: [Claude in Chrome](https://claude.com/chrome) for visual self-verification
+- A WordPress site with a block theme and [Jamie's Visual HTML Editor](https://wordpress.org/plugins/jamies-visual-html-editor/) active
+- You, logged in to wp-admin in Chrome as an Administrator, and [Claude in Chrome](https://claude.com/chrome) for publishing and for visual checks
 
 ```bash
 # Install ai-canvas
 /plugin install ai-canvas@a8cteam51-claude-code-plugins
 
-# Connect a site (guided, one-time)
-# > connect Claude to my website https://example.com
-
-# Then build in natural language
+# Design locally
 # > build me a landing page for our spring launch
 # > undo that change
+
+# Move it to the site when it is right
+# > put it on my site https://example.com
+# > make it live
 ```
 
 ## site-launch-comparison

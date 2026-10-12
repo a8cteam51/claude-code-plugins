@@ -471,6 +471,8 @@ for full in stylesheet_sources():
             sheet = blanked(CSS_COMMENT, blanked(DATA_URI, handle.read()))
     except OSError:
         continue
+    if full.endswith('.scss'):
+        sheet = blanked(SCSS_LINE_COMMENT, sheet)
     styled_classes.update(CLASS_SELECTOR.findall(sheet))
 
 for full, label, theme_file in markup_files():

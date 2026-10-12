@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.7.2] - 2026-10-12
+
+### Fixed
+- **`standards-audit.sh` took a class named in a Sass `//` comment for one the stylesheet selects.** In a project repository, a block `className` that only such a comment mentions failed the class check (`class_hooks`), and with it the audit. Line comments in `.scss` sources are now left out before the selectors are read, as they already were for the whole-pixel check. Reproduced on 0.7.1 and tried again after the fix.
+
 ## [0.7.1] - 2026-10-12
 
 From the feedback on issue #11 (a review of a built site, and a run of 0.4.0 on a one-page design) and a code review of 0.7.0. Each fact about WordPress below was checked on WordPress 7.1.3, by rendering or in its source, and the one about Jetpack in the source of Jetpack Forms 16.1.2. Each script defect was reproduced on 0.7.0 and tried again after its fix. Two things were not checked. That a preset class with no attribute validates was; that the editor then lists it under Additional CSS class(es) is how the block parser treats such a class, and what the site review reported. And no build has followed the new section on the editor canvas yet. No run has been made end to end with these changes.

@@ -89,7 +89,7 @@
       "name": "html-to-block-theme",
       "source": "./plugins/html-to-block-theme",
       "description": "Convert a set of static Claude Design HTML/CSS/JS files, or the pages of an existing site, into a standards-driven WordPress block theme on a local Studio site, using theme.json, block styles, editable page content, and blocks from the A8C Special Projects blocks monorepo, refined to match in the browser via Claude in Chrome. Builds into A8C Special Projects project-template repositories under their conventions and CI gates.",
-      "version": "0.7.1",
+      "version": "0.7.2",
       "author": {
         "name": "Automattic Special Projects"
       },
@@ -160,19 +160,19 @@
     {
       "name": "ai-canvas",
       "source": "./plugins/ai-canvas",
-      "description": "Vibe-code pages and posts on a WordPress site: guide a beginner through connecting the site (Jamie's Visual HTML Editor plugin, Editor user, Application Password), then build and update content as a single full-width Custom HTML block through the site's REST API, with browser verification and undo.",
-      "version": "2.1.0",
+      "description": "Design a WordPress page with Claude on your own computer as a single full-width Custom HTML block, with a local preview, checks, and undo, then move it to the site through your logged-in Chrome: no password or connection setup, a choice of AI Canvas page templates (with the site's header and footer, or the page alone) created on first use, and a draft to review before it goes live.",
+      "version": "3.0.0",
       "author": {
         "name": "Automattic Special Projects"
       },
       "repository": "https://github.com/a8cteam51/claude-code-plugins",
       "license": "MIT",
-      "keywords": ["wordpress", "landing-page", "vibe-coding", "rest-api", "application-passwords", "custom-html-block", "block-theme", "claude-in-chrome"],
+      "keywords": ["wordpress", "landing-page", "vibe-coding", "local-preview", "clipboard", "custom-html-block", "block-theme", "claude-in-chrome"],
       "category": "development-tools",
       "strict": true,
       "skills": [
-        "./skills/setup",
-        "./skills/vibe"
+        "./skills/design",
+        "./skills/publish"
       ]
     },
     {
