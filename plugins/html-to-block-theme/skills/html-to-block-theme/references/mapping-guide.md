@@ -40,6 +40,8 @@ Attribute forms move between WordPress versions. Markup written from memory of a
 | `<img>` | `core/image` | Design images go to the media library (§ Asset routing). See § Images. |
 | `<ul>`/`<ol>` | `core/list` + `core/list-item` | A list without markers is a registered style (§ Links, headings and lists). |
 | Site nav | `core/navigation` | Lives in `parts/header.html`. |
+| `<main>` | `core/group` with `"tagName":"main"` | In the template, around the page's content. Core's skip link targets it. |
+| Skip link (`<a href="#main">Skip to content</a>`) | nothing | Core prints one before every block template that has a `main` element, and uses that element's `id` when it has one. Rebuilding the design's own gives the page two. |
 | Logo | `core/site-logo` | No part then carries an environment URL. Its duotone setting recolours a single-colour logo (§ Images). |
 | Icon / inline SVG | `core/image` from the media library; a decorative icon inside a button or link is painted from the block's stylesheet (§ Buttons); `core/html` (bare inline SVG only) when the icon must inherit colour or animate; custom behaviour (`custom-blocks-guide.md`) if interactive | An SVG wrapped in an `<a>`/`<div>` fails the core/html policy — icon *links* are `core/social-links` (restyled by a block style variation when the glyph is bespoke). Do not invent an "icon block." |
 | Background media + overlay + content | `core/cover` | Maps cleanly to hero sections with a background image/colour and overlay. |
@@ -93,6 +95,8 @@ Checked on WordPress 7.1.3, on the front end and through the validator. The skil
 A block attribute for margin, padding, height or font size prints an inline style, and a media query in a block stylesheet cannot beat an inline style without `!important`. When a property changes at a width that is not one of the two viewport states, put **every** value of that property in the registered block style and leave the attribute unset. Mixing the two, with the base value as an attribute and the steps in CSS, is what forces `!important`.
 
 - Block gap is the exception: it prints a class rule, which a stylesheet can override.
+- **A column's width is the same case.** `core/column`'s `width` prints an inline `flex-basis`, and no viewport state reaches it: `style["@mobile"].dimensions.width` prints `width`, which a set flex basis outranks. Columns whose proportions change at a breakpoint are a flex group whose children carry a `flexSize` per viewport (above), or have every width in the block style.
+- **A named colour is the same case from the other side.** `backgroundColor` and `textColor` print a preset class with `!important`. A stylesheet changes such a colour at a breakpoint only by redefining the preset's custom property on the block (`block-styles-guide.md` § A second colour scheme for a template part).
 - `core/site-logo`'s `width` attribute has no per-viewport form. A logo that changes size at a viewport state uses the flex child attributes above. One that steps at another width needs a rule on its `img`.
 
 ### Pixel values are whole pixels
@@ -160,7 +164,7 @@ Each was checked by box measurements against an original.
 
 WordPress applies a default 24px flow gap wherever `blockGap` is unset; at page scale it shows up as ~25–35px of drift in the shared chrome. Handle these up front:
 
-- **Root layout:** theme.json root `blockGap` applies via `.wp-site-blocks > * + *`, inserting a gap between the header part, `main`, and the footer on every page. Zero it with `.wp-site-blocks > header.wp-block-template-part + *, .wp-site-blocks > * + footer.wp-block-template-part { margin-block-start: 0; }`.
+- **Root layout:** theme.json root `blockGap` applies via `.wp-site-blocks > * + *`, inserting a gap between the header part, `main`, and the footer on every page. Zero it with `.wp-site-blocks > header.wp-block-template-part + *, .wp-site-blocks > * + footer.wp-block-template-part { margin-block-start: 0; }`. A part is a `header` or `footer` element only when `theme.json` declares its area (`theme-json-guide.md` § Template parts).
 - **Template parts:** a part's root-level children each pick up `margin-block-start` from the default flow gap — zero margins on main/footer wrappers explicitly.
 - **Stacked columns:** `core/columns` stacked at ≤781px inherit a 24px vertical gap. Set `blockGap.top` explicitly — a literal px value when the design's mobile gap differs from the preset's mobile remap.
 - **Constrained-layout clamp:** a constrained parent clamps an oversized absolutely-positioned child (e.g. a decorative backdrop image wider than the content column) to content width, and the parent's `overflow: hidden` then crops it — give that child's figure `max-width: none`.
@@ -206,9 +210,25 @@ WordPress applies a default 24px flow gap wherever `blockGap` is unset; at page 
 - **Active state, portably:** core only sets `aria-current`/`current-menu-item` when the link carries a post `id` matching the queried object — which bakes site-specific IDs into the theme. Match on URL **path** instead via a `render_block_core/navigation-link` filter using `WP_HTML_Tag_Processor`; the active style then needs specificity above core's own nav-link colour rules. A current-item look is `theme.json` or CSS, never an attribute.
 - **Logo/CTA in the mobile overlay:** nesting `core/site-logo`, fill spacers, and `core/buttons` *inside* `core/navigation` places them in the native mobile overlay for free — but the logo then disappears from the collapsed bar, so add a second compact-only site-logo (hidden by viewport, or gated by an `is-style-*` visibility variation on an older core) outside the nav. Pinning the overlay CTA to the bottom needs `flex-grow` on `.wp-block-navigation__responsive-close` **and** `__responsive-dialog`, not just `__responsive-container-content`.
 - **With no overlay menu, the block's classes and inline styles print on both its `nav` and its `ul`.** A border or padding rule on `.wp-block-navigation.is-style-x` is drawn twice. Scope it to `nav.wp-block-navigation.is-style-x`.
+- **The overlay menu switches at 600px, whatever `settings.viewport` holds.** With `overlayMenu` at its default, `mobile`, core shows the menu button below 600px and the links from 600px up, by two rules of its own stylesheet. A design that collapses at a wider breakpoint needs both countered between 600px and that breakpoint, in the navigation's block stylesheet. For a design that changes at `min-width: 760px`:
+
+  ```css
+  @media (min-width: 600px) and (width < 760px) {
+  	.wp-block-navigation .wp-block-navigation__responsive-container-open:not(.always-shown) {
+  		display: flex;
+  	}
+  	.wp-block-navigation .wp-block-navigation__responsive-container:not(.hidden-by-default):not(.is-menu-open) {
+  		display: none;
+  	}
+  }
+  ```
+
+  The leading class makes each selector outrank core's in either stylesheet order, and the open overlay is untouched. Checked against core's stylesheet on WordPress 7.1.3, one pixel either side of both bounds. A breakpoint below 600px needs core's two rules repeated for the band instead; that direction was not checked.
+- **`hasIcon: false` prints words.** The buttons then read "Menu" and "Close" as text. Keep the icon unless the design shows the words: `icon` chooses between the two glyphs core has, and a bespoke glyph is a rule on the button.
 
 ## Query loops, archives and pagination
 
+- **A query loop shows what the site holds.** A new site has a "Hello world!" post, and it takes a slot in any loop of the latest posts. Create as many sample posts as the design's loop shows before the view is compared (`SKILL.md`, Phase 2 step 6): they are newer, so they fill it. Where a post the run did not make would still show, say so in the report. Do not delete or unpublish it.
 - **`core/post-template` is a `ul`.** A list in post content shown inside a query loop is a nested list to the browser (a circle marker), while the same content on the single view has a disc. A content style must set the marker, and the archive's rendering of content should be compared with the single's as well as with its original.
 - **An element colour on a block inside a query loop is printed once per rendered post,** because element classes are numbered, not hashed like layout and state classes. Put link colours on `core/post-template`, which renders once and supports a link colour, or in a block style.
 - **`core/query-pagination` has no spacing or border support.** Its rule and spacing belong in a style on the block itself, not on a wrapper group, because the block prints nothing for a single page and a wrapper would leave a stray rule. `display: contents` on the numbers container gives even gaps and per-number wrapping.
@@ -222,6 +242,7 @@ When the design includes a contact or newsletter form and Jetpack is available, 
 - On local Studio sites the `contact-form` module works offline; the `subscriptions` module cannot activate without a WordPress.com connection — do not map newsletter signups to subscription blocks locally.
 - Field blocks are **composed** (Jetpack Forms 16.x): a self-closing `<!-- wp:jetpack/field-email /-->` fails validation. The required shape is the field's wrapping `<div>` + `wp:jetpack/label` + `wp:jetpack/input` inner blocks.
 - Any non-default `is-style-*` on `jetpack/contact-form` suppresses field labels (16.0.1) — apply `"className":"is-style-default is-style-<custom>"` together.
+- **The submit button is a `core/button`** with `"tagName":"button"` and `"type":"submit"`, inside the form, as the editor writes it. The form prints a button of its own, labelled "Submit", whenever its rendered content holds neither a `wp-block-button` nor a `wp-block-jetpack-button` class. A button block that validates and renders nothing is therefore replaced without a word: compare the button's label with the design's after the write. Read in Jetpack Forms 16.1.2.
 
 ## File classification: template vs part vs page
 
@@ -229,7 +250,7 @@ For each HTML file in the set, decide its home:
 
 - **Core template** — the file represents a WordPress view: blog index → `templates/index.html` (or `home.html`); a single post layout → `single.html`; an archive → `archive.html`; a 404 → `404.html`; a generic page layout → `page.html`. **Never `front-page.html`** — see the homepage rule below.
 - **Shared-wrapper page content** — the file is an inner page (About, Services, Contact) that shares the same header/footer/wrapper as others and differs only in body content. The wrapper becomes a template (often `page.html`); the body becomes a **WordPress page** whose `post_content` is block markup, assigned to that template. The content lives in WordPress, not hardcoded in the template.
-- **Template part** — markup that repeats across files unchanged (header, footer, nav, a CTA banner) → `parts/*.html`, referenced via `core/template-part`.
+- **Template part** — markup that repeats across files unchanged (header, footer, nav, a CTA banner) → `parts/*.html`, referenced via `core/template-part`. Each part is declared in `theme.json` `templateParts` with its area, which is what makes a header part a `<header>` (`theme-json-guide.md` § Template parts).
 
 When two files share chrome but differ in body, extract the chrome **once** into parts and a shared template; never duplicate it per file.
 

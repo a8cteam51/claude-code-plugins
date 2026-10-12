@@ -78,7 +78,7 @@ Read the linked CSS (and CSS custom properties / `:root` variables — designers
 - **Four slugs are reserved, because their class is one core uses as a flag.** WordPress prints a class for every preset with `!important`: `.has-<slug>-color` for a palette entry and `.has-<slug>-font-size` for a font size. A palette entry named `border` therefore prints `.has-border-color { color: … !important }`, and `has-border-color` is also the class core adds to every block that has one border colour for all sides. Each such block's text takes the palette colour, and an inline text colour cannot beat it. By the same pattern `text` collides with `has-text-color`, `link` with `has-link-color`, and a font size named `custom` with `has-custom-font-size`. Name a preset by its role (`hairline`, `ink`, `accent`). The collision was observed for `border`; the other three follow from the class pattern in core. The standards audit fails on all four.
 - **Slugs are kebab-cased when WordPress generates CSS.** A slug like `type-h1` expands to `--wp--preset--font-size--type-h-1` (and the class `has-type-h-1-font-size`) — WordPress inserts a dash at letter/digit boundaries. Hand-written CSS referencing the un-expanded name (`var(--wp--preset--font-size--type-h1)`) silently resolves to nothing. Choose slugs already in fully-expanded kebab form (`type-h-1`, `heading-1`) so `theme.json`, generated classes, and `var(--wp--preset--…)` references all match verbatim.
 - **Variable-font condensed cuts need no CSS.** Register a second `fontFamilies` entry whose `fontFace` declares `"fontStretch": "75%"` (or the design's width) against the **same** woff2 — selecting that family renders the condensed cut at rung 1. This works for any variable font with a width (`wdth`) axis.
-- **Fontsource filenames:** the multi-axis variable file is `<family>-latin-standard-normal.woff2` — a `-latin-full-normal.woff2` URL does not exist, even when a design handoff links it. Swap `full` → `standard` before downloading.
+- **A Fontsource file name says which axes the file holds,** and the set differs per family: `-wght-` for weight alone, `-standard-`, `-full-`, or one named axis (`-opsz-`, `-wdth-`). Fraunces ships a `full` file; Inter ships none. Read the package's file list before downloading, and take the file that holds every axis the design sets. Do not rewrite a URL the design links by a rule of thumb.
 
 ### Font faces: measure which file draws each weight
 
@@ -94,6 +94,22 @@ The measurement that settles it, in one call from the comparison harness (`visua
 - A width difference of a few hundredths of a percent is invisible in any box and still moves a line break at some width.
 - If the page forces `font-family` with `!important`, apply the test face with `!important` too.
 - Read a font file's character map before relying on a glyph it may not have.
+
+## Template parts
+
+Declare every file under `parts/` in `templateParts`, with its area:
+
+```json
+"templateParts": [
+  { "name": "header", "title": "Header", "area": "header" },
+  { "name": "footer", "title": "Footer", "area": "footer" },
+  { "name": "newsletter", "title": "Newsletter", "area": "uncategorized" }
+]
+```
+
+- **The area decides the element.** WordPress takes a part's area from this list, by the file's name, and prints a `header` part as `<header>` and a `footer` part as `<footer>`. A part that is not listed prints as a `<div>`. The page then has neither landmark, and every selector written against `header.wp-block-template-part` or `footer.wp-block-template-part` matches nothing, the root gap reset in `mapping-guide.md` § Layout traps included. Nothing reports it. Checked on WordPress 7.1.3.
+- `name` is the file's name without `.html`, and `title` is what the Site Editor calls the part.
+- **A scaffold's `theme.json` may list none, and replacing a `theme.json` whole drops the ones it had.** The standards audit fails on a part that is not declared (`template_parts`).
 
 ## styles
 
@@ -135,6 +151,18 @@ Put a styling rule at the **most global level that is still correct**: element s
 
 - Scope as **`:root:root`** — the doubled selector beats the global-styles `:root` block regardless of stylesheet print order; a bare `:root` override loses unpredictably.
 - Root `style.css` is the home for these overrides — it is exempt from the one-file-per-block-type audit rule, while a separate `assets/css/tokens.css` is flagged STRAY. Note `style.css` must be explicitly enqueued on block themes (`standards.md`).
+- **`:root:root` reaches the presets only.** The page gutter is root padding (`styles.spacing.padding` with `settings.useRootPaddingAwareAlignments`), and WordPress declares its properties, `--wp--style--root--padding-*`, on `body`. A value set on `:root` is only inherited there, so `body`'s own declaration wins and the override does nothing, with no error. Override them on `:root body`, which outranks core's `body` rule in either stylesheet order:
+
+  ```css
+  @media (max-width: 767px) {
+  	:root body {
+  		--wp--style--root--padding-right: 1.25rem;
+  		--wp--style--root--padding-left: 1.25rem;
+  	}
+  }
+  ```
+
+  A gutter that scales with the viewport needs no override: each side takes a `clamp()` in `theme.json`. Checked on WordPress 7.1.3.
 
 ### Reset rules the design relies on
 

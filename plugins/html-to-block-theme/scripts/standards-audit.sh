@@ -28,6 +28,14 @@
 #      editor as on the page.
 #  10. Every core/group block has a name (metadata.name), in templates, parts, patterns and
 #      page content, so that a person can read the tree in the markup and in the List View.
+#  11. No setting written as a class. A has-* class in a block's className, a font family or
+#      font size class with no fontFamily or fontSize attribute behind it, and a className
+#      that the theme's own stylesheets select: each shows in the editor as an Additional
+#      CSS class and in no control. A class hook is a registered block style (is-style-*).
+#  12. Every file under parts/ is declared in theme.json templateParts with its area. Without
+#      the area a header or footer part renders as a <div>, not as a landmark.
+#  13. Standalone layout: no comment in style.css or a block stylesheet after the file's
+#      header comment.
 #   It also lists, for review, image blocks in templates and parts that point at a theme
 #   file and reserve no space (no width and height, no aspectRatio).
 #   A theme.json that is missing or does not parse is a failure of its own: checks 6 and 8
@@ -35,12 +43,13 @@
 #
 # Usage: standards-audit.sh --theme-dir <dir> [--layout auto|standalone|template]
 #                           [--content-dir <dir>]
-# --content-dir adds a directory of page-content markup files (*.html) to checks 1, 7, 8 and
-# 10, since page content lives in the database and not in the theme.
+# --content-dir adds a directory of page-content markup files (*.html) to checks 1, 7, 8, 10
+# and 11, since page content lives in the database and not in the theme.
 # Exits non-zero if stray comments, block-CSS organization violations, a front-page.html
 # template, a block inside the theme, a reserved preset slug, a dropped colour, a fraction
-# of a pixel, post content without a constrained layout, a group without a name or an
-# unreadable theme.json are found.
+# of a pixel, post content without a constrained layout, a group without a name, a setting
+# written as a class, an undeclared template part, a stylesheet comment or an unreadable
+# theme.json are found.
 #
 # Last line: H2BT_AUDIT_OK ... or H2BT_AUDIT_FAIL ..., on every exit path but a usage error.
 #
@@ -57,15 +66,17 @@ one file per block type enqueued via wp_enqueue_block_style(), checks that the t
 ships no templates/front-page.html and no block.json, that no preset slug in theme.json
 collides with a core flag class, that no element, state or viewport style holds a
 colour function WordPress drops, that no value is a fraction of a pixel, that every
-template gives post content a constrained layout, and that every group block has a name.
+template gives post content a constrained layout, that every group block has a name, that
+no setting is written as a class, that every template part is declared in theme.json, and
+(standalone layout) that no stylesheet carries a comment after its file header.
 Prints a report. Exits 1 on any violation, 0 otherwise.
 
 --layout auto (default) picks "template" when the theme has assets/sass/style.scss,
 includes/, and .phpcs.xml (an a8csp-project-template theme), else "standalone".
 
 --content-dir names a directory of page-content markup files (*.html), such as
-<site-path>/.h2bt/pages. They get the comment, colour-function, whole-pixel and group-name
-checks too.
+<site-path>/.h2bt/pages. They get the comment, colour-function, whole-pixel, group-name
+and class checks too.
 EOF
 }
 
@@ -93,6 +104,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$theme_dir" ]] || { echo "--theme-dir is required" >&2; exit 2; }
+# Paths are reported, and matched, relative to the theme: a trailing slash would defeat both.
+while [[ "$theme_dir" == */ && "$theme_dir" != "/" ]]; do theme_dir="${theme_dir%/}"; done
 [[ -d "$theme_dir" ]] || cannot_audit theme-dir-not-found "Theme directory not found: $theme_dir"
 [[ -z "$content_dir" || -d "$content_dir" ]] || cannot_audit content-dir-not-found "Content directory not found: $content_dir"
 # Every check below passes on a directory that holds nothing to check, so make sure this is a theme.
@@ -292,8 +305,10 @@ import sys
 
 theme_dir, content_dir, layout = sys.argv[1], sys.argv[2], sys.argv[3]
 reserved = dropped = review = subpixel = unconstrained = invalid = unnamed = 0
+class_hooks = undeclared = css_comments = 0
 # So that a page of forty groups does not bury the rest of the report.
 UNNAMED_SHOWN = 8
+COMMENTS_SHOWN = 8
 
 # A value written in pixels is a whole number of pixels: 767.98px, 0.5px and -.75px are not.
 # 1.0px is: its fraction is nothing.
@@ -305,6 +320,17 @@ CSS_COMMENT = re.compile(r'/\*.*?\*/', re.S)
 SCSS_LINE_COMMENT = re.compile(r'(?<![:\w"\'(])//[^\n]*')
 INLINE_SVG = re.compile(r'<svg\b.*?</svg>', re.S | re.I)
 DATA_URI = re.compile(r'url\(\s*["\']?data:.*?\)', re.S | re.I)
+
+# A class a stylesheet selects, the class attributes of a block's own HTML, and the two
+# typography preset classes, whose attribute has the same name on every block.
+CLASS_SELECTOR = re.compile(r'\.(-?[_a-zA-Z][\w-]*)')
+CLASS_ATTRIBUTE = re.compile(r'\bclass="([^"]*)"')
+NEXT_DELIMITER = re.compile(r'<!--\s+/?wp:')
+TYPOGRAPHY_CLASS = re.compile(r'^has-(.+)-(font-family|font-size)$')
+TYPOGRAPHY_ATTRIBUTE = {'font-family': 'fontFamily', 'font-size': 'fontSize'}
+# Classes that are not the theme's hooks even when its stylesheet selects them: a registered
+# style, what core itself writes into className (an embed's aspect ratio), core's hidden text.
+CORE_CLASS = ('is-style-', 'wp-', 'screen-reader-text')
 
 
 def blanked(pattern, text):
@@ -364,6 +390,23 @@ if theme_json is not None:
     with open(os.path.join(theme_dir, 'theme.json'), encoding='utf-8') as handle:
         subpixel += report_subpixel('theme.json', handle.read())
 
+    # WordPress takes a part's area from theme.json, by the part's slug, and its tag from the area.
+    listed = theme_json.get('templateParts')
+    declared = {part.get('name') for part in (listed if isinstance(listed, list) else [])
+                if isinstance(part, dict) and isinstance(part.get('area'), str)}
+    parts_dir = os.path.join(theme_dir, 'parts')
+    for root, _, names in os.walk(parts_dir):
+        for name in sorted(names):
+            if not name.endswith('.html'):
+                continue
+            slug = os.path.relpath(os.path.join(root, name), parts_dir)[:-5].replace(os.sep, '/')
+            if slug not in declared:
+                print('  UNDECLARED  parts/%s.html is not in theme.json templateParts — without its area a header or footer part renders as a <div>; add {"name":"%s","title":"<its name in the editor>","area":"header | footer | uncategorized"}'
+                      % (slug, slug))
+                undeclared += 1
+    if undeclared == 0:
+        print('  OK — every template part is declared in theme.json with its area')
+
 DELIMITER = re.compile(r'<!--\s+wp:([a-z][a-z0-9-]*(?:/[a-z][a-z0-9-]*)?)(?:\s+(\{.*?\}))?\s+/?-->', re.S)
 COLOR_FUNCTION = re.compile(r'\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\(', re.I)
 KEPT_FUNCTION = re.compile(r'(?:\b(?:var|calc|min|max|minmax|clamp)|-gradient)\($', re.I)
@@ -421,6 +464,15 @@ def stylesheet_sources():
                 yield os.path.join(root, name)
 
 
+styled_classes = set()
+for full in stylesheet_sources():
+    try:
+        with open(full, encoding='utf-8', errors='replace') as handle:
+            sheet = blanked(CSS_COMMENT, blanked(DATA_URI, handle.read()))
+    except OSError:
+        continue
+    styled_classes.update(CLASS_SELECTOR.findall(sheet))
+
 for full, label, theme_file in markup_files():
     try:
         with open(full, encoding='utf-8', errors='replace') as handle:
@@ -459,6 +511,30 @@ for full, label, theme_file in markup_files():
                 if unnamed_here <= UNNAMED_SHOWN:
                     print('  UNNAMED     %s:%d group has no name — add "metadata":{"name":"<what it is>"}, such as "Hero" or "Feature card"'
                           % (label, line))
+        class_name = attrs.get('className') if isinstance(attrs.get('className'), str) else ''
+        for token in class_name.split():
+            if token.startswith('has-'):
+                print('  CLASS HOOK  %s:%d %s className "%s" — a setting written as a class shows in no editor control; set the block\'s own attribute (fontFamily, fontSize, textColor, backgroundColor, style.typography.textAlign) and drop the class'
+                      % (label, line, name, token))
+                class_hooks += 1
+            elif not token.startswith(CORE_CLASS) and token in styled_classes:
+                print('  CLASS HOOK  %s:%d %s className "%s" is a hook for the theme\'s stylesheet — use the block\'s own attribute, or register it as a block style and apply is-style-<slug>'
+                      % (label, line, name, token))
+                class_hooks += 1
+        # The block's own HTML runs to the next delimiter. A preset class there with no attribute
+        # behind it validates, and the editor then reads it as an Additional CSS class.
+        following = NEXT_DELIMITER.search(text, match.end())
+        own_html = text[match.end():following.start() if following else len(text)]
+        for classes in CLASS_ATTRIBUTE.findall(own_html):
+            for token in classes.split():
+                preset = TYPOGRAPHY_CLASS.match(token)
+                if not preset or token == 'has-custom-font-size' or token in class_name.split():
+                    continue
+                attribute = TYPOGRAPHY_ATTRIBUTE[preset.group(2)]
+                if attribute not in attrs:
+                    print('  CLASS HOOK  %s:%d %s has the class "%s" and no %s attribute — the editor shows it as an Additional CSS class, not in the typography control; set "%s" to the preset\'s slug'
+                          % (label, line, name, token, attribute, attribute))
+                    class_hooks += 1
         for where, value in server_compiled(attrs.get('style'), ['style'], False):
             print('  DROPPED     %s:%d %s %s = %s — WordPress drops a colour function here; write eight-digit hex'
                   % (label, line, name, where, value))
@@ -479,6 +555,32 @@ for full in stylesheet_sources():
     except OSError:
         continue
 
+# Template layout: its Sass partials are the repository's, and stylelint is their gate.
+if layout == 'standalone':
+    sheets = [os.path.join(theme_dir, 'style.css')]
+    blocks_dir = os.path.join(theme_dir, 'assets', 'css', 'blocks')
+    if os.path.isdir(blocks_dir):
+        sheets += [os.path.join(blocks_dir, name) for name in sorted(os.listdir(blocks_dir)) if name.endswith('.css')]
+    for full in sheets:
+        try:
+            with open(full, encoding='utf-8', errors='replace') as handle:
+                sheet = blanked(DATA_URI, handle.read())
+        except OSError:
+            continue
+        # The comment that opens a file is its header: the theme header, or a line that names the file.
+        header = re.match(r'\s*/\*.*?\*/', sheet, re.S)
+        lines = [sheet.count('\n', 0, match.start()) + 1 for match in CSS_COMMENT.finditer(sheet, header.end() if header else 0)]
+        for number in lines[:COMMENTS_SHOWN]:
+            print('  CSS COMMENT %s:%d — a stylesheet carries no comment after its file header; the reason for a rule goes in the report'
+                  % (os.path.relpath(full, theme_dir), number))
+        if len(lines) > COMMENTS_SHOWN:
+            print('  CSS COMMENT %s: and %d more comments' % (os.path.relpath(full, theme_dir), len(lines) - COMMENTS_SHOWN))
+        css_comments += len(lines)
+
+if class_hooks == 0:
+    print('  OK — no setting written as a class, and no unregistered class hook')
+if layout == 'standalone' and css_comments == 0:
+    print('  OK — no stylesheet comment after a file header')
 if dropped == 0:
     print('  OK — no colour function in element, state or viewport styles')
 if subpixel == 0:
@@ -489,15 +591,15 @@ if review == 0:
     print('  OK — every theme-file image in a template or part reserves its space')
 if unnamed == 0:
     print('  OK — every group block has a name')
-print('COUNTS %d %d %d %d %d %d %d' % (reserved, dropped, review, subpixel, unconstrained, invalid, unnamed))
+print('COUNTS %d %d %d %d %d %d %d %d %d %d' % (reserved, dropped, review, subpixel, unconstrained, invalid, unnamed, class_hooks, undeclared, css_comments))
 PY
 sed '$d' "$attr_report"
-read -r _ reserved_slugs dropped_colors image_review subpixel_values post_content_layout theme_json unnamed_groups < <(tail -1 "$attr_report")
+read -r _ reserved_slugs dropped_colors image_review subpixel_values post_content_layout theme_json unnamed_groups class_hooks template_parts css_comments < <(tail -1 "$attr_report")
 rm -f "$attr_report"
 
 echo
-if [[ "$violations" -gt 0 || "$css_org" -gt 0 || "$front_page" -gt 0 || "$theme_blocks" -gt 0 || "$reserved_slugs" -gt 0 || "$dropped_colors" -gt 0 || "$subpixel_values" -gt 0 || "$post_content_layout" -gt 0 || "$theme_json" -gt 0 || "$unnamed_groups" -gt 0 ]]; then
-	echo "H2BT_AUDIT_FAIL layout=${layout} stray_comments=${violations} css_org=${css_org} front_page=${front_page} theme_blocks=${theme_blocks} reserved_slugs=${reserved_slugs} dropped_colors=${dropped_colors} subpixel_values=${subpixel_values} post_content_layout=${post_content_layout} theme_json=${theme_json} unnamed_groups=${unnamed_groups} image_review=${image_review} css_lines=${total}"
+if [[ "$violations" -gt 0 || "$css_org" -gt 0 || "$front_page" -gt 0 || "$theme_blocks" -gt 0 || "$reserved_slugs" -gt 0 || "$dropped_colors" -gt 0 || "$subpixel_values" -gt 0 || "$post_content_layout" -gt 0 || "$theme_json" -gt 0 || "$unnamed_groups" -gt 0 || "$class_hooks" -gt 0 || "$template_parts" -gt 0 || "$css_comments" -gt 0 ]]; then
+	echo "H2BT_AUDIT_FAIL layout=${layout} stray_comments=${violations} css_org=${css_org} front_page=${front_page} theme_blocks=${theme_blocks} reserved_slugs=${reserved_slugs} dropped_colors=${dropped_colors} subpixel_values=${subpixel_values} post_content_layout=${post_content_layout} theme_json=${theme_json} unnamed_groups=${unnamed_groups} class_hooks=${class_hooks} template_parts=${template_parts} css_comments=${css_comments} image_review=${image_review} css_lines=${total}"
 	exit 1
 fi
-echo "H2BT_AUDIT_OK layout=${layout} stray_comments=0 css_org=0 front_page=0 theme_blocks=0 reserved_slugs=0 dropped_colors=0 subpixel_values=0 post_content_layout=0 theme_json=0 unnamed_groups=0 image_review=${image_review} css_lines=${total}"
+echo "H2BT_AUDIT_OK layout=${layout} stray_comments=0 css_org=0 front_page=0 theme_blocks=0 reserved_slugs=0 dropped_colors=0 subpixel_values=0 post_content_layout=0 theme_json=0 unnamed_groups=0 class_hooks=0 template_parts=0 css_comments=0 image_review=${image_review} css_lines=${total}"

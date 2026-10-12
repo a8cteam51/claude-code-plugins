@@ -90,7 +90,7 @@ Thirty widths fit in a call or two. `resize()` uses no timer and no animation fr
    - Where the zoomed capture is no sharper (a display with one device pixel per CSS pixel), set `&scale=1` and scroll the harness page sideways to the second pane.
 3. **Measure where the eye is unsure,** and at every width the eye will not see: `h2bt.pages()` for document height and overflow, `h2bt.compareText()` for text position and type, `h2bt.run()` for a computed style or a box.
 4. **Fix at the right ladder rung.** Adjust block supports/`theme.json` first; reach for a block style variation next; custom behaviour (`custom-blocks-guide.md`) only for behaviour; documented custom CSS last.
-5. **Reload and reassess.** Reload the harness tab after a change so you're not comparing against a stale render. Stop when the section is within tolerance (no perceptible difference at normal zoom) **or** after ~3 rounds with diminishing returns. Do not loop indefinitely — record the residual difference and its reason in the drift list, then move on.
+5. **Reload and reassess.** Reload the harness tab after a change so you're not comparing against a stale render. Confirm a fix by reading the value it was meant to change (`h2bt.run()` for the computed style or the box), not by the capture: a rule that lost on specificity changes nothing, and at the stage's scale that can pass for fixed. Stop when the section is within tolerance (no perceptible difference at normal zoom) **or** after ~3 rounds with diminishing returns. Do not loop indefinitely — record the residual difference and its reason in the drift list, then move on.
 
 ## Measuring
 
@@ -133,7 +133,7 @@ await h2bt.sink( 'about-1440-text', result );
 - **Equal bounding boxes do not prove a rotation:** plus and minus the same angle give the same box. Compare the computed `rotate` too.
 - **In-page links.** A scripted check selects links whose `href` starts with `#`. Selecting on "contains #" also clicks external links that carry fragments, and the pane navigates away.
 - **Every value an analyzer reports is derived from stylesheets, not measured.** Measure on the rendered page before a value goes into the blueprint or the theme.
-- **Loading an editor stores a post.** Opening the Site Editor, or the block editor that the validator loads, can leave an empty `wp_global_styles` post for the active theme though nothing was saved. A builder looks at the front end only. The orchestrator lists such posts and removes the ones the run made (`SKILL.md`, Phase 1 step 7).
+- **Loading an editor stores a post.** Opening the Site Editor, or the block editor that the validator loads, can leave an empty `wp_global_styles` post for the active theme though nothing was saved. It overrides nothing: leave it.
 
 ## Checks to run before the final validation
 
@@ -144,6 +144,18 @@ Each of these can require a markup change, so they belong before the last valida
 - **Loading state:** an image that points at a theme file reserves no space. To measure what moves while one loads, point a clone of the image at a loopback port that accepts connections and never answers.
 - **The first screen's largest image:** read its `loading` attribute (`standards.md`).
 - **Focus:** key presses do not move focus in a hidden tab, so `:focus-visible` cannot be observed there. What can be checked statically: list every rule whose selector contains `:focus`, strip the pseudo-class and test the element with `matches()`. No match means the browser's default ring, which follows the element's corner radius.
+
+## The editor canvas
+
+A person edits the build in the block editor, so each view is looked at there once, after its final validation. The canvas need not match the front end. It must not look broken.
+
+- **Open it and read, do not edit.** A page opens at `<site-url>/wp-admin/post.php?post=<id>&action=edit`; a template or a part opens in the Site Editor. Type nothing and insert nothing, so that the editor has nothing to save or to warn about when the tab closes. The canvas is a frame on the same origin, so its document can be measured from the editor's tab.
+- **What to check:** the editor reports no invalid block, every section of the view is there and visible, and nothing is collapsed to no height, laid over its neighbour or unstyled.
+- **Where to look when a section is right on the front end and broken here:**
+  - a rule that hangs on something only the front end has: `.wp-site-blocks`, the template around a page's content, a class a view script adds;
+  - content a script reveals. A view script does not run in the canvas, so a start state of `opacity: 0` or a transform stays there. Scope the hidden state to where the script runs;
+  - the root stylesheet missing from `add_editor_style()` (`standards.md`).
+- Fix what the theme causes, and record the rest in the drift list with the editor as its viewport.
 
 ## Convergence policy
 

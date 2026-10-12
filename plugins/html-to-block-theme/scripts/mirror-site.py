@@ -502,7 +502,11 @@ class Mirror:
             with open(raw_path + '.fetched-at') as handle:
                 fetched_at = handle.read().strip()
         charset = re.search(rb'<meta[^>]+charset=["\']?([\w-]+)', body[:4096], re.I)
-        text = body.decode(charset.group(1).decode('ascii', 'replace') if charset else 'utf-8', errors='replace')
+        try:
+            text = body.decode(charset.group(1).decode('ascii', 'replace') if charset else 'utf-8', errors='replace')
+        except LookupError:
+            # The page names an encoding Python does not know.
+            text = body.decode('utf-8', errors='replace')
         result = self.process_page(text, address, name)
         result['captured_at'] = fetched_at
         return result

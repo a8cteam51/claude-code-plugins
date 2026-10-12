@@ -1,12 +1,12 @@
 # Standards
 
-Non-negotiable rules for the delivered theme. The standards audit (`scripts/standards-audit.sh`) enforces the comment and custom-CSS rules, the reserved preset slugs, the dropped-colour rule, whole-pixel values, the layout of post content and group names; the rest are review criteria. Pass it `--content-dir <site-path>/.h2bt/pages` so the page content, which is not in the theme, is checked too. It also fails on a `theme.json` that does not parse (`theme_json`), which WordPress ignores, and on a directory that is not a theme. Its last line is `H2BT_AUDIT_OK` or `H2BT_AUDIT_FAIL`.
+Non-negotiable rules for the delivered theme. The standards audit (`scripts/standards-audit.sh`) enforces the comment and custom-CSS rules, the reserved preset slugs, the dropped-colour rule, whole-pixel values, the layout of post content, group names, settings written as classes and the areas of template parts; the rest are review criteria. Pass it `--content-dir <site-path>/.h2bt/pages` so the page content, which is not in the theme, is checked too. It also fails on a `theme.json` that does not parse (`theme_json`), which WordPress ignores, and on a directory that is not a theme. Its last line is `H2BT_AUDIT_OK` or `H2BT_AUDIT_FAIL`.
 
 ## Comments
 
 - **Block markup** (templates, parts, patterns, page content) contains **only `<!-- wp ... -->` block delimiters.** No other HTML comments — no `<!-- hero section -->`, no `<!-- TODO -->` left in shipped markup. The Gutenberg delimiter is the single permitted comment form.
 - **PHP files** (`functions.php`, `render.php`, `patterns/*.php`) follow WordPress coding standards: a file docblock and function docblocks where they add meaning are fine; avoid line-by-line inline narration. No commented-out code.
-- **CSS / JS**: no explanatory inline comments beyond a short file header where one genuinely helps. Keep it clean, not annotated.
+- **CSS / JS**: no explanatory inline comments beyond a short file header where one genuinely helps. Keep it clean, not annotated. A scaffold's explanatory comments go, also above a rule that is kept. In a standalone theme the audit fails on a comment in `style.css` or a block stylesheet after the file's header (`css_comments`); in a project repository stylelint is the gate, and its `stylelint-disable` comments stay.
 
 If a section needs a note for the user, it goes in the **report**, not as a comment in the theme.
 
@@ -25,6 +25,7 @@ If a section needs a note for the user, it goes in the **report**, not as a comm
 - Every block validates through the Studio validator (`validate_blocks`) — markup whose `save()` output differs from input is wrong; fix it, never ship invalid blocks.
 - **`core/html` is restricted** (enforced by the validator's static policy check): allowed only within the core/html policy in `mapping-guide.md`; everything else must be editable blocks.
 - Custom CSS hooks are always registered block styles: every class a stylesheet targets is either a block's own wrapper/structural class or an `is-style-*` class backed by `register_block_style()`. Structural rung-4 CSS targets block selectors directly (wrapper classes, contextual combinators). An unregistered bespoke className used as a CSS hook is a violation (`block-styles-guide.md`, decision rule).
+- **A setting is an attribute, never a class.** What the editor has a control for (font family, font size, colour, alignment) is written as the block's attribute, so that the control shows it. The same value as a class in `className`, or as a preset class in the markup with no attribute behind it, validates and shows only under Additional CSS class(es). The audit fails on both, and on a `className` the theme's stylesheets select that is not a registered style (`class_hooks`).
 - **No colour function in an element, state or viewport style** (`style.elements.*`, `style[":hover"]`, `style["@mobile"]`): WordPress drops the declaration. Write eight-digit hex (`mapping-guide.md` § CSS → block supports). The audit fails on it (`dropped_colors`).
 - **No preset slug that is one of core's flag classes:** a palette entry named `text`, `link` or `border`, or a font size named `custom` (`theme-json-guide.md`). The audit fails on it (`reserved_slugs`).
 - **A value written in pixels is a whole number of pixels,** in `theme.json`, in block attributes and in stylesheets. A breakpoint is the last whole pixel of its range (`767px`, never `767.98px`), the other side of a `min-width: N` rule is the range query `(width < N)`, and a finer value uses a relative unit, such as a letter spacing in `em` (`mapping-guide.md` § Pixel values are whole pixels). The audit fails on a fraction of a pixel (`subpixel_values`).
@@ -44,7 +45,7 @@ A valid block theme has:
 
 ```
 style.css            # theme header comment block (required)
-theme.json           # source of truth
+theme.json           # source of truth; declares every part in templateParts, with its area
 functions.php        # register_block_style() + wp_enqueue_block_style() per block, font/asset wiring
 templates/           # index.html (required) + others (single, archive, 404, page, custom page templates…) — never front-page.html
 parts/               # header.html, footer.html, shared chrome, as plain block markup
@@ -81,7 +82,8 @@ The theme must **not** ship `templates/front-page.html` — the standards audit 
 
 ## Accessibility
 
-- Preserve semantic landmarks: header/nav/main/footer map to the right blocks and template parts.
+- Preserve semantic landmarks: header/nav/main/footer map to the right blocks and template parts. A part is a `<header>` or a `<footer>` only when `theme.json` declares its area (`theme-json-guide.md` § Template parts; the audit fails on an undeclared part, `template_parts`), and each template wraps its content in a group with `"tagName":"main"`.
+- **No skip link in the theme.** Core prints one before every block template that has a `main` element. A design's own skip link is not rebuilt: the page would have two.
 - Maintain heading order from the design (don't skip levels for styling — style with `theme.json`/supports instead).
 - Images carry `alt`; decorative images use empty `alt` (the image block's `isDecorative` also prints `role="none"`).
 - A control's accessible name survives the rebuild. Where the original names a link differently from its visible text, the blueprint says how that is kept (`mapping-guide.md` § Buttons).
