@@ -26,6 +26,8 @@
 #   9. Every core/post-content block in a template or part has a constrained layout, so a
 #      block is as wide as the content column unless it is aligned wide or full, in the
 #      editor as on the page.
+#  10. Every core/group block has a name (metadata.name), in templates, parts, patterns and
+#      page content, so that a person can read the tree in the markup and in the List View.
 #   It also lists, for review, image blocks in templates and parts that point at a theme
 #   file and reserve no space (no width and height, no aspectRatio).
 #   A theme.json that is missing or does not parse is a failure of its own: checks 6 and 8
@@ -33,11 +35,12 @@
 #
 # Usage: standards-audit.sh --theme-dir <dir> [--layout auto|standalone|template]
 #                           [--content-dir <dir>]
-# --content-dir adds a directory of page-content markup files (*.html) to checks 1, 7 and 8,
-# since page content lives in the database and not in the theme.
+# --content-dir adds a directory of page-content markup files (*.html) to checks 1, 7, 8 and
+# 10, since page content lives in the database and not in the theme.
 # Exits non-zero if stray comments, block-CSS organization violations, a front-page.html
 # template, a block inside the theme, a reserved preset slug, a dropped colour, a fraction
-# of a pixel, post content without a constrained layout or an unreadable theme.json are found.
+# of a pixel, post content without a constrained layout, a group without a name or an
+# unreadable theme.json are found.
 #
 # Last line: H2BT_AUDIT_OK ... or H2BT_AUDIT_FAIL ..., on every exit path but a usage error.
 #
@@ -53,15 +56,16 @@ Gutenberg block delimiters, measures the custom-CSS footprint, checks that block
 one file per block type enqueued via wp_enqueue_block_style(), checks that the theme
 ships no templates/front-page.html and no block.json, that no preset slug in theme.json
 collides with a core flag class, that no element, state or viewport style holds a
-colour function WordPress drops, that no value is a fraction of a pixel, and that every
-template gives post content a constrained layout. Prints a report. Exits 1 on any
-violation, 0 otherwise.
+colour function WordPress drops, that no value is a fraction of a pixel, that every
+template gives post content a constrained layout, and that every group block has a name.
+Prints a report. Exits 1 on any violation, 0 otherwise.
 
 --layout auto (default) picks "template" when the theme has assets/sass/style.scss,
 includes/, and .phpcs.xml (an a8csp-project-template theme), else "standalone".
 
 --content-dir names a directory of page-content markup files (*.html), such as
-<site-path>/.h2bt/pages. They get the comment, colour-function and whole-pixel checks too.
+<site-path>/.h2bt/pages. They get the comment, colour-function, whole-pixel and group-name
+checks too.
 EOF
 }
 
@@ -287,7 +291,9 @@ import re
 import sys
 
 theme_dir, content_dir, layout = sys.argv[1], sys.argv[2], sys.argv[3]
-reserved = dropped = review = subpixel = unconstrained = invalid = 0
+reserved = dropped = review = subpixel = unconstrained = invalid = unnamed = 0
+# So that a page of forty groups does not bury the rest of the report.
+UNNAMED_SHOWN = 8
 
 # A value written in pixels is a whole number of pixels: 767.98px, 0.5px and -.75px are not.
 # 1.0px is: its fraction is nothing.
@@ -422,6 +428,7 @@ for full, label, theme_file in markup_files():
     except OSError:
         continue
     subpixel += report_subpixel(label, text)
+    unnamed_here = 0
     if theme_file:
         for match in POST_CONTENT.finditer(text):
             try:
@@ -443,6 +450,15 @@ for full, label, theme_file in markup_files():
             continue
         name = match.group(1)[5:] if match.group(1).startswith('core/') else match.group(1)
         line = text.count('\n', 0, match.start()) + 1
+        if name == 'group':
+            metadata = attrs.get('metadata')
+            group_name = metadata.get('name') if isinstance(metadata, dict) else None
+            if not isinstance(group_name, str) or not group_name.strip():
+                unnamed += 1
+                unnamed_here += 1
+                if unnamed_here <= UNNAMED_SHOWN:
+                    print('  UNNAMED     %s:%d group has no name — add "metadata":{"name":"<what it is>"}, such as "Hero" or "Feature card"'
+                          % (label, line))
         for where, value in server_compiled(attrs.get('style'), ['style'], False):
             print('  DROPPED     %s:%d %s %s = %s — WordPress drops a colour function here; write eight-digit hex'
                   % (label, line, name, where, value))
@@ -453,6 +469,8 @@ for full, label, theme_file in markup_files():
                 print('  REVIEW      %s:%d image points at a theme file and has no width and height, and no aspectRatio — it reserves no space while it loads'
                       % (label, line))
                 review += 1
+    if unnamed_here > UNNAMED_SHOWN:
+        print('  UNNAMED     %s: and %d more groups without a name' % (label, unnamed_here - UNNAMED_SHOWN))
 
 for full in stylesheet_sources():
     try:
@@ -469,15 +487,17 @@ if unconstrained == 0:
     print('  OK — every post-content block has a constrained layout')
 if review == 0:
     print('  OK — every theme-file image in a template or part reserves its space')
-print('COUNTS %d %d %d %d %d %d' % (reserved, dropped, review, subpixel, unconstrained, invalid))
+if unnamed == 0:
+    print('  OK — every group block has a name')
+print('COUNTS %d %d %d %d %d %d %d' % (reserved, dropped, review, subpixel, unconstrained, invalid, unnamed))
 PY
 sed '$d' "$attr_report"
-read -r _ reserved_slugs dropped_colors image_review subpixel_values post_content_layout theme_json < <(tail -1 "$attr_report")
+read -r _ reserved_slugs dropped_colors image_review subpixel_values post_content_layout theme_json unnamed_groups < <(tail -1 "$attr_report")
 rm -f "$attr_report"
 
 echo
-if [[ "$violations" -gt 0 || "$css_org" -gt 0 || "$front_page" -gt 0 || "$theme_blocks" -gt 0 || "$reserved_slugs" -gt 0 || "$dropped_colors" -gt 0 || "$subpixel_values" -gt 0 || "$post_content_layout" -gt 0 || "$theme_json" -gt 0 ]]; then
-	echo "H2BT_AUDIT_FAIL layout=${layout} stray_comments=${violations} css_org=${css_org} front_page=${front_page} theme_blocks=${theme_blocks} reserved_slugs=${reserved_slugs} dropped_colors=${dropped_colors} subpixel_values=${subpixel_values} post_content_layout=${post_content_layout} theme_json=${theme_json} image_review=${image_review} css_lines=${total}"
+if [[ "$violations" -gt 0 || "$css_org" -gt 0 || "$front_page" -gt 0 || "$theme_blocks" -gt 0 || "$reserved_slugs" -gt 0 || "$dropped_colors" -gt 0 || "$subpixel_values" -gt 0 || "$post_content_layout" -gt 0 || "$theme_json" -gt 0 || "$unnamed_groups" -gt 0 ]]; then
+	echo "H2BT_AUDIT_FAIL layout=${layout} stray_comments=${violations} css_org=${css_org} front_page=${front_page} theme_blocks=${theme_blocks} reserved_slugs=${reserved_slugs} dropped_colors=${dropped_colors} subpixel_values=${subpixel_values} post_content_layout=${post_content_layout} theme_json=${theme_json} unnamed_groups=${unnamed_groups} image_review=${image_review} css_lines=${total}"
 	exit 1
 fi
-echo "H2BT_AUDIT_OK layout=${layout} stray_comments=0 css_org=0 front_page=0 theme_blocks=0 reserved_slugs=0 dropped_colors=0 subpixel_values=0 post_content_layout=0 theme_json=0 image_review=${image_review} css_lines=${total}"
+echo "H2BT_AUDIT_OK layout=${layout} stray_comments=0 css_org=0 front_page=0 theme_blocks=0 reserved_slugs=0 dropped_colors=0 subpixel_values=0 post_content_layout=0 theme_json=0 unnamed_groups=0 image_review=${image_review} css_lines=${total}"

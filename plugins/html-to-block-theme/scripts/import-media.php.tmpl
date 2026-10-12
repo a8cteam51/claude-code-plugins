@@ -1,0 +1,152 @@
+<?php
+/**
+ * import-media.php.tmpl — import design images into the media library and record them.
+ *
+ * import-media.sh stages this file inside the site dir (<site-path>/.h2bt/) after
+ * substituting the placeholder, beside the job file it names. Run it with:
+ *
+ *   studio wp eval-file .h2bt/write-media-<n>.php --path=<site-path>
+ *
+ * It echoes one sentinel line, H2BT_MEDIA ... or H2BT_MEDIA_FAIL reason=..., which the
+ * caller greps for, and one FAILED line per file that was not imported.
+ *
+ * Placeholder (substituted before running; the caller generates the value):
+ *   __JOB_FILE__  basename of a JSON file in this same directory:
+ *                 { "manifest": "<path of the manifest, relative to the site>",
+ *                   "items": [ { "name": "<file name in the library>",
+ *                                "path": "<source file, relative to the site>",
+ *                                "title": "<attachment title>", "alt": "<alternative text>" } ] }
+ *
+ * Every free-text value travels in the job file and is never substituted into this source.
+ *
+ * It can be run again: an attachment is found by its source meta key (_h2bt_source, the
+ * item's name) before anything is uploaded, so a second run uploads nothing twice.
+ */
+
+$job_file = __DIR__ . '/__JOB_FILE__';
+$site_dir = dirname( __DIR__ );
+
+$job = is_readable( $job_file ) ? json_decode( (string) file_get_contents( $job_file ), true ) : null;
+if ( ! is_array( $job ) || ! isset( $job['items'], $job['manifest'] ) || ! is_array( $job['items'] ) || ! is_string( $job['manifest'] ) ) {
+	echo "H2BT_MEDIA_FAIL reason=no-job\n";
+	exit;
+}
+
+require_once ABSPATH . 'wp-admin/includes/file.php';
+require_once ABSPATH . 'wp-admin/includes/media.php';
+require_once ABSPATH . 'wp-admin/includes/image.php';
+
+// A plugin that allows a file type by the uploader's capability (Safe SVG, for SVG) refuses
+// an upload with no user, and WP-CLI has none.
+$admins = get_users(
+	array(
+		'role'   => 'administrator',
+		'number' => 1,
+		'fields' => 'ID',
+	)
+);
+if ( $admins ) {
+	wp_set_current_user( (int) $admins[0] );
+}
+
+// Originals are kept as they are: no scaled copy of a large image.
+add_filter( 'big_image_size_threshold', '__return_false' );
+
+$manifest_file = $site_dir . '/' . ltrim( $job['manifest'], '/' );
+$manifest      = is_readable( $manifest_file ) ? json_decode( (string) file_get_contents( $manifest_file ), true ) : array();
+if ( ! is_array( $manifest ) ) {
+	$manifest = array();
+}
+
+$new    = 0;
+$kept   = 0;
+$failed = array();
+
+foreach ( $job['items'] as $item ) {
+	$name   = isset( $item['name'] ) ? (string) $item['name'] : '';
+	$source = $site_dir . '/' . ltrim( isset( $item['path'] ) ? (string) $item['path'] : '', '/' );
+	if ( '' === $name ) {
+		$failed[] = '(unnamed item): no name';
+		continue;
+	}
+
+	$found = get_posts(
+		array(
+			'post_type'   => 'attachment',
+			'post_status' => 'inherit',
+			'numberposts' => 1,
+			'meta_key'    => '_h2bt_source',
+			'meta_value'  => $name,
+			'fields'      => 'ids',
+		)
+	);
+
+	if ( $found ) {
+		$id = (int) $found[0];
+		++$kept;
+	} else {
+		$real = realpath( $source );
+		if ( false === $real || 0 !== strpos( $real, realpath( $site_dir ) . '/' ) || ! is_readable( $real ) ) {
+			$failed[] = $name . ': the source file is not readable inside the site directory (' . $source . ')';
+			continue;
+		}
+		$tmp = wp_tempnam( $name );
+		if ( ! $tmp || ! copy( $real, $tmp ) ) {
+			$failed[] = $name . ': could not stage a copy for the upload';
+			continue;
+		}
+		$id = media_handle_sideload(
+			array(
+				'name'     => $name,
+				'tmp_name' => $tmp,
+			),
+			0,
+			isset( $item['title'] ) && '' !== $item['title'] ? (string) $item['title'] : null
+		);
+		if ( is_wp_error( $id ) ) {
+			if ( file_exists( $tmp ) ) {
+				unlink( $tmp );
+			}
+			$hint     = preg_match( '/\.svg$/i', $name ) ? ' An SVG needs a plugin that allows it, such as Safe SVG, installed and active first.' : '';
+			$failed[] = $name . ': ' . $id->get_error_message() . $hint;
+			continue;
+		}
+		update_post_meta( $id, '_h2bt_source', $name );
+		++$new;
+	}
+
+	if ( isset( $item['alt'] ) ) {
+		update_post_meta( $id, '_wp_attachment_image_alt', wp_slash( (string) $item['alt'] ) );
+	}
+
+	$meta = wp_get_attachment_metadata( $id );
+	$url  = wp_get_attachment_url( $id );
+	$file = get_attached_file( $id );
+	if ( ! $url || ! $file || ! file_exists( $file ) ) {
+		$failed[] = $name . ': attachment ' . $id . ' has no file in the uploads directory';
+		continue;
+	}
+
+	$manifest[ $name ] = array(
+		'id'     => $id,
+		'url'    => $url,
+		'width'  => isset( $meta['width'] ) ? (int) $meta['width'] : null,
+		'height' => isset( $meta['height'] ) ? (int) $meta['height'] : null,
+		'mime'   => get_post_mime_type( $id ),
+		'alt'    => (string) get_post_meta( $id, '_wp_attachment_image_alt', true ),
+		'bytes'  => (int) filesize( $file ),
+		'sizes'  => isset( $meta['sizes'] ) && is_array( $meta['sizes'] ) ? array_keys( $meta['sizes'] ) : array(),
+		'source' => isset( $item['source'] ) ? (string) $item['source'] : (string) $item['path'],
+	);
+}
+
+$written = file_put_contents( $manifest_file, wp_json_encode( $manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) . "\n" );
+if ( false === $written ) {
+	echo "H2BT_MEDIA_FAIL reason=manifest-not-written\n";
+	exit;
+}
+
+foreach ( $failed as $line ) {
+	echo 'FAILED ' . $line . "\n";
+}
+echo 'H2BT_MEDIA items=' . count( $job['items'] ) . ' new=' . $new . ' kept=' . $kept . ' failed=' . count( $failed ) . ' manifest_entries=' . count( $manifest ) . ' php=' . PHP_VERSION . "\n";

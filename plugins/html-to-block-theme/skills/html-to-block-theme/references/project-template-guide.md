@@ -34,7 +34,7 @@ Creating the GitHub repository and pushing stay the user's decision. Say in the 
 
 ## Preconditions (template mode)
 
-0. **No one else's work in the way.** On a new run (one that is not the resumption of an earlier one), a working tree with uncommitted changes, or one whose template examples are already gone, holds work that is not this run's. Say what the run would replace (`theme.json`, the parts, the templates) and ask before going on. Uncommitted work is the only kind that cannot be got back.
+0. **No one else's work in the way.** On a new run (one that is not the resumption of an earlier one), a working tree with uncommitted changes, or one whose theme no longer holds the template's example patterns and templates, holds work that is not this run's. Say what the run would replace (`theme.json`, the parts, the templates) and ask before going on. Uncommitted work is the only kind that cannot be got back.
 1. **A feature branch.** `trunk` deploys to production and `develop` to staging, so never build on either. Use the repository's branch prefixes (`add/`, `feature/`, `fix/`, `update/`, `remove/`), for example `git switch -c add/block-theme`.
 2. **The site runs the PHP floor.** Run `studio site set --path <site-path> --php <php_floor>`, and record the version it had under `changed` in `run.json`: the report says that it was changed. Below the floor, the features plugin prints an admin notice and loads nothing, so its blocks and redirects silently disappear.
 3. **Toolchain.**
@@ -76,7 +76,7 @@ The template's CI, tests and wp-env configuration depend on these. Read them fro
 | `render_block_*` filters | `includes/<concern>.php`. |
 | `assets/js/*.js` | ES modules in `assets/js/src/`, imported by `src/index.js` and built into the one always-enqueued bundle. Each module returns early when its markup is absent. |
 | Custom behaviour | The same as standalone (`custom-blocks-guide.md`): core features first, then blocks from the A8C Special Projects blocks monorepo, installed as plugins and never tracked here. Only an approved exclusion is scaffolded into the features plugin (`blocks/src/<slug>/`, `scaffold-custom-block.sh --exclusion-approved`), because page content stores it and a theme swap must not unregister it. Project-side filters that adapt a monorepo block go in `<features-dir>/includes/<concern>.php`. |
-| Site-config mu-plugins (redirects and the like) | `<features-dir>/includes/<feature>.php`. |
+| Site-config mu-plugins (redirects and the like) | `<features-dir>/includes/<feature>.php`. The features plugin has to be enabled for it to load (§ Template example features). |
 | Local-only shims (for example `jetpack_offline_mode`) | Untracked `mu-plugins/<file>.php`. Never commit them. |
 | `templates/`, `parts/`, fonts | Same paths. Parts and templates are plain block markup. |
 | `patterns/` | Only when the blueprint calls for patterns (`mapping-guide.md` § Where content lives). They keep `Slug: <theme_slug>/…` and `Categories: <theme_slug>`. |
@@ -103,12 +103,15 @@ The features-plugin block wiring below applies only to approved exclusions. Mono
 
 ## Template example features
 
-Detection lists what generation left behind.
-- **`book-cpt`, `book-cover-reminder`, `woocommerce-cart`:** remove each with the recipe at the top of its own file. The recipe names the scripts, built files, tests and prose to delete.
-- **The template's example theme content** (`parts/header.html`, `parts/footer.html`, `templates/index.html`, `templates/singular.html`, `patterns/footer-default.php`, `patterns/index-query.php`): the build's parts and templates replace it. The example patterns are removed, not replaced, unless the blueprint calls for patterns.
+Detection lists what generation left behind. **The examples are there to show how a feature is built in this repository. Read them for that, then strip them:** every example the build does not itself use is removed as part of the run, along with the theme's example content. The conversion writes no tests (§ Checks): what a removal deletes under `tests/` is the example's own tests, as its recipe names them.
+
+- **`book-cpt`, `book-cover-reminder`, the Book Count block, `woocommerce-cart`: remove each one the build does not use,** during the foundation. A build uses an example only when it ships that very feature, such as the cart stylesheet on a site that runs WooCommerce and whose design styles the cart. A build that needs a post type or a block of its own writes it after the example's pattern, and still removes the example. Say in the report which were stripped, and which were kept and why.
+- **Follow the recipe at the top of the example's own file, whole:** the files, the built files, the npm scripts, the allowlist lines, the tests it names and the prose it leaves false. Then run `npm run build`. A recipe applied in part fails the suite: one of the template's tests asserts that the example block's built files exist.
+- **One step of the `woocommerce-cart` recipe is wrong for a build.** It has the `build:theme:css` and `start:theme:css` scripts deleted, as building only the cart stylesheet. They compile everything under `assets/css/src/`, the block stylesheets in `blocks/` included: keep both.
+- **`<features-dir>/.disabled`:** generation creates it. Delete it once the features plugin carries real features, or the build's blocks and redirects never load. The plugin's examples are stripped by then: enabling it with one in place publishes the example post type on the site.
+- **`includes/theme-dynamic-content.php`:** a build that shows the year uses this example. Keep its `current-year` binding source and extend it, for example with a `format` argument that places the year in a sentence. Never rename it: a test names it, and no test is rewritten to match a new name. A build that shows no year removes it by its recipe.
+- **The template's example theme content** (`parts/header.html`, `parts/footer.html`, `templates/index.html`, `templates/singular.html`, `patterns/footer-default.php`, `patterns/index-query.php`, the Sass partials, `assets/js/src/index.js`): the build replaces it. The example patterns are removed, not replaced, unless the blueprint calls for patterns, and `templates/singular.html` is removed unless a view owns it.
 - **The scaffold's `theme.json` values are not givens.** Fluid typography in particular is decided from the design (`theme-json-guide.md`).
-- **`<features-dir>/.disabled`:** generation creates it. Delete it once the features plugin carries real features, or its blocks and redirects never load.
-- **Replacing the template's `current-year` binding** means updating `SiteBootTest` too.
 
 ## What fails CI, and the fix
 
@@ -143,10 +146,7 @@ Detection lists what generation left behind.
   - **It waits for `afterStart` to activate the theme** before the end-to-end run. If you run `npm run test:e2e` yourself on a machine where the environment has never been started, start it first (`npm run wp-env:start`) and let it finish: the smoke can otherwise reach the site before the theme is active, and fail on a default theme's page.
   - **It gives Docker a time limit.** `docker info` hangs when the engine is stuck, which stalls a run with no output. A hung engine is reported as not running; restart it with `docker desktop restart`, and put a time limit on any `docker` call you make yourself.
 - **Linting while building:** run the linters on the tracked paths (`vendor/bin/phpcs <theme-dir> <features-dir>`, `vendor/bin/phpstan analyse -c ./.phpstan.neon <theme-dir> <features-dir> mu-plugins/mu-loader.php`), never the repository's whole-tree scripts in place. In a Studio site those also scan Studio's own untracked files in `mu-plugins/`.
-- **Tests.** Replace the example tests with tests of the build's own promises: render filters (including filters that adapt monorepo blocks), approved-exclusion block output, block style and stylesheet registrations, bindings and redirects. The wp-env sites hold no page content, so these tests cover code, not the design.
-  - **An end-to-end smoke that needs no content can still cover templates.** A missing address exercises the not-found template. A post type archive exercises its template and any render filters with zero entries, which is where a filter that assumes data fails.
-  - **Settings that stored content depends on deserve a test:** the viewport breakpoints, fluid typography, the custom page templates pages are assigned to, and the reserved palette slugs. So do the two standards an editor relies on: no shipped theme file writes a fraction of a pixel, and every template gives post content a constrained layout.
-  - **Fixtures:** WordPress schedules a post dated in the future instead of publishing it, so compare only the ids the test created. Nothing rolls the database back between tests: delete what a test creates.
+- **No tests are written.** The conversion adds no test file, no test and no assertion, and rewrites none to fit the build. Testing a build is a separate piece of work, outside this skill. Under `tests/` it only deletes: the tests of an example it removes, as that example's recipe names them, and the prose there that the removal leaves false (§ Template example features). The suites that `template-checks.sh --tests --e2e` runs are otherwise the repository's own. Run them only when Docker is already running: do not start it, and say in the report that they were not run. When one fails on the build, the answer is in the theme (§ The theme contract the template's tests encode), never in the test.
 
 ## Visual parity guard
 
@@ -179,15 +179,15 @@ bash "<plugin-root>/scripts/parity-check.sh" --repo <repo> --base-url <site-url>
 
 ## Delivery
 
-- **Commits:** conventional commits (`feat:`, `fix:`, `test:`, `docs:`, `chore:`), in the logical units a reviewer reads.
+- **Commits:** conventional commits (`feat:`, `fix:`, `docs:`, `chore:`), in the logical units a reviewer reads.
 - **Pushing needs the user's permission.** Open a **draft** PR against `trunk` using the repository's PR template, with screenshots or the parity result for visual changes. Never push `trunk` or `develop`.
-- **README:** keep it true. Document the site's dependencies (monorepo block plugins included), the Studio workflow and any allowlisted exclusions. Rewrite the prose that removed example features leave false.
+- **README:** keep it true. Add what the theme now is, the site's dependencies (monorepo block plugins included), the Studio workflow and any allowlisted exclusions. Rewrite the prose that a removed example leaves false, as its recipe says; prose about an example the build kept stays. Run `npm run lint:readme-md` after editing it.
 
 ## Porting an existing standalone build into the template
 
 1. **Baseline** with `parity-check.sh --mode baseline`, while the standalone theme is still active.
 2. **Set up the repository.** Convert the site with `clone-into-existing-site`, restore local-only mu-plugins, create a branch, set the PHP floor, and install dependencies.
-3. **Clear out the template's examples** (§ Template example features).
+3. **Replace the template's example theme content,** and strip the example features the build does not use (§ Template example features).
 4. **Move the build over.** Move each piece per § Where each piece goes, and rename identifiers per § Permanent identifiers.
 5. **Build, activate and rewrite.** Run `npm run build`, activate the template theme, rewrite the block namespace in stored content, and validate the affected pages and parts.
 6. **Verify and deliver.** Run `parity-check.sh --mode compare`, then `standards-audit.sh` and `template-checks.sh`, commit, and open a draft PR.

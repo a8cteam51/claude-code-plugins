@@ -199,7 +199,7 @@ bash "<plugin-root>/scripts/scaffold-custom-block.sh" --exclusion-approved \
   --features-dir "<features-dir>" --namespace "<theme_slug>" --slug "<slug>" --title "<Title>"
 ```
 
-The block goes in the **features mu-plugin**, not the theme, because page content stores it and it must survive a theme swap. The scaffold:
+The block goes in the **features mu-plugin**, not the theme, because page content stores it and it must survive a theme swap. In a repository as generated that plugin is disabled, and enabling it also enables the template's example features: remove those by their recipes first, then delete `.disabled` (`project-template-guide.md` § Template example features). The scaffold:
 - writes `blocks/src/<slug>/`, with ES modules and JSX in `index.js` and a strict-types `render.php` whose variables carry the repository's prefix;
 - adds `includes/blocks.php`, which registers everything in the wp-scripts `blocks-manifest.php` via `wp_register_block_types_from_metadata_collection()`;
 - adds the `build:features:blocks`/`start:features:blocks` scripts and the lint paths to `package.json`;

@@ -30,7 +30,7 @@ Attribute forms move between WordPress versions. Markup written from memory of a
 
 | Design markup | Core block | Notes |
 |---|---|---|
-| `<section>` / outer `<div>` wrapper | `core/group` | `align:full` for full-bleed; constrained layout for centered content. The structural workhorse. |
+| `<section>` / outer `<div>` wrapper | `core/group` | `align:full` for full-bleed; constrained layout for centered content. The structural workhorse. Every group carries a name (§ Name every group). |
 | Horizontal flex row of items | `core/group` with `layout:{"type":"flex"}` or `core/columns` | Use `columns` when items are proportional content columns; flex group for nav/button rows/inline clusters. |
 | Vertical stack with consistent gap | `core/group` with `layout:{"type":"flex","orientation":"vertical"}` | `blockGap` carries the gap. A vertical flex group wraps by default (§ Layout recipes). |
 | CSS grid of cards | `core/columns` (fixed) or `core/group` `layout:{"type":"grid"}` | Grid layout for auto-fit/min-width card grids; `columns` for a fixed N-up. |
@@ -126,6 +126,22 @@ Every template gives `core/post-content` a constrained layout, landing-page temp
 - **Set `contentSize` and `wideSize` to the design's real text column and wide column.** They are what a new block gets.
 - **Converting is layout-neutral.** Giving the template's post content a constrained layout and every existing top-level block `"align":"full"` left the front end identical at every width measured.
 - **Check it in the editor,** on one page per template: the content's root is constrained, each section spans the canvas, and a paragraph inserted at the root is `contentSize` wide. The standards audit fails on a `core/post-content` without a constrained layout.
+
+### Name every group
+
+Every `core/group` carries a name in `metadata.name`, rows, stacks and grids included:
+
+```html
+<!-- wp:group {"metadata":{"name":"Hero"},"align":"full","layout":{"type":"constrained"}} -->
+```
+
+A build is mostly groups, and in the markup and in the editor's List View they all read "Group". The name is what a person finds a section by.
+
+- **Name a group by what it is in the design,** in a word or two: `Hero`, `Feature card`, `Link column`, `Store badges`. Not by its look or its layout (`Blue band`, `Row`), which the attributes already say.
+- **The top-level groups of a page and of a part take the design's own section names.** Repeated groups share a name (`Feature card`), or carry what tells them apart where that helps a reader (`Network: WhatsApp`).
+- **`metadata` is one object.** A group that is hidden or bound keeps those keys beside the name: `"metadata":{"name":"Account","blockVisibility":false}`.
+- **The name prints nothing.** It changes no class and no output, and the validator keeps it.
+- Other blocks may carry a name the same way. Only groups must: the standards audit fails on a group without one, in a template, a part, a pattern or a page source (`unnamed_groups`).
 
 ### Layout recipes that replace CSS
 
@@ -257,7 +273,14 @@ This keeps the homepage editable in WordPress like every other page instead of h
 - **Design images** (photos, illustrations, logos, icons, badges) → the media library, referenced as the editor writes them: the `id` attribute, the attachment URL and the `wp-image-<id>` class. An editor can then replace any of them, and no page points at a theme file. This is a blueprint decision with this default, because of what it brings:
   - **SVG needs the Safe SVG plugin**, which becomes a site dependency.
   - **The media travels with the content migration**, not with the deploy.
-  - Keep one manifest for the run (`<site-path>/.h2bt/media.json`: file name → id, URL and dimensions) and have every builder take ids from it. Import with a script that can be run again: it finds an attachment by a source meta key before sideloading, turns off big-image scaling so originals are not resized, and prints a sentinel.
+  - Keep one manifest for the run (`<site-path>/.h2bt/media.json`: file name → id, URL and dimensions) and have every builder take ids from it. Import with the plugin's script, which writes it:
+
+    ```bash
+    bash "<plugin-root>/scripts/import-media.sh" --site-path <site-path> --list <list.json>
+    # H2BT_MEDIA items=<n> new=<n> kept=<n> failed=<n> … manifest=<site-path>/.h2bt/media.json
+    ```
+
+    The list is a JSON array of `{ "file", "title", "alt", "name" }`: `file` is absolute or relative to the list, and `name` is the file name in the library, which the manifest is keyed by, so two sources with one file name need a `name` each. It can be run again: an attachment is found by its source meta key before anything is uploaded. Originals are not scaled down. It runs as an administrator, because Safe SVG refuses an SVG that no user uploads. Anything but `failed=0` exits non-zero, with one `FAILED` line per file.
 - **Images a template, part or stylesheet itself needs** stay in the theme's `assets/`. A theme `.html` file cannot point at a media item portably, because ids and URLs differ per environment, and it cannot build a theme URL without PHP.
   - Paint decoration from the block's stylesheet, where a relative URL resolves.
   - For a real `<img>` in a part, the choices are a root-relative theme path, which breaks if WordPress is served from a subdirectory, or a media item whose URL is fixed up after migration. Record which was chosen, and reserve the image's space (§ Images).

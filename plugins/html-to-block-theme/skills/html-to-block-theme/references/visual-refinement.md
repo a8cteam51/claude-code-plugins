@@ -14,7 +14,7 @@ bash "<plugin-root>/scripts/serve-html.sh" --ensure --site-path "<site-path>" --
 # H2BT_HARNESS url=<base-url>_h2bt/viewport.html site_copy=<site-path>/_h2bt/viewport.html sink=<dir>
 ```
 
-- **The server's address is in `<site-path>/.h2bt/serve.json`** (`url`, `harness`, `sink`), not in anyone's memory. `--ensure` reuses the server when it still answers and starts a new one, on a new port, when it has died: run it whenever the original stops loading, and read the file again. `--dir` is only needed the first time.
+- **The server's address is in `<site-path>/.h2bt/serve.json`** (`url`, `harness`, `sink`), not in anyone's memory. `--ensure` reuses the server when it still answers and starts a new one, on a new port, when it has died: run it whenever the original stops loading, and read the file again. `--dir` is only needed before the run has a `run.json`: after a `--stop`, which removes `serve.json`, `--ensure` takes the directory from the run's `design_dir`. A start that cannot be made ends with `H2BT_SERVE_FAIL reason=<why>`.
 - `--site-path` places a copy of the harness in the site, at `<site-path>/_h2bt/viewport.html`, which the site serves at `<site-url>/_h2bt/viewport.html`. A page on the other origin is reached through that copy, which relays requests to the page it frames. `--stop --site-path <site-path>` stops the server and removes the copy; it is outside `wp-content`, so never inside a project repository.
 - **Everything is loopback-only.** The harness does nothing unless it is served from `localhost`, `127.0.0.1`, `[::1]` or a `*.localhost` name, frames only such addresses, and its relay answers only a loopback origin. Address the Studio site by its `localhost:<port>` URL.
 
@@ -106,6 +106,7 @@ await h2bt.sink( 'about-1440-text', result );
 
 - `a` and `b` (or `root` for both) are selectors of the region to compare. `boxes: true` also compares each group's block box; `types: false` skips the type.
 - **Text that only one page has is a difference.** When the panes have different numbers of groups, `unpaired` gives the side and the count, and the first five such groups are in `diffs` with `only: "a"` or `"b"`. A page that ends early, or carries an extra block, therefore never compares as equal. Pairing is by order, so one missing group early on also shifts every pair after it: fix the first difference and compare again.
+- **Text that one page splits into two blocks shifts every later pair as well.** A heading that the original breaks with a `display: block` span is two groups there and one group, with a line break, in the build. Compare such a page section by section, with `a` and `b` set to each section's selector, and compare the split element by the box of its text.
 - Typographic quotes and dashes are treated as their plain forms, because WordPress texturises content.
 - An emoji is compared by the `alt` of WordPress's replacement image. A mirror with its scripts removed shows the character where the live page and the build show the image, so the live page is the reference for that character.
 - The ink matters for small labels. A block with a small font on a taller line centres its text; the same text as an inline element in a parent with a larger font hangs from the parent's baseline. The offset is under a pixel, which a box comparison never sees.
@@ -132,6 +133,7 @@ await h2bt.sink( 'about-1440-text', result );
 - **Equal bounding boxes do not prove a rotation:** plus and minus the same angle give the same box. Compare the computed `rotate` too.
 - **In-page links.** A scripted check selects links whose `href` starts with `#`. Selecting on "contains #" also clicks external links that carry fragments, and the pane navigates away.
 - **Every value an analyzer reports is derived from stylesheets, not measured.** Measure on the rendered page before a value goes into the blueprint or the theme.
+- **Loading an editor stores a post.** Opening the Site Editor, or the block editor that the validator loads, can leave an empty `wp_global_styles` post for the active theme though nothing was saved. A builder looks at the front end only. The orchestrator lists such posts and removes the ones the run made (`SKILL.md`, Phase 1 step 7).
 
 ## Checks to run before the final validation
 

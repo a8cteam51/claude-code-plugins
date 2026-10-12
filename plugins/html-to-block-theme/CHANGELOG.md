@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.7.0] - 2026-10-12
+
+From the first end-to-end run of 0.6.0: a live site's header, footer and homepage, built into a project-template repository on a new Studio site. The run got from an address to two built and compared views with one check-in, and its state on disk, the builder clock and the chrome-first order held. It also showed the defects fixed here, and its result prompted two decisions by the developer, which are the first two entries. Not exercised by that run, so still unproven: resuming an interrupted run, a builder that is stuck, a continuation, a failed view.
+
+### Changed
+- **Every group block has a name.** Each `core/group` in a template, a part or a page, rows, stacks and grids included, carries `metadata.name` ("Hero", "Feature card"), so that a person can follow the tree in the markup and in the editor's List View. The mapping guide says how to name one, the builder writes them, and the standards audit fails on a group without one (`unnamed_groups`).
+- **The conversion writes no tests.** In template mode the skill used to replace the template's example tests with tests of the build. It now adds no test file, no test and no assertion, and rewrites none to fit the build. Testing a build is a separate piece of work. Under the repository's `tests/` it only deletes what a template example's removal recipe names.
+  - **The template's example features are still stripped as part of the run,** each by its recipe: they are there to show how a feature is built. One is kept only where the build itself uses it, and the report says which. A recipe is applied whole, its test deletions included, because one of the template's tests asserts that the example block's built files exist.
+  - The `current-year` binding source is extended where the build shows the year and never renamed, because a test names it.
+- **Docker is not started for the wp-env suites.** `template-checks.sh --tests --e2e` is run only when Docker is already running; otherwise the report says the suites were not run.
+- **A builder's hand-back is its result file.** It used to return the whole result object as well, which put tens of kilobytes into the orchestrator's context a second time, minutes after the clock had already announced the file. It now returns a pointer: the view, the status, the file and what is open.
+- **A builder makes its defect fixes without asking.** With defects set to be fixed, a builder had no rule for when a fix needs confirming, and asked the orchestrator about fixes it had already made. It now makes and records each fix, except one that moves the document's height by more than 50px at any width of the sweep and that the blueprint does not name: that one is copied as the original has it and listed for the user.
+- **Builders look at the front end only.** Loading the Site Editor, or the block editor that the validator loads, can store an empty `wp_global_styles` post for the active theme though nothing is saved; before approval that is the default theme. The orchestrator records such a post under `temporary` and removes it at the end, and a blueprint summary no longer says that nothing is stored when the run itself stored it.
+- The editor check measures what an unaligned block gets without inserting one.
+
+### Added
+- **`scripts/mirror-site.py`** captures pages of a live site into a design directory, as the live-site guide describes: each page fetched once and kept as it came, assets at their root-relative paths with other hosts under `_hosts/`, analytics, consent, search and speculation rules removed, and the script-free copy, the reading aid and a manifest written. It prints what it decided for every script, marks a kept script that looks as if it loads or reports something for review, and takes a rules file for what its built-in rules do not know. A second run fetches only what the mirror lacks. Two runs had each written their own.
+- **`scripts/import-media.sh`** (with `import-media.php.tmpl`) imports design images into the media library and keeps the run's media manifest. It can be run again without uploading anything twice, keeps originals unscaled, and runs as an administrator, because Safe SVG refuses an SVG that no user uploads: without that, every SVG of a design fails while the other images import.
+- The standards audit's tenth check, for unnamed groups.
+
+### Fixed
+- **`serve-html.sh --ensure` could not bring the server back after a `--stop`** without `--dir`: it printed its usage text and no sentinel, which is what the skill's own "bring the design server back" step ran into on approval. It now takes the directory from the run's `design_dir`, and every start that cannot be made ends with `H2BT_SERVE_FAIL reason=<why>`.
+- `visual-refinement.md` said `--dir` is only needed the first time, which was not true after a stop.
+- A whole-page text comparison is useless on a page where one side splits a heading into two blocks: every later pair shifts. The guide now says to compare such a page section by section.
+- The project-template guide told a run to apply the WooCommerce example's removal recipe as written, and that recipe deletes the two npm scripts that also compile block stylesheets. The guide now says to keep both.
+
+### Not in this release
+- The run's findings about WordPress itself (flex children across viewport states, outline buttons, social links and `nofollow`, view timelines, line-height rounding and others, about thirty) are in that run's `plugin-findings.md`, and are not ported into the guides yet.
+
 ## [0.6.0] - 2026-10-11
 
 How a run is organised. A run lasts hours and nobody watches it after the blueprint is approved, and a walk through it found places where it could lose work or stand still. The scripts in this release were tried on a throwaway Studio site. The procedure as a whole has not been run end to end yet: the first real run is its test.

@@ -1,6 +1,6 @@
 # Standards
 
-Non-negotiable rules for the delivered theme. The standards audit (`scripts/standards-audit.sh`) enforces the comment and custom-CSS rules, the reserved preset slugs, the dropped-colour rule, whole-pixel values and the layout of post content; the rest are review criteria. Pass it `--content-dir <site-path>/.h2bt/pages` so the page content, which is not in the theme, is checked too. It also fails on a `theme.json` that does not parse (`theme_json`), which WordPress ignores, and on a directory that is not a theme. Its last line is `H2BT_AUDIT_OK` or `H2BT_AUDIT_FAIL`.
+Non-negotiable rules for the delivered theme. The standards audit (`scripts/standards-audit.sh`) enforces the comment and custom-CSS rules, the reserved preset slugs, the dropped-colour rule, whole-pixel values, the layout of post content and group names; the rest are review criteria. Pass it `--content-dir <site-path>/.h2bt/pages` so the page content, which is not in the theme, is checked too. It also fails on a `theme.json` that does not parse (`theme_json`), which WordPress ignores, and on a directory that is not a theme. Its last line is `H2BT_AUDIT_OK` or `H2BT_AUDIT_FAIL`.
 
 ## Comments
 
@@ -29,6 +29,7 @@ If a section needs a note for the user, it goes in the **report**, not as a comm
 - **No preset slug that is one of core's flag classes:** a palette entry named `text`, `link` or `border`, or a font size named `custom` (`theme-json-guide.md`). The audit fails on it (`reserved_slugs`).
 - **A value written in pixels is a whole number of pixels,** in `theme.json`, in block attributes and in stylesheets. A breakpoint is the last whole pixel of its range (`767px`, never `767.98px`), the other side of a `min-width: N` rule is the range query `(width < N)`, and a finer value uses a relative unit, such as a letter spacing in `em` (`mapping-guide.md` § Pixel values are whole pixels). The audit fails on a fraction of a pixel (`subpixel_values`).
 - **Every template gives `core/post-content` a constrained layout,** landing-page templates included. A block is then as wide as the content column unless it is aligned wide or full, in the editor as on the page, and a page's full-bleed sections are `alignfull` blocks in its content (`mapping-guide.md` § Post content sits at content width). The audit fails on post content without one (`post_content_layout`).
+- **Every `core/group` has a name** (`"metadata":{"name":"Hero"}`), in templates, parts and page content, rows, stacks and grids included. A person reads the markup tree and the editor's List View by those names (`mapping-guide.md` § Name every group). The audit fails on a group without one (`unnamed_groups`).
 
 ## Content and images
 
@@ -66,7 +67,7 @@ A theme never contains a block (`block.json`). Blocks come from the A8C Special 
 - Theme JS is ES modules under `assets/js/src/`, built to `assets/js/build/`.
 - Blocks come from the blocks monorepo. Only an approved exclusion goes in the features mu-plugin.
 
-The template's own gates (PHPCS, PHPStan, stylelint, ESLint, build integrity, blocks allowlist, tests) apply on top of these standards. Run them with `scripts/template-checks.sh`.
+The template's own gates (PHPCS, PHPStan, stylelint, ESLint, build integrity, blocks allowlist, tests) apply on top of these standards. Run them with `scripts/template-checks.sh`. The conversion writes no tests: under the repository's `tests/` directory it only deletes what a template example's removal recipe names (`project-template-guide.md` § Checks).
 
 **`style.css` is not auto-enqueued on block themes** (observed on WP 7.0.1/Studio): `functions.php` must enqueue it explicitly — `wp_enqueue_style( '<theme-slug>-style', get_stylesheet_uri(), … )` plus `add_editor_style( 'style.css' )` so the editor matches. Root `style.css` is exempt from the one-file-per-block-type rule and is where responsive token overrides and the reset rules the design relies on live (`theme-json-guide.md`); a separate `assets/css/tokens.css` is flagged STRAY by the audit.
 

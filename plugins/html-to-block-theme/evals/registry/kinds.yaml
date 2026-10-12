@@ -52,7 +52,7 @@ files:
       "Hard gates": process
     overrides:
       - { match: "Use **only `<!-- wp ... -->` comments**", kind: decision }
-      - { match: "Two standards of every build", kind: decision }
+      - { match: "Three standards of every build", kind: decision }
       - { match: "Write to the right home", kind: decision }
       - { match: "A message with no tool call in it ends your run", kind: steering }
       - { match: "on a progress note or a summary of the build so far", kind: steering }
@@ -71,6 +71,7 @@ files:
       "Pixel values are whole pixels": decision
       "Layout mapping cheatsheet": platform
       "Post content sits at content width, in every template": decision
+      "Name every group": decision
       "Layout recipes that replace CSS": platform
       "Layout traps (defaults that fight the design)": platform
       "Images": platform

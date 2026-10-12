@@ -46,7 +46,7 @@ A run lasts hours, and what is in context at its start is summarised away before
 | `widths`, `narrowest` | The widths every view is swept at, and the narrowest the design must hold. |
 | `defects` | Live site only: `copy` or `fix`. |
 | `builder` | The builder that is running: `name`, `agent`, `started`, `continuations`. `null` between builders. |
-| `temporary` | What the run made and must remove before it ends: a mu-plugin shim, a throwaway site. |
+| `temporary` | What the run made and must remove before it ends: a mu-plugin shim, a throwaway site, an empty `wp_global_styles` post that an editor load stored. |
 | `changed` | What the run changed on the site and leaves, for the report: the PHP version, the active theme, the front page, plugins installed, pages overwritten. |
 
 **The files are the state, not your memory of them.** At the start of every turn after approval, read the target table and `run.json` before acting.
@@ -76,6 +76,8 @@ This skill uses two MCP tool sets, the `studio` CLI, and the plugin's own script
   - `dev-mode.sh` turns WordPress's development mode on for the build and puts back what was there;
   - `render-probe.sh` renders a block-markup file on the site and prints its HTML and CSS, with no database write (`mapping-guide.md`);
   - `write-page.sh` writes a page, verified by a sentinel;
+  - `import-media.sh` imports design images into the media library and keeps the media manifest (`mapping-guide.md` § Asset routing);
+  - `mirror-site.py` captures pages of a live site into a design directory (`live-site-guide.md`);
   - `wait-for-result.sh` is a clock for a builder that may never report;
   - `collate-results.py` turns the builders' results into the report's tables;
   - `standards-audit.sh` and, in template mode, `template-checks.sh` and `parity-check.sh` are the gates.
@@ -98,8 +100,8 @@ Check these before any work, in this order. Steps 1 to 6 only read, so that noth
    - `mode=template-unreadable` → the site's `wp-content` is a project-template repository whose theme could not be read. Stop and report the sentinel's `reason`: building a standalone theme into that repository would ignore its conventions.
 10. **Decide which theme the run builds into.** The run replaces a theme's `theme.json`, parts and templates, so it builds only into a theme it may replace. The active theme is not that just because it is active: a new site's active theme is a default theme, and writing into it replaces it under its own name.
     - **Standalone.** Build into an existing theme only when `run.json` says a run made it (`theme.made_by_run`), or the user named it in this conversation. Otherwise make a new one with `mcp__wordpress-studio__scaffold_theme`, with a slug from the project and `activate: false`. It is activated when the blueprint is approved.
-    - **Template mode.** The theme is the repository's (the sentinel's `theme_dir`). On a new run, a working tree with uncommitted changes, or one whose template examples are already gone (`examples=none`), holds work that is not this run's: say what the run would replace, and ask before going on.
-    - **Either way,** list what is stored in the database for that theme: `wp_template`, `wp_template_part` and `wp_global_styles` posts made in the Site Editor win over the theme's files, so with one in place an edit to the file shows nothing. Name any in the blueprint summary and ask whether to remove them.
+    - **Template mode.** The theme is the repository's (the sentinel's `theme_dir`). On a new run, a working tree with uncommitted changes, or one whose theme no longer holds the template's example content (the sentinel's `examples` lists none of `footer-default-pattern`, `index-query-pattern` and `singular-template`), holds work that is not this run's: say what the run would replace, and ask before going on.
+    - **Either way,** list what is stored in the database for that theme: `wp_template`, `wp_template_part` and `wp_global_styles` posts made in the Site Editor win over the theme's files, so with one in place an edit to the file shows nothing. Name any in the blueprint summary and ask whether to remove them. Keep the list: a post that is not on it was made later, by the run.
     - Record `theme` in `run.json`, and bind its `dir` as `<theme-dir>`.
 11. **Working directory, and prior lessons.** Create `<site-path>/.h2bt/` with `analysis/`, `pages/` and `results/` in it, and remove the loose staged files of a prior aborted run (`content-*`, `title-*`, `write-*`, `probe-*`). Keep everything else there: the records a run leaves and every directory. Read `lessons.md` if present: it holds lessons recorded by previous runs against this site and environment, and they apply to this run.
 
@@ -163,7 +165,7 @@ This is also where a turn starts after the conversation has been summarised: the
 7. **Try everything the unattended part needs, while the user is here.** A permission prompt now costs them one click; the same prompt in Phase 3 stops the run until they come back.
    - Write and remove a file in `<theme-dir>` and in `<site-path>/.h2bt/`.
    - Run `render-probe.sh` on one line of markup: it stages a file in the site and runs `studio wp eval-file`.
-   - Call the validator on one block.
+   - Call the validator on one block. The editor it loads can store an empty `wp_global_styles` post for whichever theme is active at that moment, which before approval is not the run's theme. List the stored posts again (Preconditions step 10), and record one that was not there under `temporary` in `run.json`.
    - Open the harness with a design file and the site's front page, and run `h2bt.ready()`: it must report `status: 200` for both panes.
    - Open `<site-url>/wp-admin/` in Chrome. If it asks to log in, ask the user to open WP Admin from Studio once. Do not type the site's password into the browser yourself.
    - In template mode, run `npm run build` once.
@@ -219,7 +221,7 @@ Build what every view shares, before any view. Load `${CLAUDE_PLUGIN_ROOT}/skill
    - **Styling:** style every reused or new block from the theme with its own block stylesheet (`block-styles-guide.md`), and adapt behaviour with project-side filters, never by editing the block.
    - **Approved exclusions** (template mode only): see Template mode below.
 
-5. Route assets per `mapping-guide.md` § Asset routing: fonts → `theme.json` `fontFamilies` with files copied into `assets/fonts/`; design images → the media library, recorded in one manifest (`<site-path>/.h2bt/media.json`) that every builder takes ids from, with Safe SVG installed first when any of them is an SVG (`studio wp plugin install safe-svg --activate --path=<site-path>`); only the images a template, part or stylesheet itself needs → theme `assets/`.
+5. Route assets per `mapping-guide.md` § Asset routing: fonts → `theme.json` `fontFamilies` with files copied into `assets/fonts/`; design images → the media library, with Safe SVG installed first when any of them is an SVG (`studio wp plugin install safe-svg --activate --path=<site-path>`), imported with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/import-media.sh" --site-path <site-path> --list <list.json>`, which must end `H2BT_MEDIA … failed=0` and writes the one manifest every builder takes ids from (`<site-path>/.h2bt/media.json`); only the images a template, part or stylesheet itself needs → theme `assets/`.
 6. **Write the dynamic pieces a view needs before its builder starts, and test them through a rendered template** (`custom-blocks-guide.md` § Test groundwork): bindings sources, render filters, sample content for a post type.
 
 Whatever this phase changes on the site and leaves goes under `changed` in `run.json` (a plugin installed, the PHP version), and whatever it makes and must remove goes under `temporary` (a throwaway site, a mu-plugin shim), at the moment it is made.
@@ -227,13 +229,13 @@ Whatever this phase changes on the site and leaves goes under `changed` in `run.
 End the phase by writing the blueprint's first **build notes**: what the foundation holds (the presets and their slugs, the registered block styles, the blocks installed, the media manifest). The first builder has nothing else to tell it what exists.
 
 **Template mode.** `project-template-guide.md` overrides the locations above and adds steps. In short:
-- Remove the template's example features by their co-located recipes.
+- Strip the template's example features, each by the recipe in its own file. They are there to show how a feature is built in this repository: read them for that, and keep one only where the build itself uses it. The conversion writes no tests: under `tests/` it only deletes what such a recipe names.
 - Replace `theme.json` in `<theme-dir>`, and remove the example patterns. The parts and templates are replaced by their builders.
 - Put root styles in `assets/sass/` partials.
 - Put block CSS in `assets/css/src/blocks/<block>.scss`, registered from `includes/block-styles.php` against the build path.
 - Put theme JS in ES modules under `assets/js/src/`.
 - Blocks still come from the monorepo. Only an approved exclusion (the user states an engineering lead approved it) is scaffolded into the features mu-plugin, with `scaffold-custom-block.sh --exclusion-approved --features-dir <features-dir> --namespace <theme_slug> --slug <slug> --title "<Title>"`.
-- Delete `<features-dir>/.disabled` once the features plugin carries real features.
+- Delete `<features-dir>/.disabled` once the features plugin carries real features (an approved exclusion, a redirect, a post type). Its examples are stripped by then: enabling the plugin with one in place publishes the example post type on the site.
 
 Run `npm run build` after the foundation and after every source edit, since the site serves built files.
 
@@ -251,9 +253,9 @@ Set the view to `building` and record the builder in `run.json` (its view and wh
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-result.sh" --site-path "<site-path>" --name "<name>" --minutes 90 --watch "<theme-dir>"
 ```
 
-The builder's own instructions say how it builds, writes, validates and refines: `${CLAUDE_PLUGIN_ROOT}/agents/section-builder.md`. Read that file before building a view yourself (below), so that both follow one set of rules. It writes its hand-back to `<site-path>/.h2bt/results/<name>.json` and returns the same JSON object, with `status` `success`, `partial` or `failed`.
+The builder's own instructions say how it builds, writes, validates and refines: `${CLAUDE_PLUGIN_ROOT}/agents/section-builder.md`. Read that file before building a view yourself (below), so that both follow one set of rules. It writes its hand-back to `<site-path>/.h2bt/results/<name>.json` and returns a short pointer to it: the view's `name`, its `status` (`success`, `partial` or `failed`), the file, and what is open. The hand-back is the file: read it there.
 
-**A hand-back that is not that JSON, or whose result file is not there, is a progress note, not a result.** So is one that names work it stopped before doing (sections not built, no final validation, widths not swept) with no reason it could not go on. Continue the same builder with `SendMessage`, naming what is open: it keeps its context, and a second builder for the view would start without it. If the session cannot continue an agent, dispatch a new builder with the first one's hand-back and the open items. After two continuations, set the view to `failed` with what is missing, run the hand-back checks below so that the shared files are sound, and go on to the next view.
+**A hand-back whose result file is not there, or does not parse, is a progress note, not a result.** So is one that names work it stopped before doing (sections not built, no final validation, widths not swept) with no reason it could not go on. Continue the same builder with `SendMessage`, naming what is open: it keeps its context, and a second builder for the view would start without it. If the session cannot continue an agent, dispatch a new builder with the first one's hand-back and the open items. After two continuations, set the view to `failed` with what is missing, run the hand-back checks below so that the shared files are sound, and go on to the next view.
 
 When the clock ends because the result is there (`H2BT_RESULT`), the builder's own completion notice has arrived or follows: act on the hand-back once. The clock counts only a result written after it started, so start a new one with every continuation: a result left by an earlier attempt is not the answer to this one. A clock that ends for a view that is no longer `building` is of no account.
 
@@ -281,7 +283,7 @@ While a builder runs, do only work that touches neither the theme, the database 
 Set `phase` to `verify` in `run.json`.
 
 1. Full-page comparison per view in the harness: a sweep of the run's widths for document height, sideways overflow and text; then a look at each page top to bottom at desktop and phone width. Read the `loading` attribute of the largest image on each view's first screen (`standards.md`).
-2. Block-validity summary across all views, and one check in the editor itself: open a page per template in the block editor and confirm it loads with no invalid block, that the content's root is constrained, that its full-width sections span the canvas, and that a block at the root with no alignment is as wide as the content column. Read, do not edit: type nothing and insert nothing, so that the editor has nothing to save or to warn about when the tab closes.
+2. Block-validity summary across all views, and one check in the editor itself: open a page per template in the block editor and confirm it loads with no invalid block, that the content's root is constrained, that its full-width sections span the canvas, and that a block at the root with no alignment is as wide as the content column. Read, do not edit: type nothing and insert nothing, so that the editor has nothing to save or to warn about when the tab closes. What an unaligned block gets can be measured without inserting one: append a plain element to the canvas's root container, measure it and remove it in the same call. The editor's load can store an empty `wp_global_styles` post, as the validator's can: record it under `temporary`.
 3. Standards audit:
 
    ```bash
@@ -289,7 +291,7 @@ Set `phase` to `verify` in `run.json`.
    ```
 
    It must end `H2BT_AUDIT_OK`. On `H2BT_AUDIT_FAIL`, each violation is a line of its output that starts with a label in capitals and says what to change, and each counter in the sentinel that is not `0` names a kind of violation: fix them and run it again. `H2BT_AUDIT_FAIL reason=<why>`, with no counters, means the audit could not run (a wrong directory, a tool that is missing): put that right first. `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/standards.md` says what each rule is for. The audit detects a template-mode theme itself. It also lists theme-file images that reserve no space (`REVIEW` lines, counted as `image_review`), which does not fail it: fix or explain each. It itemises the custom-CSS footprint for the report, with the total as `css_lines`.
-4. **Template mode gates.** Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/template-checks.sh" --repo <repo>` (add `--tests --e2e` when Docker is running). It must end `H2BT_TEMPLATE_CHECKS_OK`; fix each failing gate by the table in `project-template-guide.md` § What fails CI. Take a `parity-check.sh` baseline before running any formatter or auto-fixer, and compare afterwards. Replace the template's example tests with tests of this build's promises. Commit in logical conventional-commit units on the feature branch; push and open a **draft** PR against `trunk` only with the user's permission.
+4. **Template mode gates.** Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/template-checks.sh" --repo <repo>`. Add `--tests --e2e` only when Docker is already running: do not start it, and say in the report that the two suites were not run. It must end `H2BT_TEMPLATE_CHECKS_OK`; fix each failing gate by the table in `project-template-guide.md` § What fails CI. Take a `parity-check.sh` baseline before running any formatter or auto-fixer, and compare afterwards. **The conversion writes no tests:** it adds none and rewrites none to fit the build, and under the repository's `tests/` it only deletes what an example's removal recipe names. A suite that fails on the build is answered in the theme, never in the test. Commit in logical conventional-commit units on the feature branch; push and open a **draft** PR against `trunk` only with the user's permission.
 5. **Record lessons, in two files.**
    - `<site-path>/.h2bt/lessons.md`: anything a future run against **this site** should know — corrections, confirmed approaches, environment quirks discovered this run. One lesson per entry, a one-line summary first, then why it mattered. Don't record what `blueprint.md` or the theme itself already captures; update an existing entry rather than duplicating it, and delete entries this run proved wrong.
    - `<site-path>/.h2bt/plugin-findings.md`: what this run learned that applies to **any** site built with this skill, ready to be ported into the plugin's guides. Keep it through the run, not at the end: add each builder's `plugin_findings` as it reports. Nothing in it names the site, its owner or a design value. Each entry says what was observed, how it was checked (or that it was derived and not checked), and which plugin file it changes. Mark an entry that is the user's decision on this project, as opposed to an observation.
@@ -319,7 +321,7 @@ Write to `report.md`, and summarise in the last message. Every statement in it r
 - TODOs the user should inspect (lossy mappings, dropped animations, JS not yet ported).
 - Live site sources: the capture date, the out-of-scope inventory, and the defects register with its "found, not changed" list (`live-site-guide.md`).
 - Where the run's records are, and that `plugin-findings.md` holds the generic findings to port into this plugin.
-- Template mode: the `H2BT_TEMPLATE_CHECKS_*` line, the parity result, the branch and commits (and the PR link if pushed), the plugins the content depends on (including every monorepo block plugin, and any still awaiting release), and that page content lives in the Studio database — deploying ships code only.
+- Template mode: the `H2BT_TEMPLATE_CHECKS_*` line and whether the wp-env suites were run, the parity result, the template's example features that were stripped, and any the build kept and why, the branch and commits (and the PR link if pushed), the plugins the content depends on (including every monorepo block plugin, and any still awaiting release), and that page content lives in the Studio database — deploying ships code only.
 
 ## Things that should stop the run
 
@@ -337,3 +339,5 @@ For blocks, also stop rather than work around these rules:
 - Never edit a reused monorepo block in place; adapt it from the project.
 - Never push to the monorepo, open its pull request, or file a block proposal without the user's approval.
 - Scaffold an exclusion only when the user states that an engineering lead approved it.
+
+For a project repository, also: never write a test. The conversion adds no test file, no test and no assertion, and rewrites none to fit the build. Under `tests/` it only deletes what a template example's removal recipe names.

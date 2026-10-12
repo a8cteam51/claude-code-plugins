@@ -16,11 +16,15 @@
 # Ensure:  serve-html.sh --ensure --site-path <site> [--dir <design-dir>]
 #            -> both print: H2BT_SERVE url=http://127.0.0.1:<port>/ pid=<pid> state=<serve.json> ... reused=<yes|no>
 #                           H2BT_HARNESS url=<harness-url> site_copy=<path> sink=<dir>
+#            Without --dir, --ensure serves the recorded directory, and after a --stop the
+#            run's design directory (design_dir in <site>/.h2bt/run.json).
 # Stop:    serve-html.sh --stop --site-path <site>
 #            -> also removes the harness copy it placed in the site
 #
 # Without a site: serve-html.sh --dir <design-dir>, which prints pidfile=<path>, and
 # serve-html.sh --stop --pidfile <path>.
+#
+# A start that cannot be made ends with H2BT_SERVE_FAIL reason=<why> on standard output.
 #
 set -euo pipefail
 
@@ -44,17 +48,29 @@ It prints two sentinel lines:
              read the WordPress page as well as the original. A start for a site whose
              recorded server still answers, on the same directory, reuses it.
 --ensure     The recorded server if it still answers, else a new one on the recorded
-             directory (or --dir). Run it whenever the server may have died: at the start
-             of a session, after a long wait, when a page of the original does not load.
+             directory (or --dir). After a --stop nothing is recorded: the directory is
+             then the run's design directory, design_dir in <site>/.h2bt/run.json. Run it
+             whenever the server may have died or was stopped: at the start of a session,
+             after a long wait, when a page of the original does not load.
 --stop       With --site-path: stops the recorded server and removes the harness copy and
              the state file. The harness copy is removed even when no server is recorded.
 --sink-dir   Where measurements posted to the sink are written (<name>.json). Default:
              <site>/.h2bt/measurements with --site-path, else a directory under $TMPDIR.
+
+A start that cannot be made ends with H2BT_SERVE_FAIL reason=<why> and a non-zero exit.
 EOF
 }
 
 # A flag that takes a value must be followed by one.
 need_value() { [[ $# -ge 2 ]] || { echo "$1 needs a value" >&2; exit 2; }; }
+
+# A start that cannot be made says so on standard output too: a caller that reads only the
+# sentinel must not take a usage text, or nothing, for a server.
+cannot_serve() { # cannot_serve <reason, no spaces> <message> [<exit code>]
+	echo "$2" >&2
+	echo "H2BT_SERVE_FAIL reason=$1"
+	exit "${3:-1}"
+}
 
 dir=""
 port=""
@@ -78,7 +94,7 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
-command -v python3 >/dev/null 2>&1 || { echo "python3 is required to serve files" >&2; exit 1; }
+command -v python3 >/dev/null 2>&1 || cannot_serve no-python3 "python3 is required to serve files"
 
 state_get() { # state_get <state file> <key>: a value of the state file, or nothing
 	python3 -c 'import json,sys
@@ -173,15 +189,15 @@ if [[ "$stop" -eq 1 ]]; then
 	exit 0
 fi
 
-[[ "$ensure" -eq 0 || -n "$site_path" ]] || { echo "--ensure needs --site-path" >&2; usage >&2; exit 2; }
-[[ -z "$site_path" || -d "$site_path" ]] || { echo "Site path not found: $site_path" >&2; exit 1; }
-[[ -z "$dir" || -d "$dir" ]] || { echo "Directory not found: $dir" >&2; exit 1; }
+[[ "$ensure" -eq 0 || -n "$site_path" ]] || cannot_serve no-site-path "--ensure needs --site-path" 2
+[[ -z "$site_path" || -d "$site_path" ]] || cannot_serve site-not-found "Site path not found: $site_path"
+[[ -z "$dir" || -d "$dir" ]] || cannot_serve dir-not-found "Directory not found: $dir"
 # The port goes into file names and into the listening check below.
-[[ -z "$port" || ( "$port" =~ ^[0-9]{1,5}$ && "$port" -ge 1 && "$port" -le 65535 ) ]] || { echo "--port must be a port number: $port" >&2; exit 2; }
+[[ -z "$port" || ( "$port" =~ ^[0-9]{1,5}$ && "$port" -ge 1 && "$port" -le 65535 ) ]] || cannot_serve bad-port "--port must be a port number: $port" 2
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 harness="$script_dir/viewport.html"
-[[ -r "$harness" && -r "$script_dir/serve.py" ]] || { echo "viewport.html or serve.py is missing from $script_dir" >&2; exit 1; }
+[[ -r "$harness" && -r "$script_dir/serve.py" ]] || cannot_serve harness-missing "viewport.html or serve.py is missing from $script_dir"
 
 state="none"
 if [[ -n "$site_path" ]]; then
@@ -207,10 +223,15 @@ if [[ -n "$site_path" ]]; then
 		remove_own_file "$(state_get "$state" pidfile | sed 's/\.pid$/.state/')" .state
 		rm -f "$state"
 	fi
+	# Nothing is recorded after a --stop. The run's own record still says which directory the
+	# design is in, so the server comes back without anyone having to remember it.
+	if [[ -z "$dir" && -f "$site_path/.h2bt/run.json" ]]; then
+		dir="$(state_get "$site_path/.h2bt/run.json" design_dir)"
+	fi
 fi
 
-[[ -n "$dir" ]] || { echo "--dir is required: no server is recorded for this site" >&2; usage >&2; exit 2; }
-[[ -d "$dir" ]] || { echo "Directory not found: $dir" >&2; exit 1; }
+[[ -n "$dir" ]] || cannot_serve no-dir "--dir is required: no server is recorded for this site, and its .h2bt/run.json names no design_dir" 2
+[[ -d "$dir" ]] || cannot_serve dir-not-found "Directory not found: $dir"
 abs_dir="$(cd "$dir" && pwd)"
 
 listening() { python3 -c 'import socket,sys; s=socket.socket(); sys.exit(0 if s.connect_ex(("127.0.0.1",int(sys.argv[1])))==0 else 1)' "$1"; }
@@ -219,8 +240,7 @@ if [[ -z "$port" ]]; then
 	port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"
 elif listening "$port"; then
 	# The check after the start cannot tell the new server from one already on the port.
-	echo "Port $port is already in use; stop that server or leave --port out" >&2
-	exit 1
+	cannot_serve port-in-use "Port $port is already in use; stop that server or leave --port out"
 fi
 
 logfile="${TMPDIR:-/tmp}/h2bt-serve-${port}.log"
@@ -266,7 +286,6 @@ with open(sys.argv[1], "w") as handle:
 	sleep 0.3
 done
 
-echo "Server failed to start — see $logfile" >&2
 kill "$pid" 2>/dev/null || true
 rm -f "$pidfile"
-exit 1
+cannot_serve start-failed "Server failed to start — see $logfile"

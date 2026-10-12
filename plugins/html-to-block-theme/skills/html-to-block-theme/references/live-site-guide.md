@@ -22,6 +22,22 @@ A live site carries more than a design. Put each answer in the blueprint.
 
 Work from a mirror, not from the live site. A mirror is frozen, it can be measured at any width without loading the live server, and it reports nothing to the site's analytics.
 
+The plugin's script makes the mirror that the list below describes (`<plugin-root>` is the plugin's directory):
+
+```bash
+python3 -I "<plugin-root>/scripts/mirror-site.py" --mirror "<site-path>/.h2bt/mirror" \
+  --base-url https://example.com/ --page / [--page /about/ ...] [--rules <rules.json>]
+# == index.html
+#   REMOVED  script  …  (statistics)
+#   REVIEW   script  …  (may load or report something: …)
+# H2BT_MIRROR pages=<n> assets=<n> bytes=<n> removed=<n> review=<n> failed=<n> skipped=<n> manifest=<path>
+```
+
+- **It fetches each page once** and keeps it as it came, under `_h2bt-raw/`. A second run reads that copy and fetches only what the mirror lacks, so the command can be repeated, with new rules, without touching the live site.
+- **Read every line it prints.** Its built-in rules know the common analytics, consent and search scripts, and no such list is complete. A `REVIEW` line is a script that was kept and looks as if it loads or reports something. Decide each one, and put what has to go in a rules file: `{"remove": [{"attr": "<regex>", "body": "<regex>", "why": "…"}], "keep": [{"attr": "<regex>"}]}`. A library that only a removed script used stays unless a rule removes it.
+- **`failed` counts assets the live site itself does not serve;** the run still succeeds. `H2BT_MIRROR_FAIL` means a page could not be captured.
+- **What it does not do:** rewrite an attribute value that has no quotes, or fetch what a script loads at run time. Open the mirrored page beside the live one once before relying on it.
+
 - **Put the mirror at `<site-path>/.h2bt/mirror/`** unless the user names another place. A run keeps that directory when it cleans up, and a later run finds it there. Record the site's address in `run.json` as `source_url`: it is how a later session knows this run is the one being asked for again.
 
 - **Save each page with its stylesheets, scripts, fonts and images at the same root-relative paths** the live site uses, so the page renders unchanged from the static server. Assets from other hosts go under one directory per host.
