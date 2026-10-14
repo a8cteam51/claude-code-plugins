@@ -27,7 +27,7 @@ The dispatching prompt gives the site path and your view: its `name` and its row
 
 **Template mode** is on when `run.json` has a `template` entry. **Read `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/project-template-guide.md` before building.** It overrides where files go:
 
-- block CSS in `assets/css/src/blocks/<block>.scss`, registered in `includes/block-styles.php` against the build path;
+- block CSS in `assets/sass/blocks/<block>.scss`, built to `assets/css/blocks/<block>.css` and registered in `includes/block-styles.php` against that built path, and written nested: one parent rule per block style, with its states, children, descendants and breakpoints inside it (`block-styles-guide.md`);
 - theme PHP in `includes/<concern>.php`;
 - theme JS as ES modules in `assets/js/src/`;
 - blocks from the blocks monorepo, installed or built during the foundation; only approved exclusions live in the features plugin;
@@ -127,7 +127,7 @@ The object in the file:
   "target": "page:About (template: page) | templates/index.html | parts/header.html",
   "built": ["templates/page.html", "page id=12 (set as the front page)"],
   "validation": { "validated_ok": 0, "auto_fixed": 0, "downgraded": 0 },
-  "custom_css": [{ "file": "assets/css/blocks/core-button.css (template mode: assets/css/src/blocks/core-button.scss)", "selector": ".is-style-x .wp-block-button__link", "reason": "hover transition; no support path" }],
+  "custom_css": [{ "file": "assets/css/blocks/core-button.css (template mode: assets/sass/blocks/core-button.scss)", "selector": ".is-style-x .wp-block-button__link", "reason": "hover transition; no support path" }],
   "blocks_used": [{ "name": "a8csp/carousel", "source": "monorepo a8csp-carousel@1.1.1" }],
   "drift": [{ "section": "hero", "diff": "subhead 2px larger", "viewport": "mobile", "rung_to_fix": 2, "why_left": "not worth a variation" }],
   "checks": { "overflow_at_narrowest": 0, "first_screen_image_loading": "eager | lazy | none", "widths_swept": [1900, 1440, 768, 390, 320], "editor_canvas": "as the front end | drift recorded | not opened: <why>" },

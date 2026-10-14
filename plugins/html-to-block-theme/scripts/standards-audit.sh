@@ -7,9 +7,11 @@
 #   2. Custom CSS is minimal — report the footprint so it can be reviewed.
 #   3. Block CSS is one file per block type, each enqueued via wp_enqueue_block_style().
 #      Standalone layout: assets/css/blocks/<block>.css, enqueued from functions.php.
-#      Template layout (a8csp-project-template theme): assets/css/src/blocks/<block>.scss,
-#      built to assets/css/build/blocks/<block>.css and enqueued from functions.php or
-#      includes/*.php. Stray, unbuilt, or unenqueued block stylesheets are violations.
+#      Template layout (a8csp-project-template theme): assets/sass/blocks/<block>.scss,
+#      built to assets/css/blocks/<block>.css and enqueued from functions.php or
+#      includes/*.php. A theme built before that layout keeps the template's own
+#      assets/css/src/blocks/ built to assets/css/build/blocks/, which is still accepted.
+#      Stray, unbuilt, or unenqueued block stylesheets are violations.
 #   4. No templates/front-page.html — the homepage must be a WordPress page set as
 #      the static front page via Reading settings, not a template.
 #   5. No blocks in the theme — no block.json anywhere under the theme. Blocks come from
@@ -154,7 +156,10 @@ css_lines() {
 total=0
 found_css=0
 if [[ "$layout" == "template" ]]; then
-	footprint_find=( "$theme_dir/assets/sass" "$theme_dir/assets/css/src" -type f \( -name '*.scss' -o -name '*.css' \) )
+	footprint_find=( "$theme_dir/assets/sass" -type f \( -name '*.scss' -o -name '*.css' \) )
+	if [[ -d "$theme_dir/assets/css/src" ]]; then
+		footprint_find=( "$theme_dir/assets/sass" "$theme_dir/assets/css/src" -type f \( -name '*.scss' -o -name '*.css' \) )
+	fi
 else
 	footprint_find=( "$theme_dir" -type f -name '*.css' )
 fi
@@ -181,45 +186,53 @@ css_org=0
 functions_php="$theme_dir/functions.php"
 
 if [[ "$layout" == "template" ]]; then
-	# Sources under assets/css/src/blocks/, built into assets/css/build/blocks/, enqueued from
-	# functions.php or includes/*.php (the template loads every includes/*.php file).
+	# Sources under assets/sass/blocks/, built into assets/css/blocks/, enqueued from functions.php
+	# or includes/*.php (the template loads every includes/*.php file). A theme that still has the
+	# template's own assets/css/src/blocks/ and no assets/sass/blocks/ is read in that layout.
+	block_src="assets/sass/blocks"
+	block_build="assets/css/blocks"
+	if [[ ! -d "$theme_dir/$block_src" && -d "$theme_dir/assets/css/src/blocks" ]]; then
+		block_src="assets/css/src/blocks"
+		block_build="assets/css/build/blocks"
+	fi
+	echo "  Block stylesheets: $block_src/<block>.scss, built to $block_build/<block>.css"
 	php_sources=( "$functions_php" )
 	while IFS= read -r -d '' inc; do php_sources+=( "$inc" ); done < <(find "$theme_dir/includes" -maxdepth 1 -type f -name '*.php' -print0 2>/dev/null)
-	if [[ -d "$theme_dir/assets/css/src/blocks" ]] && ! grep -qs "wp_enqueue_block_style" "${php_sources[@]}"; then
+	if [[ -d "$theme_dir/$block_src" ]] && ! grep -qs "wp_enqueue_block_style" "${php_sources[@]}"; then
 		echo "  MISSING     no theme PHP file calls wp_enqueue_block_style()"
 		css_org=$((css_org + 1))
 	fi
 	while IFS= read -r -d '' src; do
 		base="$(basename "$src" .scss)"
-		built="$theme_dir/assets/css/build/blocks/$base.css"
+		built="$theme_dir/$block_build/$base.css"
 		if [[ ! -f "$built" ]]; then
-			echo "  UNBUILT     ${src#$theme_dir/} — no assets/css/build/blocks/$base.css (run the build)"
+			echo "  UNBUILT     ${src#$theme_dir/} — no $block_build/$base.css (run the build)"
 			css_org=$((css_org + 1))
-		elif grep -qsF "$base.css" "${php_sources[@]}"; then
-			echo "  OK          ${src#$theme_dir/} -> assets/css/build/blocks/$base.css (enqueued)"
+		elif grep -qsF "$block_build/$base.css" "${php_sources[@]}"; then
+			echo "  OK          ${src#$theme_dir/} -> $block_build/$base.css (enqueued)"
 		else
 			echo "  UNENQUEUED  ${src#$theme_dir/} — $base.css is not referenced in functions.php or includes/*.php"
 			css_org=$((css_org + 1))
 		fi
-	done < <(find "$theme_dir/assets/css/src/blocks" -type f -name '*.scss' -print0 2>/dev/null | sort -z)
+	done < <(find "$theme_dir/$block_src" -type f -name '*.scss' -print0 2>/dev/null | sort -z)
 
 	while IFS= read -r -d '' css; do
 		rel="${css#$theme_dir/}"
 		case "$rel" in
 			style.css|style-rtl.css|style-editor.css) ;;
+			"$block_src"/*.scss) ;;
 			assets/sass/*.scss|assets/sass/*/*.scss) ;;
-			assets/css/src/blocks/*.scss) ;;
-			assets/css/build/blocks/*.css)
-				[[ -f "$theme_dir/assets/css/src/blocks/$(basename "$css" .css).scss" ]] || {
-					echo "  ORPHAN      ${rel} — built block CSS with no assets/css/src/blocks/ source"
+			"$block_build"/*.css)
+				[[ -f "$theme_dir/$block_src/$(basename "$css" .css).scss" ]] || {
+					echo "  ORPHAN      ${rel} — built block CSS with no $block_src/ source"
 					css_org=$((css_org + 1))
 				}
 				;;
-			assets/css/src/*.scss|assets/css/build/*.css)
+			assets/css/src/*.scss|assets/css/build/*.css|assets/css/*.css)
 				echo "  PER-PURPOSE ${rel} — not block CSS; allowed, list it in the report with what enqueues it"
 				;;
 			*)
-				echo "  STRAY       ${rel} — block CSS goes in assets/css/src/blocks/<block>.scss; root styles in assets/sass/"
+				echo "  STRAY       ${rel} — block CSS goes in $block_src/<block>.scss; root styles in assets/sass/"
 				css_org=$((css_org + 1))
 				;;
 		esac

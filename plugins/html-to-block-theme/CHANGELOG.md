@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.0] - 2026-10-14
+
+### Changed
+- **Block stylesheets in a project repository live in `assets/sass/blocks/` and build to `assets/css/blocks/`.** The template builds `assets/css/src/` into `assets/css/build/`. The foundation now points the template's `build:theme:css` and `start:theme:css` scripts at the new layout and drops the old glob from `lint:styles`, so every Sass source sits under `assets/sass/` and every built stylesheet under `assets/css/`. This was a user's decision after a run. `standards-audit.sh` reads the new layout and still accepts a theme in the old one: it reports which layout it found, and checks that each block's built path is enqueued. Written into `project-template-guide.md` (where each piece goes, build pipeline, the cart recipe's note), `block-styles-guide.md`, `standards.md`, `custom-blocks-guide.md`, `SKILL.md`, the section builder's brief, the README and the routing eval. The audit was tried on a theme in the old layout and on the same theme moved to the new one.
+- **Sass is written nested in a project repository.** Each block style, or a block's own rules, gets one parent rule. Its states, children, descendants, wrapping context and breakpoints are nested inside it, instead of the full selector being repeated rule after rule. It was asked for by a user reviewing a theme the skill had built flat. Nesting follows the order the flat rules would cascade in. A refactor of flat Sass is checked by comparing the compiled CSS before and after: it must be the same, rule for rule and in the same order. Written into `block-styles-guide.md` (template mode), `standards.md`, `SKILL.md` and the section builder's brief. The standards audit does not check it.
+
 ## [0.7.2] - 2026-10-12
 
 ### Fixed

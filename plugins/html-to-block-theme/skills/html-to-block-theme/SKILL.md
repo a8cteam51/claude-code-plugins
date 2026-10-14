@@ -232,7 +232,8 @@ End the phase by writing the blueprint's first **build notes**: what the foundat
 - Strip the template's example features, each by the recipe in its own file. They are there to show how a feature is built in this repository: read them for that, and keep one only where the build itself uses it. The conversion writes no tests: under `tests/` it only deletes what such a recipe names.
 - Replace `theme.json` in `<theme-dir>`, and remove the example patterns. The parts and templates are replaced by their builders.
 - Put root styles in `assets/sass/` partials.
-- Put block CSS in `assets/css/src/blocks/<block>.scss`, registered from `includes/block-styles.php` against the build path.
+- Put block CSS in `assets/sass/blocks/<block>.scss`, built to `assets/css/blocks/<block>.css` and registered from `includes/block-styles.php` against that built path. Point the template's build scripts there first (`project-template-guide.md` § Build pipeline).
+- Write all Sass nested (`block-styles-guide.md`, template mode).
 - Put theme JS in ES modules under `assets/js/src/`.
 - Blocks still come from the monorepo. Only an approved exclusion (the user states an engineering lead approved it) is scaffolded into the features mu-plugin, with `scaffold-custom-block.sh --exclusion-approved --features-dir <features-dir> --namespace <theme_slug> --slug <slug> --title "<Title>"`.
 - Delete `<features-dir>/.disabled` once the features plugin carries real features (an approved exclusion, a redirect, a post type). Its examples are stripped by then: enabling the plugin with one in place publishes the example post type on the site.
