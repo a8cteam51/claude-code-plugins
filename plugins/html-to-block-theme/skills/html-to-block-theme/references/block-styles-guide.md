@@ -155,7 +155,7 @@ Whole pixels only (`mapping-guide.md` § Pixel values are whole pixels):
 
 ### Icons in buttons
 
-`core/button` has no icon, and the `core/html` policy rejects an SVG inside a link. Paint a decorative icon from the button's registered style: a `::before` on the link, sized like the icon, with `background: currentcolor`, the SVG as a `mask` data URI, and a flex link with a gap. No image file, and the icon follows the label colour.
+An icon on its own is a `core/icon` block on WordPress 7.1 and later (`mapping-guide.md` § Icons). `core/button` has no icon, and the `core/html` policy rejects an SVG inside a link. Paint a decorative icon in a button from the button's registered style: a `::before` on the link, sized like the icon, with `background: currentcolor`, the SVG as a `mask` data URI, and a flex link with a gap. No image file, and the icon follows the label colour.
 
 - **Which flex depends on the original.** Where the original control is block-level, use `display: flex`: an `inline-flex` link sits on a text line of its wrapper and grows the block by a pixel. Where it is an inline box inside running text, keep `inline-flex`, because its line is part of the rhythm.
 - **A glyph the font has** can be printed as generated text instead. It is then part of the control's accessible name unless written `content: "x"; content: "x" / "";`.

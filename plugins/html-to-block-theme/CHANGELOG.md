@@ -1,5 +1,79 @@
 # Changelog
 
+## [0.8.1] - 2026-10-14
+
+From a run that rebuilt a site made with a page builder (Elementor) as a block theme, on WordPress 7.1.3 with Gutenberg 24.1. Each script defect below was reproduced on 0.8.0 and tried again after its fix:
+- the mirror's on a fixture site served on a loopback port;
+- the harness's in Chrome, with fixture pages;
+- `write-page.sh`'s on a throwaway Studio site, deleted afterwards.
+
+The WordPress facts were checked on 7.1.3 during that run, by render probe or in core's source, and not on an older core. Not checked:
+- the harness's waits in a tab hidden for more than five minutes (the run's observation of the stall is the evidence for the change);
+- the form guard against a real page builder's form script;
+- any of it in Safari or Firefox.
+
+### Changed
+- **An icon is a `core/icon` block on WordPress 7.1 and later.** The element table said "Do not invent an icon block" and sent icons to images and masks. A new section, `mapping-guide.md` § Icons, covers:
+  - core's 88 icons;
+  - a theme's own glyphs, registered as a collection with `wp_register_icon_collection()` and `wp_register_icon()`;
+  - why a registered SVG needs a square viewBox;
+  - glyphs copied out of an icon font, and their licence.
+
+  An icon inside a button is still painted by the button's style (`block-styles-guide.md` § Icons in buttons, which now points to the new section).
+- **The per-viewport instructions say what prints and what does not** (`mapping-guide.md` § Per-viewport values):
+  - **Prints:**
+    - a per-viewport orientation prints without `!important`, so a registered style's media query still applies;
+    - a grid takes its column and row counts, and with manual placement each child's start and span, per viewport;
+    - a constrained group's content size takes a state;
+    - `dimensions.minWidth` takes a state;
+    - a gallery's gap takes a state.
+  - **Prints nothing:**
+    - `position`;
+    - a Buttons row's `flexWrap`;
+    - a Buttons row's per-viewport justification, which loses to core's class.
+  - **Vertical stacks:** a vertical stack that wraps grows to its widest item on a phone unless its `@mobile` layout says `nowrap`.
+  - **Hidden blocks:** a block hidden everywhere prints nothing at all, and one hidden per viewport is hidden by a media query (read in core).
+- **Per-viewport states apply to any block,** a monorepo block included, for every support its `block.json` declares: core's states are a render filter keyed off the `style` attribute (`mapping-guide.md`, `custom-blocks-guide.md` § Reusing a monorepo block).
+- **The foundation writes the rule for bands in post content.** Post content puts the root block gap between its top-level blocks, which showed as strips of the page colour between full-width bands. One rule closes them, the editor's root included:
+
+  ```css
+  :is(.wp-block-post-content, .is-root-container) > .alignfull + .alignfull { margin-block-start: 0 }
+  ```
+
+  It keeps a plain block's gap and a band's own margin. Zeroing `blockGap` on post content was rejected, because typed paragraphs would lose their spacing (`mapping-guide.md` § Layout traps; `SKILL.md` Phase 2, step 1).
+- **A phone menu is checked with real clicks in a page of its own, and the check is that a link inside it navigates.** A menu whose sub-menus were shown by `:has(:focus)` passed the harness and lost every click for a visitor: the press moved the focus off the toggle, the sub-menu hid, and the click landed on nothing. The harness cannot show it, because a scripted click moves no focus (`visual-refinement.md` § JS-driven sections, the section builder).
+
+### Added
+- **`serve-html.sh --missing`** lists the paths the design server answered 404 for, read from its log, and writes them to `<site>/.h2bt/missing.txt`. **`mirror-site.py --asset <path>` and `--assets-from <file>`** fetch those paths into the mirror. A path under `/_hosts/<host>/` is fetched from that host; a run with only assets leaves the pages' records in the manifest as they were.
+  - **Why:** what a page's scripts load at run time (a page builder's chunks, an injected library, a module's own imports) is not in a mirror. Without it carousels, accordions and tabs stayed uninitialised, and sections measured hundreds of pixels off.
+  - **The loop:** load every mirrored page once, list, fetch, and repeat. `live-site-guide.md` makes this a step after mirroring.
+- **`h2bt.prepare()` reports what would make a measurement wrong.** It now waits for core accordions and tabs to hydrate: core prints a closed accordion panel without `hidden`, and every tab panel hidden with no tab selected, until their scripts run, so a page measured early was the wrong height. Afterwards it reports, only when there are any:
+  - `stylesheets_failed`: a refused stylesheet keeps a sheet with no rules although its file had a body;
+  - `families_without_face`;
+  - `unsized` images;
+  - `unhydrated` blocks.
+
+  The section builder reports such a finding in the original's pane under `open`.
+- **`mirror-site.py` prints each page as it is captured,** to standard error. A long capture looked stalled.
+
+### Fixed
+- **`mirror-site.py` saved a stylesheet whose address has no `.css` under a name with no extension:** a font service's `/css?family=…` became `css__<hash>`.
+  - **Effect:** the design server answers by extension, so the browser got `application/octet-stream` and refused the stylesheet. The reference had no web fonts and lost that stylesheet's rules, and nothing reported it, since the computed font families were right.
+  - **Fix:** a stylesheet's name now always ends in `.css`.
+- **A form in a mirror could send to the live site.** A form's action, or a button's `formaction`, that sends to another host is now pointed at `/_h2bt/form-blocked`: a `BLOCKED` line each, and `forms=<n>` in the sentinel. Every page with scripts gets a guard as its first script, because a form plugin's script posts to the address in its configuration, not to the form's action. The guard blocks:
+  - any request to the live site's host;
+  - any request other than GET or HEAD to another host;
+  - every beacon;
+  - every form sent to another host.
+
+  Tried with real clicks on two submit buttons, `requestSubmit()`, `submit()`, a POST `fetch`, a POST `XMLHttpRequest`, a GET `fetch` to the live host and a beacon. The fixture's live server logged none of them.
+- **A module script whose address holds `..` was skipped,** and it kept the live site's origin, which a module load refuses across origins. Its path is now resolved before the safety check.
+- **An import map's targets stayed on the live site,** unfetched, so every module that imports through it failed. They are now fetched and pointed at the mirror; a target that names a prefix (`…/`) is left as it is.
+- **Lazy-load attributes that name an image on any element kept the live site's address:** `data-background`, `data-bg`, `data-background-image`, `data-lazy-background` and `data-thumbnail`, with or without `url()`. They are now fetched when their path is an image file.
+- **`write-page.sh` failed on a page that stores a page builder's template:** it printed `H2BT_FAIL: Invalid page template.` after the content was written. `wp_update_post()` carries the stored template into the update, and `wp_insert_post()` rejects a template the active theme does not offer. The script now clears such a template first, using the check `wp_insert_post()` makes, then stores the requested one, and its sentinel ends `replaced_template=<old>`. Tried with the default template, a named one, a second write, and a new page.
+- **The harness's `resize()` sent no `resize` event,** and a hidden tab sends none either. A script that measures on resize kept the old width's values: a header measured 148px at 1024px until the event came, then 119px. `resize()` now sends one to each pane.
+- **The harness could stall in a tab hidden for more than five minutes,** where Chrome runs chained timers once a minute. `ready()` and `prepare()` waited on `setTimeout`; their waits now run on a message channel, which is not throttled.
+
 ## [0.8.0] - 2026-10-14
 
 ### Changed

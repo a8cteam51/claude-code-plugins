@@ -16,7 +16,9 @@
 #   H2BT_OK id=<id> slug=<slug> parent=<id|0> template=<template> bytes=<n> php=<version>
 # The PHP reads the stored title, slug, parent, template and content back before it prints
 # the sentinel, so anything WordPress stored differently fails. A slug held by a post that
-# is not a page (an attachment, usually) fails before anything is written.
+# is not a page (an attachment, usually) fails before anything is written. A page whose
+# stored template the active theme does not offer (a page builder's) has it cleared before
+# the update, and the sentinel ends with replaced_template=<that template>.
 #
 # --parent puts the page under another page, named by its path (about, or about/team): a
 # site whose addresses are nested keeps them. The parent has to exist, so write it first.

@@ -32,10 +32,10 @@ Open one tab on the harness:
 | Call | What it does |
 |---|---|
 | `await h2bt.ready()` | Resolves when every pane has loaded, with each document's size and the HTTP `status` of its address. A pane that says `404` has a wrong address, unless the view is the not-found page: it loads like any page, and comparing against it compares nothing. Rejects after 30 seconds (`&wait=<seconds>`) when a pane never finishes loading: reload, and if it repeats load each page on its own. |
-| `await h2bt.prepare()` | Loads lazy images, switches transitions off, waits for fonts and images in every pane. Reports each pane's pending images and whether the browser prefers a dark scheme. Call it before measuring. |
+| `await h2bt.prepare()` | Loads lazy images, switches transitions off, waits for fonts and images, and for core accordions and tabs to hydrate, in every pane. Reports each pane's pending images and whether the browser prefers a dark scheme, and only when there are any: `stylesheets_failed` (a stylesheet refused or missing), `families_without_face` (a font family no loaded face draws: a web font that did not load, or one only this machine has), `unsized` images (complete with no size: broken, or not painted yet) and `unhydrated` (accordions and tabs still in their server state). Call it before measuring, and fix what it reports before trusting a number. |
 | `await h2bt.scroll( y )` | Scrolls every pane together. |
 | `await h2bt.run( index, source )` | Evaluates a function body with `( doc, win )` in one pane and resolves with its JSON-safe result. |
-| `await h2bt.resize( width[, height] )` | Sets every pane to a new CSS width (and height) without a reload. |
+| `await h2bt.resize( width[, height] )` | Sets every pane to a new CSS width (and height) without a reload, and sends each pane a `resize` event, which a hidden tab does not: a script that measures on resize (a sticky header's height) would otherwise keep the old width's values. A state a script sets only on load still needs the page loaded fresh at that width. |
 | `await h2bt.pages()` | Each pane's width, document height and sideways overflow, with the elements that reach past the edge. |
 | `await h2bt.compareText( options )` | Pairs the text of panes 0 and 1 and returns only the differences, text that only one pane has included (§ Compare text, not elements). |
 | `await h2bt.sweep( widths, task[, height] )` | Resizes to each width in turn and runs a task (§ Sweep widths in one call). |
@@ -47,7 +47,8 @@ What the harness cannot show:
 
 - An iframe does not emulate touch or `hover: none`.
 - The extension's hover does not reach a cross-origin pane. To test `:hover` on the WordPress page, load the harness from the WordPress origin (`<site-url>/_h2bt/viewport.html?a=<wordpress-path>&b=<original-url>`), so that page is the same-origin pane.
-- A tab that reports `visibilityState: hidden` stalls scroll timelines, smooth scrolling and transitions, loads no lazy image, and moves no focus on a key press. `prepare()` and `resize()` work around the first three; a screenshot forces a frame.
+- A tab that reports `visibilityState: hidden` stalls scroll timelines, smooth scrolling and transitions, loads no lazy image, sends no resize event, and moves no focus on a key press. After five minutes hidden it also runs timers once a minute. `prepare()` and `resize()` work around the first four, and the harness's own waits run on a message channel, which is not throttled; a wait you write in a pane does the same, or it stalls. A screenshot forces a frame.
+- **A `click()` or `focus()` run in a pane does not make `:focus` match,** and a real click sent to a pane of an unfocused tab can close a dialog that watches `focusout`. A state that depends on focus or on a pointer sequence is checked in a page of its own (§ JS-driven sections).
 
 ## Session setup
 
@@ -127,7 +128,7 @@ await h2bt.sink( 'about-1440-text', result );
 - **Scroll-driven animations** make a first-screen capture depend on scroll state. Compare with reduced motion first, then check the motion on its own.
 - **Transitions do not advance in a hidden tab.** After a resize across a media-query boundary, any property under a transition (`transition: all` is enough) still reads its old value. `resize()` and `prepare()` switch transitions off. An original whose transition is declared `!important` beats that: add a rule with the original's own selector plus one class, then read.
 - **Lazy loading is decided per page.** The same part's image can be lazy on one view and eager on another. In a hidden tab the lazy copy never loads and takes its box from rounded attributes, which reads as a 1px drift of a shared part on one view only. `prepare()` sets lazy images to eager in both panes.
-- **An image inside a closed card** (`visibility: hidden`) reports a `naturalWidth` of 0 in a hidden tab until it is painted, although it has loaded: wait on `complete`. `img.decode()` on such an image may never settle; do not await it.
+- **An image inside a closed card** (`visibility: hidden`) reports a `naturalWidth` of 0 in a hidden tab until it is painted, although it has loaded: wait on `complete`. `img.decode()` on such an image may never settle; do not await it without a time limit. `prepare()` tries it briefly and lists what is left as `unsized`; a screenshot paints them.
 - **The measuring browser's colour scheme changes what an original shows** when its CSS has `prefers-color-scheme` rules, even a force-light guard with slightly different colours. `prepare()` reports the scheme. To read the other one, delete the matching media rules through CSSOM in the same-origin pane.
 - **A container that is a flow root** (`core/post-content`) holds its last child's margin where a plain block lets it collapse out, so container heights differ while nothing visible does. Compare what follows a box before trusting its height.
 - **Equal bounding boxes do not prove a rotation:** plus and minus the same angle give the same box. Compare the computed `rotate` too.
@@ -169,4 +170,12 @@ For each file, the drift list captures: the section, the unresolved difference, 
 
 ## JS-driven sections
 
-For interactivity (menus, accordions, carousels), drive the state before comparing, so you are comparing equivalent states, not the original's open menu against WordPress's closed one. In the harness, drive it in each pane with `h2bt.run( index, … )` (a `click()` on the toggle). For real pointer interaction, open the page in its own tab and use `computer` `left_click` (screenshot first to find the coordinates, or click by `ref` from `read_page`). Avoid clicking anything that opens a JS `alert`/`confirm` dialog — it blocks the extension. If a block's view script doesn't behave, check `read_console_messages` for script errors before guessing. Reproduce the behaviour per `custom-blocks-guide.md`.
+For interactivity (menus, accordions, carousels), drive the state before comparing, so you are comparing equivalent states, not the original's open menu against WordPress's closed one.
+
+**Check a phone menu with real clicks, in a page of its own, at phone width.** The same goes for any state that depends on focus or on a pointer sequence: a sub-menu, a hover card, a toggle that closes when focus leaves. A menu that passed the harness did not work for a visitor: its sub-menus were shown by `:has(:focus)`, a press on a link inside one moved the focus off the toggle first, the sub-menu hid, and the click landed on nothing. The harness cannot show it (a scripted click moves no focus), and a desktop window may refuse to be made narrow.
+
+1. Open the WordPress page in a separate browser page that emulates a phone: Chrome DevTools `new_page` with an isolated context, then `emulate` with `390x844x2,mobile,touch`.
+2. Click by element (a snapshot's `uid`), not by script: the toggle, then a sub-menu's toggle, then a link inside it.
+3. **Read the page's address back.** The check is that the link navigated, not that the panel is visible. Then go back and try the item above the current page's item, and a link in the last sub-menu.
+
+Never press a form's submit button in the original's pane: the mirror's guard blocks it (`live-site-guide.md`), and a page saved some other way has no guard and sends to the live site. In the harness, drive it in each pane with `h2bt.run( index, … )` (a `click()` on the toggle). For real pointer interaction, open the page in its own tab and use `computer` `left_click` (screenshot first to find the coordinates, or click by `ref` from `read_page`). Avoid clicking anything that opens a JS `alert`/`confirm` dialog — it blocks the extension. If a block's view script doesn't behave, check `read_console_messages` for script errors before guessing. Reproduce the behaviour per `custom-blocks-guide.md`.

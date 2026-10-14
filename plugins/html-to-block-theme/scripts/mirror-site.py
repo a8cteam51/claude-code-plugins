@@ -3,6 +3,7 @@
 
     mirror-site.py --mirror <dir> --base-url <https://host/> --page <path>[=<file>] [...]
                    [--rules <rules.json>] [--refetch] [--delay <seconds>]
+    mirror-site.py --mirror <dir> --base-url <https://host/> --asset <path> [...] | --assets-from <file>
 
 Each page is fetched once and kept as it came, under <mirror>/_h2bt-raw/. Its stylesheets,
 scripts, fonts and images are fetched once each: a file that is already in the mirror is not
@@ -35,13 +36,33 @@ removal, the built-in ones included. A script's body is matched with JSON-escape
 --page takes a path of the site ("/", "/about/", "/pricing") or a full address on it. The
 file it becomes is index.html, about/index.html, pricing.html; "=<file>" names another.
 
-Last line: H2BT_MIRROR pages=<n> assets=<n> bytes=<n> removed=<n> review=<n> failed=<n>
-skipped=<n> manifest=<path>, or H2BT_MIRROR_FAIL reason=<why> when a page could not be
-captured. An asset that fails (a file the live site itself is missing) is listed and counted,
+A stylesheet is always saved under a name that ends in .css, whatever its address (a font
+service's /css?family=…): the design server answers by extension, and a browser refuses a
+stylesheet served as anything but text/css. A path with "." or ".." segments is resolved
+before it is checked. An import map's targets are fetched and pointed at the mirror, and so are
+the lazy-load attributes that name an image (data-background, data-bg, data-thumbnail, …).
+
+Forms cannot send to the live site from a mirror. A form's action (and a button's formaction)
+that points at another host becomes /_h2bt/form-blocked, with the original kept in
+data-h2bt-action, and every page with scripts gets a guard as its first script: it blocks any
+request to the live site's host, any request other than GET or HEAD to another host, every
+beacon, and every form sent to another host. What it blocked is in window.__h2btBlocked and on
+the console. A page's own scripts often post to the address in their configuration, not to the
+form's action, which is why the guard is needed as well.
+
+--asset fetches files a page loads at run time and the mirror lacks, by their path in the
+mirror ("/wp-content/…/chunk.js", or "/_hosts/<host>/…" for another host); --assets-from
+reads such paths from a file, one per line (serve-html.sh --missing writes one). A run with
+only assets adds to the manifest's "added" list and leaves its pages alone.
+
+Each page is printed to standard error as it is captured. Last line: H2BT_MIRROR pages=<n>
+assets=<n> bytes=<n> removed=<n> review=<n> failed=<n> skipped=<n> forms=<n> manifest=<path>,
+or H2BT_MIRROR_FAIL reason=<why> when a page could not be captured. An asset that fails (a file the live site itself is missing) is listed and counted,
 and does not fail the run.
 
-Limits: attribute values without quotes are not rewritten, and nothing a script loads at run
-time is fetched.
+Limits: attribute values without quotes are not rewritten, and what a script loads at run time
+is fetched only when it is named with --asset: serve the mirror, load every page once, and run
+serve-html.sh --missing for the list.
 """
 import argparse
 import gzip
@@ -88,6 +109,32 @@ BUILT_IN_RULES = [
 ]
 REMOVE_LINK_RELS = {'preconnect', 'dns-prefetch', 'prefetch', 'prerender', 'modulepreload', 'manifest'}
 REVIEW = re.compile(r'createElement\(\s*["\']script["\']|\.src\s*=|\bfetch\s*\(|XMLHttpRequest|sendBeacon|new\s+Image\b|importScripts|\bimport\s*\(')
+LAZY_IMAGE_ATTRS = ('data-background', 'data-bg', 'data-background-image', 'data-lazy-background', 'data-thumbnail')
+IMAGE_PATH = re.compile(r'\.(?:jpe?g|png|gif|webp|avif|svg)(?:[?#]|$)', re.I)
+FORM_BLOCKED = '/_h2bt/form-blocked'
+# The first script of every page that keeps scripts. __SOURCE__ is the live site's origin.
+GUARD = (
+    '<script data-h2bt-guard>(function(){var source="__SOURCE__";var blocked=window.__h2btBlocked=[];'
+    'function target(u){try{return new URL(u,location.href);}catch(e){return null;}}'
+    'function denied(u,m){var t=target(u);if(!t){return false;}if(t.origin===source){return true;}'
+    'return t.origin!==location.origin&&m!=="GET"&&m!=="HEAD";}'
+    'function note(k,u){blocked.push(k+" "+u);try{console.warn("h2bt: blocked "+k+" "+u);}catch(e){}}'
+    'var f=window.fetch;if(f){window.fetch=function(i,o){var u=typeof i==="string"?i:(i&&i.url)||String(i);'
+    'var m=String((o&&o.method)||(i&&i.method)||"GET").toUpperCase();if(denied(u,m)){note("fetch "+m,u);'
+    'return Promise.reject(new TypeError("h2bt: blocked"));}return f.apply(this,arguments);};}'
+    'var X=window.XMLHttpRequest&&XMLHttpRequest.prototype;if(X){var op=X.open,sd=X.send;'
+    'X.open=function(m,u){this.__h2bt=[String(m).toUpperCase(),u];return op.apply(this,arguments);};'
+    'X.send=function(){var r=this.__h2bt;if(r&&denied(r[1],r[0])){note("xhr "+r[0],r[1]);return;}return sd.apply(this,arguments);};}'
+    'if(navigator.sendBeacon){navigator.sendBeacon=function(u){note("beacon",u);return false;};}'
+    'function formDenied(form,submitter){var a=(submitter&&submitter.getAttribute("formaction"))||form.getAttribute("action")||"";'
+    'var m=String((submitter&&submitter.getAttribute("formmethod"))||form.getAttribute("method")||"GET").toUpperCase();'
+    'return denied(a||location.href,m)||a.indexOf("__FORM_BLOCKED__")===0;}'
+    'var F=HTMLFormElement.prototype,sb=F.submit,rs=F.requestSubmit;'
+    'F.submit=function(){if(formDenied(this)){note("form",this.getAttribute("action"));return;}return sb.apply(this,arguments);};'
+    'if(rs){F.requestSubmit=function(s){if(formDenied(this,s)){note("form",this.getAttribute("action"));return;}return rs.apply(this,arguments);};}'
+    'document.addEventListener("submit",function(e){if(formDenied(e.target,e.submitter)){e.preventDefault();e.stopImmediatePropagation();'
+    'note("form",e.target.getAttribute("data-h2bt-action")||e.target.getAttribute("action"));}},true);})();</script>'
+)
 DATA_TYPES = re.compile(r'type\s*=\s*["\'](?:application/(?:ld\+)?json|text/template|text/html|importmap)["\']', re.I)
 
 
@@ -124,6 +171,27 @@ def parse_srcset(value):
     return out
 
 
+def remove_dot_segments(path):
+    """A URL path with its "." and ".." segments resolved (RFC 3986, section 5.2.4). A ".." at
+    the root stays at the root."""
+    out = []
+    segments = path.split('/')
+    for index, segment in enumerate(segments):
+        last = index == len(segments) - 1
+        if segment == '..':
+            if len(out) > 1:
+                out.pop()
+            if last:
+                out.append('')
+        elif segment == '.':
+            if last:
+                out.append('')
+        else:
+            out.append(segment)
+    resolved = '/'.join(out)
+    return resolved if resolved.startswith('/') else '/' + resolved
+
+
 class Mirror:
     def __init__(self, mirror_dir, base_url, delay, refetch, rules):
         self.dir = os.path.abspath(mirror_dir)
@@ -138,14 +206,15 @@ class Mirror:
         self.skipped = []
         self.css_done = set()
         self.decisions = []
+        self.forms = 0
 
     # ---- paths -------------------------------------------------------------------------
-    def local_ref(self, url):
+    def local_ref(self, url, kind=None):
         """Root-relative reference in the mirror for an absolute URL, or None when unsafe."""
         u = urllib.parse.urlsplit(url)
         if u.scheme not in ('http', 'https'):
             return None
-        path = u.path or '/'
+        path = remove_dot_segments(u.path or '/')
         if path.endswith('/'):
             path += 'index'
         segments = [urllib.parse.unquote(s) for s in path.split('/') if s != '']
@@ -166,6 +235,10 @@ class Mirror:
         if u.query and not (same_host and CACHE_BUST.match(u.query)):
             digest = hashlib.sha1(u.query.encode()).hexdigest()[:8]
             name = '%s__%s%s' % (stem, digest, ('.' + ext) if ext else '')
+        # The design server answers by extension, and a browser refuses a stylesheet that does
+        # not come back as text/css: a font service's /css?family=… must end in .css here.
+        if kind == 'css' and not name.lower().endswith('.css'):
+            name += '.css'
         segments[-1] = name
         if not same_host:
             if not re.match(r'^[a-z0-9.\-]+(?::\d+)?$', u.netloc, re.I):
@@ -178,6 +251,25 @@ class Mirror:
         if not path.startswith(self.dir + os.sep):
             raise ValueError('path leaves the mirror: %s' % ref)
         return path
+
+    def asset_url(self, path):
+        """The address of a file the mirror holds, or lacks, at a path in the mirror: the source
+        site's own for a root-relative path, another host's for /_hosts/<host>/…. None for a
+        path whose name was made from a query string, which cannot be turned back."""
+        if re.match(r'^https?://', path):
+            return path
+        path = '/' + path.lstrip('/')
+        path = urllib.parse.urlsplit(path).path
+        segments = path.split('/')
+        if re.search(r'__[0-9a-f]{8}(?:\.[\w]+)?$', segments[-1]):
+            return None
+        if len(segments) > 3 and segments[1] == '_hosts':
+            host = urllib.parse.unquote(segments[2])
+            if not re.match(r'^[a-z0-9.\-]+(?:_\d+)?$', host, re.I):
+                return None
+            host = re.sub(r'_(\d+)$', r':\1', host)
+            return '%s://%s/%s' % (self.base.scheme, host, '/'.join(segments[3:]))
+        return self.origin + path
 
     # ---- fetching ----------------------------------------------------------------------
     def get(self, url):
@@ -194,7 +286,7 @@ class Mirror:
         url = urllib.parse.urldefrag(url)[0]
         if url in self.fetched:
             return self.fetched[url]['ref']
-        ref = self.local_ref(url)
+        ref = self.local_ref(url, kind)
         if ref is None:
             if not any(entry['url'] == url for entry in self.skipped):
                 self.skipped.append({'url': url, 'why': 'unsafe or unsupported path'})
@@ -295,6 +387,39 @@ class Mirror:
                 return True, why
         return False, ''
 
+    def rewrite_import_map(self, body, page_url, row):
+        """An import map with each target fetched and pointed at the mirror. A target that ends
+        in "/" names a prefix, not a file, and is left as it is."""
+        try:
+            data = json.loads(body)
+        except ValueError:
+            row['review'] = 'an import map that is not JSON: its targets were not fetched'
+            return body
+        if not isinstance(data, dict):
+            return body
+        fetched = 0
+
+        def remap(table):
+            nonlocal fetched
+            if not isinstance(table, dict):
+                return table
+            out = {}
+            for key, value in table.items():
+                if isinstance(value, str) and value and not value.endswith('/'):
+                    ref = self.asset(page_url, value, 'script')
+                    if ref:
+                        value = ref
+                        fetched += 1
+                out[key] = value
+            return out
+
+        if 'imports' in data:
+            data['imports'] = remap(data['imports'])
+        if isinstance(data.get('scopes'), dict):
+            data['scopes'] = {scope: remap(table) for scope, table in data['scopes'].items()}
+        row['why'] = 'import map, %d target(s) fetched' % fetched
+        return json.dumps(data, separators=(',', ':'))
+
     def process_page(self, raw, page_url, rel):
         own = urllib.parse.urlsplit(page_url)
         rows = []
@@ -309,6 +434,10 @@ class Mirror:
                 rows.append({'what': 'script', 'id': ident, 'decision': 'removed', 'why': why})
                 return ''
             row = {'what': 'script', 'id': ident, 'decision': 'kept', 'why': why}
+            if not src and re.search(r'type\s*=\s*["\']importmap["\']', attrs, re.I):
+                body = self.rewrite_import_map(body, page_url, row)
+                rows.append(row)
+                return tag + body + '</script>'
             if src:
                 absolute = urllib.parse.urljoin(page_url, src)
                 if urllib.parse.urlsplit(absolute).netloc != self.base.netloc:
@@ -384,6 +513,43 @@ class Mirror:
 
         page = re.sub(r'<use\b[^>]*>', use_sub, page, flags=re.I)
 
+        # Lazy-load attributes that name an image on any element (a background, a video's
+        # thumbnail). Only a value whose path is an image file is fetched.
+        def lazy_sub(match):
+            tag = match.group(0)
+            for name in LAZY_IMAGE_ATTRS:
+                value = self.attr(tag, name)
+                if not value:
+                    continue
+                inner = re.match(r'^\s*url\(\s*(["\']?)(.*?)\1\s*\)\s*$', value)
+                target = inner.group(2) if inner else value.strip()
+                if not IMAGE_PATH.search(urllib.parse.urlsplit(urllib.parse.urljoin(page_url, target)).path + '#'):
+                    continue
+                ref = self.asset(page_url, target, 'image')
+                if ref:
+                    tag = self.set_attr(tag, name, 'url(%s)' % ref if inner else ref)
+            return tag
+
+        page = re.sub(r'<[a-zA-Z][\w-]*\b[^>]*\sdata-(?:background|bg|background-image|lazy-background|thumbnail)\s*=[^>]*>', lazy_sub, page, flags=re.I)
+
+        # A form that sends to another host must not send from the mirror.
+        def form_sub(match):
+            tag = match.group(0)
+            name = 'formaction' if match.group(1).lower() != 'form' else 'action'
+            value = self.attr(tag, name)
+            if not value:
+                return tag
+            target = urllib.parse.urlsplit(urllib.parse.urljoin(page_url, value.strip()))
+            if target.scheme not in ('http', 'https'):
+                return tag
+            self.forms += 1
+            rows.append({'what': match.group(1).lower(), 'id': value[:120], 'decision': 'neutralised',
+                         'why': 'sends to %s: pointed at %s' % (target.netloc, FORM_BLOCKED)})
+            tag = self.set_attr(tag, name, FORM_BLOCKED)
+            return tag[:-1].rstrip('/') + ' data-h2bt-%s="%s"%s>' % (name, html.escape(value, quote=True), ' /' if tag.endswith('/>') else '')
+
+        page = re.sub(r'<(form|button|input)\b[^>]*\s(?:action|formaction)\s*=[^>]*>', form_sub, page, flags=re.I)
+
         page = re.sub(r'<style\b([^>]*)>(.*?)</style>',
                       lambda match: '<style%s>%s</style>' % (match.group(1), self.rewrite_css_text(match.group(2), page_url)),
                       page, flags=re.S | re.I)
@@ -425,6 +591,15 @@ class Mirror:
         page = re.sub(r'<script\b([^>]*)>(.*?)</script>', inline_sub, page, flags=re.S | re.I)
 
         noscript = re.sub(r'<script\b[^>]*>.*?</script>', '', page, flags=re.S | re.I)
+
+        # The guard comes first in <head>, before any script of the page can send something.
+        if re.search(r'<script\b', page, re.I):
+            guard = GUARD.replace('__SOURCE__', self.origin).replace('__FORM_BLOCKED__', FORM_BLOCKED)
+            head = re.search(r'<head\b[^>]*>', page, re.I)
+            if head:
+                page = page[:head.end()] + guard + page[head.end():]
+            else:
+                page = guard + page
 
         body = re.search(r'<body\b.*?</body>', noscript, flags=re.S | re.I)
         aid = body.group(0) if body else noscript
@@ -516,7 +691,9 @@ def main():
     parser = argparse.ArgumentParser(description='Mirror pages of a live site into a design directory.')
     parser.add_argument('--mirror', required=True)
     parser.add_argument('--base-url', required=True)
-    parser.add_argument('--page', action='append', required=True)
+    parser.add_argument('--page', action='append', default=[])
+    parser.add_argument('--asset', action='append', default=[])
+    parser.add_argument('--assets-from')
     parser.add_argument('--rules')
     parser.add_argument('--refetch', action='store_true')
     parser.add_argument('--delay', type=float, default=0.15)
@@ -530,6 +707,15 @@ def main():
     base = urllib.parse.urlsplit(args.base_url)
     if base.scheme not in ('http', 'https') or not base.netloc:
         return cannot('bad-base-url', '--base-url must be an http(s) address: %s' % args.base_url)
+    assets = list(args.asset)
+    if args.assets_from:
+        try:
+            with open(args.assets_from, encoding='utf-8') as handle:
+                assets += [line.strip() for line in handle if line.strip() and not line.startswith('#')]
+        except OSError as error:
+            return cannot('bad-assets-file', 'The assets file could not be read: %s' % error)
+    if not args.page and not assets:
+        return cannot('nothing-to-do', 'Give at least one --page, --asset or --assets-from')
     rules = {}
     if args.rules:
         try:
@@ -548,11 +734,25 @@ def main():
 
     mirror = Mirror(args.mirror, args.base_url, args.delay, args.refetch, rules)
     pages = []
-    for spec in args.page:
+    for number, spec in enumerate(args.page, 1):
         try:
             pages.append(mirror.capture(spec))
         except PageError as error:
             return cannot('page-not-captured', 'Could not capture a page: %s' % error)
+        print('captured %d/%d %s (%d assets so far)' % (number, len(args.page), pages[-1]['page'], len(mirror.fetched)), file=sys.stderr, flush=True)
+
+    added = []
+    for path in assets:
+        url = mirror.asset_url(path)
+        if url is None:
+            mirror.skipped.append({'url': path, 'why': 'not a path the mirror can map back to an address: a name made from a query string (__<hash>) is fetched by its page'})
+            continue
+        ext = urllib.parse.urlsplit(url).path.rpartition('.')[2].lower()
+        kind = 'css' if ext == 'css' else 'script' if ext in ('js', 'mjs') else 'asset'
+        ref = mirror.fetch(url, kind)
+        if ref:
+            added.append(dict(mirror.fetched[urllib.parse.urldefrag(url)[0]]))
+        print('asset %s -> %s' % (path, ref or 'failed or skipped'), file=sys.stderr, flush=True)
 
     removed = review = 0
     for page in mirror.decisions:
@@ -561,6 +761,8 @@ def main():
             if row['decision'] == 'removed':
                 removed += 1
                 print('  REMOVED  %-7s %s  (%s)' % (row['what'], row['id'][:90], row['why']))
+            elif row['decision'] == 'neutralised':
+                print('  BLOCKED  %-7s %s  (%s)' % (row['what'], row['id'][:90], row['why']))
             elif row.get('review'):
                 review += 1
                 print('  REVIEW   %-7s %s  (%s)' % (row['what'], row['id'][:90], row['review']))
@@ -572,19 +774,36 @@ def main():
         print('  SKIPPED  %s  (%s)' % (skip['url'], skip['why']))
 
     manifest_path = os.path.join(mirror.dir, '_h2bt-manifest.json')
-    with open(manifest_path, 'w', encoding='utf-8') as handle:
-        json.dump({
+    previous = {}
+    if os.path.exists(manifest_path):
+        try:
+            with open(manifest_path, encoding='utf-8') as handle:
+                previous = json.load(handle)
+        except (OSError, ValueError):
+            previous = {}
+    if args.page:
+        manifest = {
             'source': args.base_url,
             'pages': pages,
             'decisions': mirror.decisions,
             'fetched': sorted(mirror.fetched.values(), key=lambda entry: entry['ref']),
             'failed': mirror.failed,
             'skipped': mirror.skipped,
-        }, handle, indent=1)
+            'added': previous.get('added', []),
+        }
+    else:
+        # Only assets: the pages' records stay as the last capture left them.
+        manifest = dict(previous) if previous else {'source': args.base_url, 'pages': [], 'decisions': [], 'fetched': [], 'failed': [], 'skipped': []}
+        manifest['failed'] = manifest.get('failed', []) + mirror.failed
+        manifest['skipped'] = manifest.get('skipped', []) + mirror.skipped
+    known = {entry.get('ref') for entry in manifest.get('added', [])}
+    manifest['added'] = manifest.get('added', []) + [entry for entry in added if entry.get('ref') not in known]
+    with open(manifest_path, 'w', encoding='utf-8') as handle:
+        json.dump(manifest, handle, indent=1)
         handle.write('\n')
-    print('H2BT_MIRROR pages=%d assets=%d bytes=%d removed=%d review=%d failed=%d skipped=%d manifest=%s' % (
+    print('H2BT_MIRROR pages=%d assets=%d bytes=%d removed=%d review=%d failed=%d skipped=%d forms=%d manifest=%s' % (
         len(pages), len(mirror.fetched), sum(entry.get('bytes', 0) for entry in mirror.fetched.values()),
-        removed, review, len(mirror.failed), len(mirror.skipped), manifest_path))
+        removed, review, len(mirror.failed), len(mirror.skipped), mirror.forms, manifest_path))
     return 0
 
 

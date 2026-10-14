@@ -75,6 +75,7 @@ files:
       "Layout recipes that replace CSS": platform
       "Layout traps (defaults that fight the design)": platform
       "Images": platform
+      "Icons (WordPress 7.1 and later)": platform
       "Buttons": platform
       "Links, headings and lists": platform
       "core/navigation notes": platform
