@@ -81,6 +81,20 @@ if ( 'default' !== $template ) {
 	}
 }
 
+// A page whose stored template the active theme does not offer (a page builder's, once the
+// builder is switched off) cannot be updated as it is: wp_update_post() carries the stored
+// template into the update, and wp_insert_post() rejects it after the content is written. The
+// check is the one wp_insert_post() makes. The requested template is stored below.
+$replaced_template = '';
+if ( $existing instanceof WP_Post ) {
+	$stored_before = (string) get_post_meta( $existing->ID, '_wp_page_template', true );
+	if ( '' !== $stored_before && 'default' !== $stored_before && ! isset( wp_get_theme()->get_page_templates( $existing )[ $stored_before ] ) ) {
+		delete_post_meta( $existing->ID, '_wp_page_template' );
+		clean_post_cache( $existing->ID );
+		$replaced_template = $stored_before;
+	}
+}
+
 // Preserve block-delimiter comments and raw markup: drop kses for this write.
 kses_remove_filters();
 
@@ -150,4 +164,4 @@ if ( $stored_content !== $content ) {
 	exit;
 }
 
-echo 'H2BT_OK id=' . $post_id . ' slug=' . $stored_slug . ' parent=' . $parent_id . ' template=' . $template . ' bytes=' . strlen( $stored_content ) . ' php=' . PHP_VERSION . "\n";
+echo 'H2BT_OK id=' . $post_id . ' slug=' . $stored_slug . ' parent=' . $parent_id . ' template=' . $template . ' bytes=' . strlen( $stored_content ) . ' php=' . PHP_VERSION . ( '' !== $replaced_template ? ' replaced_template=' . $replaced_template : '' ) . "\n";

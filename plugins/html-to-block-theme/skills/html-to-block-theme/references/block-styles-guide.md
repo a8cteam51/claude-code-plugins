@@ -5,7 +5,8 @@ When a recurring custom CSS class adds styling that block supports cannot expres
 This skill registers variations in **`functions.php` with `register_block_style()`**, and ships each block type's CSS as **its own file** loaded on demand with **`wp_enqueue_block_style()`**. There is no monolithic theme stylesheet and no `/styles/*.json` block-style files — one readable CSS file per block type, loaded only when that block is on the page.
 
 **Template mode** (an a8csp-project-template repository; see `project-template-guide.md`) keeps every rule in this guide but changes the locations:
-- Each block type's stylesheet source is `assets/css/src/blocks/<block-name>.scss`, built to `assets/css/build/blocks/<block-name>.css`.
+- Each block type's stylesheet source is `assets/sass/blocks/<block-name>.scss`, built to `assets/css/blocks/<block-name>.css` (`project-template-guide.md` § Build pipeline points the template's scripts there).
+- **Write the Sass nested**, the root partials in `assets/sass/` as well as the block stylesheets in `assets/sass/blocks/`. Give each block style, or the block's own rules, one parent rule, and nest inside it what belongs to it: its states (`&:hover`, `&:focus-visible`), its children (`> .wp-block-cover__inner-container`), its descendants (`a`), a context that wraps it (`body:not(.editor-styles-wrapper) & a::after`) and its breakpoints (`@include breakpoint-down( mobile )`). Don't repeat the full selector rule after rule. Nest in the order the flat rules would cascade: where a parent's rules are split by another rule with the same specificity that can match the same element, keep them apart. To nest Sass that was written flat, save the compiled CSS first and check that after the change it is the same, rule for rule and in the same order, once whitespace and comments are set aside.
 - `register_block_style()` and `wp_enqueue_block_style()` live in `includes/block-styles.php`, not `functions.php`. They enqueue the **build** path and name each `.css` file literally.
 - Handles are `<theme_slug>-block-<block-name>`, and the text domain is the theme slug.
 - The standards audit detects this layout by itself.
@@ -154,7 +155,7 @@ Whole pixels only (`mapping-guide.md` § Pixel values are whole pixels):
 
 ### Icons in buttons
 
-`core/button` has no icon, and the `core/html` policy rejects an SVG inside a link. Paint a decorative icon from the button's registered style: a `::before` on the link, sized like the icon, with `background: currentcolor`, the SVG as a `mask` data URI, and a flex link with a gap. No image file, and the icon follows the label colour.
+An icon on its own is a `core/icon` block on WordPress 7.1 and later (`mapping-guide.md` § Icons). `core/button` has no icon, and the `core/html` policy rejects an SVG inside a link. Paint a decorative icon in a button from the button's registered style: a `::before` on the link, sized like the icon, with `background: currentcolor`, the SVG as a `mask` data URI, and a flex link with a gap. No image file, and the icon follows the label colour.
 
 - **Which flex depends on the original.** Where the original control is block-level, use `display: flex`: an `inline-flex` link sits on a text line of its wrapper and grows the block by a pixel. Where it is an inline box inside running text, keep `inline-flex`, because its line is part of the rhythm.
 - **A glyph the font has** can be printed as generated text instead. It is then part of the control's accessible name unless written `content: "x"; content: "x" / "";`.

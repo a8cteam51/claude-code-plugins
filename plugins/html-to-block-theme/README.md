@@ -76,7 +76,7 @@ The skill then:
 The build then follows `references/project-template-guide.md`.
 
 **Where things go:**
-- The template's `functions.php` loader stays. Theme code goes in `includes/*.php`, root styles in `assets/sass/`, block CSS in `assets/css/src/blocks/*.scss` (built to `assets/css/build/blocks/`), and theme JS in ES modules under `assets/js/src/`.
+- The template's `functions.php` loader stays. Theme code goes in `includes/*.php`, root styles in `assets/sass/`, block CSS in `assets/sass/blocks/*.scss` (built to `assets/css/blocks/`), and theme JS in ES modules under `assets/js/src/`.
 - Blocks come from the blocks monorepo, as in standalone runs. Only an exclusion an engineering lead has approved goes in the features mu-plugin: `scaffold-custom-block.sh --exclusion-approved` writes wp-scripts sources, registers them from a blocks manifest, and adds them to `.github/blocks-allowlist`.
 - The template's example features (Book post type, WooCommerce cart stylesheet) show how a feature is built in the repository. The run strips each one the build does not itself use, with its own recipe.
 - The conversion writes no tests. Under the repository's `tests/` it only deletes what an example's removal recipe names.

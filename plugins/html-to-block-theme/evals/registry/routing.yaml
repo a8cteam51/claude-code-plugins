@@ -18,4 +18,4 @@
   task: |
     Our Studio site's wp-content is a git clone of a repository generated from a8cteam51/a8csp-project-template. An engineering lead approved keeping one bespoke block in this project instead of the blocks monorepo, and the design also needs custom CSS for a core/group block style. Where does each go in the repository, how is the block registered, and what else must change so the repository's CI passes?
   grade:
-    - answer_matches: ['blocks-allowlist', '[Ff]eatures (mu-)?plugin', 'exclusion-approved', 'assets/css/src/blocks/']
+    - answer_matches: ['blocks-allowlist', '[Ff]eatures (mu-)?plugin', 'exclusion-approved', 'assets/sass/blocks/']

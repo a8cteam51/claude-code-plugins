@@ -63,7 +63,8 @@ A theme never contains a block (`block.json`). Blocks come from the A8C Special 
 
 **Template mode** (an a8csp-project-template repository) uses that template's structure instead. `project-template-guide.md` § Where each piece goes has the full mapping; in short:
 - Sass sources build `style.css`.
-- Block CSS goes in `assets/css/src/blocks/*.scss`, built to `assets/css/build/blocks/`.
+- Block CSS goes in `assets/sass/blocks/*.scss`, built to `assets/css/blocks/`.
+- All Sass is written nested, one parent rule per block style with its states, children, descendants and breakpoints inside it (`block-styles-guide.md`, template mode).
 - PHP goes in `includes/*.php`, loaded by the template's `functions.php`.
 - Theme JS is ES modules under `assets/js/src/`, built to `assets/js/build/`.
 - Blocks come from the blocks monorepo. Only an approved exclusion goes in the features mu-plugin.

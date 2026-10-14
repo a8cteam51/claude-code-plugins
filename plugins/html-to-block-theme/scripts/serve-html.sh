@@ -20,6 +20,8 @@
 #            run's design directory (design_dir in <site>/.h2bt/run.json).
 # Stop:    serve-html.sh --stop --site-path <site>
 #            -> also removes the harness copy it placed in the site
+# Missing: serve-html.sh --missing --site-path <site>   (or --pidfile <path>)
+#            -> the paths the server answered 404 for, from its log: what a mirror lacks
 #
 # Without a site: serve-html.sh --dir <design-dir>, which prints pidfile=<path>, and
 # serve-html.sh --stop --pidfile <path>.
@@ -34,8 +36,10 @@ Usage:
   serve-html.sh --dir <design-dir> --site-path <site> [--port <port>] [--sink-dir <dir>]
   serve-html.sh --ensure --site-path <site> [--dir <design-dir>]
   serve-html.sh --stop --site-path <site>
+  serve-html.sh --missing --site-path <site>
   serve-html.sh --dir <design-dir> [--port <port>] [--sink-dir <dir>]
   serve-html.sh --stop --pidfile <path>
+  serve-html.sh --missing --pidfile <path>
 
 Starts a background static HTTP server rooted at <design-dir> bound to 127.0.0.1.
 It prints two sentinel lines:
@@ -54,6 +58,13 @@ It prints two sentinel lines:
              after a long wait, when a page of the original does not load.
 --stop       With --site-path: stops the recorded server and removes the harness copy and
              the state file. The harness copy is removed even when no server is recorded.
+--missing    Lists the paths the running server answered 404 for, read from its log, with how
+             many times each was asked for, and writes them one per line to
+             <site>/.h2bt/missing.txt (beside the pid file without a site). Source maps and
+             the harness's own paths are left out. Load every page of a mirror once first:
+             what is listed is what its scripts load at run time and the mirror lacks, and
+             mirror-site.py --assets-from <file> fetches it. Ends with
+             H2BT_SERVE_MISSING count=<n> file=<path> log=<path>.
 --sink-dir   Where measurements posted to the sink are written (<name>.json). Default:
              <site>/.h2bt/measurements with --site-path, else a directory under $TMPDIR.
 
@@ -76,6 +87,7 @@ dir=""
 port=""
 stop=0
 ensure=0
+missing=0
 pidfile=""
 site_path=""
 sink_dir=""
@@ -88,6 +100,7 @@ while [[ $# -gt 0 ]]; do
 		--sink-dir) need_value "$@"; sink_dir="$2"; shift 2 ;;
 		--stop) stop=1; shift ;;
 		--ensure) ensure=1; shift ;;
+		--missing) missing=1; shift ;;
 		--pidfile) need_value "$@"; pidfile="$2"; shift 2 ;;
 		-h|--help) usage; exit 0 ;;
 		*) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
@@ -143,6 +156,41 @@ remove_own_file() { # remove_own_file <path> <suffix>: only a file this script n
 		rm -f "$1"
 	fi
 }
+
+if [[ "$missing" -eq 1 ]]; then
+	if [[ -n "$site_path" ]]; then
+		[[ -d "$site_path" ]] || { echo "Site path not found: $site_path" >&2; exit 1; }
+		site_path="$(cd "$site_path" && pwd)"
+		state="$site_path/.h2bt/serve.json"
+		[[ -f "$state" ]] || { echo "No server is recorded for this site: start it with --ensure, load the pages, then ask again" >&2; exit 1; }
+		log="$(state_get "$state" log)"
+		out="$site_path/.h2bt/missing.txt"
+	else
+		[[ -n "$pidfile" ]] || { echo "--missing needs --site-path or --pidfile" >&2; exit 2; }
+		log="${pidfile%.pid}.log"
+		out="${pidfile%.pid}.missing.txt"
+	fi
+	[[ -f "$log" ]] || { echo "The server's log is not there: $log" >&2; exit 1; }
+	python3 -I -c 'import collections,re,sys,urllib.parse
+counts = collections.Counter()
+line_re = re.compile(r"\"(?:GET|HEAD) (\S+) HTTP/[\d.]+\" 404 ")
+with open(sys.argv[1], encoding="utf-8", errors="replace") as handle:
+    for line in handle:
+        match = line_re.search(line)
+        if not match:
+            continue
+        path = urllib.parse.urlsplit(match.group(1)).path
+        if path.startswith("/_h2bt") or path.endswith(".map"):
+            continue
+        counts[path] += 1
+with open(sys.argv[2], "w", encoding="utf-8") as handle:
+    for path in sorted(counts):
+        handle.write(path + "\n")
+for path, count in sorted(counts.items()):
+    print("  %4d  %s" % (count, path))
+print("H2BT_SERVE_MISSING count=%d file=%s log=%s" % (len(counts), sys.argv[2], sys.argv[1]))' "$log" "$out"
+	exit 0
+fi
 
 if [[ "$stop" -eq 1 ]]; then
 	if [[ -n "$site_path" ]]; then

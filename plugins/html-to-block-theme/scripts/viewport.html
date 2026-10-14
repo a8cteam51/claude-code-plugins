@@ -42,13 +42,18 @@
  *                                  and the HTTP status of its address (404: a wrong address,
  *                                  unless the view is the not-found page); rejects after wait
  *                                  seconds (30) when one never finishes
- *   h2bt.prepare()                 loads lazy images, switches transitions off, and waits for
- *                                  fonts and images in every pane; call it before measuring
+ *   h2bt.prepare()                 loads lazy images, switches transitions off, waits for fonts,
+ *                                  images, and core accordions and tabs to hydrate in every
+ *                                  pane; call it before measuring. It also reports what would
+ *                                  make a measurement wrong: a stylesheet that did not load, a
+ *                                  font family no loaded face draws, an image with no size,
+ *                                  an accordion or tabs block still unhydrated
  *   h2bt.scroll( y )               scrolls every pane (strip panes keep their screenful offset)
  *   h2bt.run( index, source )      evaluates a function body with ( doc, win ) in one pane and
  *                                  resolves with its JSON-safe result
  *   h2bt.resize( width[, height] ) sets every pane to a new CSS width (and height) without
- *                                  reloading, and resolves with each pane's innerWidth. It
+ *                                  reloading, sends each pane a resize event (a hidden tab
+ *                                  sends none), and resolves with each pane's innerWidth. It
  *                                  switches transitions off for good: reload to see one.
  *   h2bt.pages()                   each pane's width, document height and sideways overflow,
  *                                  with the elements that reach past the edge
@@ -191,6 +196,21 @@
 	// Probes are real functions, sent to a pane as source: no nested string escaping to get wrong.
 	const probes = {
 		prepare: ( doc, win, options ) => {
+			// A hidden tab throttles timers, after five minutes to once a minute; a message
+			// channel is not throttled, so every wait here is made of messages.
+			const later = ( ms ) => new Promise( ( done ) => {
+				const channel = new win.MessageChannel();
+				const until = Date.now() + ms;
+				channel.port1.onmessage = () => {
+					if ( Date.now() >= until ) {
+						channel.port1.close();
+						done();
+					} else {
+						channel.port2.postMessage( 0 );
+					}
+				};
+				channel.port2.postMessage( 0 );
+			} );
 			doc.querySelectorAll( 'img[loading="lazy"]' ).forEach( ( img ) => {
 				img.loading = 'eager';
 			} );
@@ -201,18 +221,73 @@
 				doc.head.appendChild( style );
 			}
 			const limit = options.timeout || 8000;
-			return doc.fonts.ready.then( () => new Promise( ( done ) => {
-				const started = Date.now();
-				const check = () => {
-					const waiting = [ ...doc.images ].filter( ( img ) => ! img.complete ).length;
-					if ( ! waiting || Date.now() - started > limit ) {
-						done( { images: doc.images.length, pending: waiting, dark: win.matchMedia( '(prefers-color-scheme: dark)' ).matches } );
-					} else {
-						setTimeout( check, 100 );
+			const started = Date.now();
+			// Core prints a closed accordion panel without `hidden`, and every tab panel hidden with
+			// no tab selected, until its script has run: the page is laid out in the wrong state.
+			const unhydrated = () => doc.querySelectorAll( '.wp-block-accordion-item:not(.is-open) .wp-block-accordion-panel:not([hidden])' ).length
+				+ [ ...doc.querySelectorAll( '.wp-block-tabs' ) ].filter( ( tabs ) => ! tabs.querySelector( '.wp-block-tab-list [aria-selected="true"]' ) ).length;
+			const short = ( value ) => String( value || '' ).split( '/' ).slice( -2 ).join( '/' ).slice( 0, 60 );
+			return doc.fonts.ready.then( async () => {
+				let waiting = 0;
+				while ( Date.now() - started < limit ) {
+					waiting = [ ...doc.images ].filter( ( img ) => ! img.complete ).length;
+					if ( ! waiting && ! unhydrated() ) {
+						break;
 					}
-				};
-				check();
-			} ) );
+					await later( 100 );
+				}
+				const out = { images: doc.images.length, pending: waiting, dark: win.matchMedia( '(prefers-color-scheme: dark)' ).matches };
+				// An image can be complete and have no size in a hidden tab until a frame is
+				// painted; a broken one looks the same. Decode, briefly, then list what is left.
+				const unsized = [ ...doc.images ].filter( ( img ) => img.complete && ! img.naturalWidth && ( img.currentSrc || img.getAttribute( 'src' ) ) );
+				await Promise.race( [ Promise.allSettled( unsized.map( ( img ) => img.decode() ) ), later( 500 ) ] );
+				const still = unsized.filter( ( img ) => ! img.naturalWidth );
+				if ( still.length ) {
+					out.unsized = { count: still.length, first: still.slice( 0, 3 ).map( ( img ) => short( img.currentSrc || img.getAttribute( 'src' ) ) ) };
+				}
+				// A stylesheet the browser refused (served as anything but text/css) keeps a sheet
+				// with no rules although its file had a body; one that never arrived has no sheet.
+				const failed = [ ...doc.querySelectorAll( 'link[rel~="stylesheet"]' ) ].filter( ( link ) => {
+					if ( link.disabled ) {
+						return false;
+					}
+					if ( ! link.sheet ) {
+						return true;
+					}
+					let rules;
+					try {
+						rules = link.sheet.cssRules.length;
+					} catch ( error ) {
+						return false; // Another origin's sheet cannot be read.
+					}
+					const entry = win.performance.getEntriesByName( link.href )[ 0 ];
+					return ! rules && !! entry && entry.decodedBodySize > 0;
+				} );
+				if ( failed.length ) {
+					out.stylesheets_failed = failed.slice( 0, 5 ).map( ( link ) => short( link.getAttribute( 'href' ) ) );
+				}
+				// A family the page asks for that no loaded face draws: a web font that did not
+				// load, or one the machine has installed. Generic families, and the system fonts
+				// browsers give form controls and sites name as fallbacks, are left out.
+				const generic = /^(serif|sans-serif|monospace|cursive|fantasy|system-ui|ui-[a-z-]+|emoji|math|fangsong|-apple-system|blinkmacsystemfont|inherit|initial|arial|helvetica|helvetica neue|times|times new roman|georgia|verdana|tahoma|courier|courier new|segoe ui|roboto|menlo|monaco|consolas)$/i;
+				const loaded = new Set( [ ...doc.fonts ].filter( ( face ) => face.status === 'loaded' ).map( ( face ) => face.family.replace( /^["']|["']$/g, '' ).toLowerCase() ) );
+				const asked = new Set();
+				[ ...doc.querySelectorAll( 'body, body *' ) ].slice( 0, 3000 ).forEach( ( element ) => {
+					const first = win.getComputedStyle( element ).fontFamily.split( ',' )[ 0 ].trim().replace( /^["']|["']$/g, '' );
+					if ( first && ! generic.test( first ) ) {
+						asked.add( first );
+					}
+				} );
+				const faceless = [ ...asked ].filter( ( family ) => ! loaded.has( family.toLowerCase() ) );
+				if ( faceless.length ) {
+					out.families_without_face = faceless.slice( 0, 5 );
+				}
+				const left = unhydrated();
+				if ( left ) {
+					out.unhydrated = left;
+				}
+				return out;
+			} );
 		},
 		page: ( doc, win ) => {
 			const root = doc.documentElement;
@@ -320,7 +395,8 @@
 
 	// A page that answers 404 loads like any other, so each pane also says what its address
 	// answered: a wrong address must not pass for a page that is ready.
-	const WAIT = 'return new Promise( ( done ) => { const check = () => ( doc && doc.readyState === "complete" && doc.fonts.status === "loaded" ) ? done( { h: doc.documentElement.scrollHeight, w: win.innerWidth } ) : setTimeout( check, 150 ); check(); } ).then( ( size ) => win.fetch( win.location.href, { method: "HEAD", cache: "no-store" } ).then( ( response ) => ( { ...size, status: response.status } ), () => ( { ...size, status: 0 } ) ) );';
+	// The poll runs on a message channel: a hidden tab throttles timers, after five minutes to once a minute.
+	const WAIT = 'return new Promise( ( done ) => { const channel = new win.MessageChannel(); let due = 0; channel.port1.onmessage = () => { if ( Date.now() < due ) { channel.port2.postMessage( 0 ); return; } if ( doc && doc.readyState === "complete" && doc.fonts.status === "loaded" ) { channel.port1.close(); done( { h: doc.documentElement.scrollHeight, w: win.innerWidth } ); return; } due = Date.now() + 150; channel.port2.postMessage( 0 ); }; channel.port2.postMessage( 0 ); } ).then( ( size ) => win.fetch( win.location.href, { method: "HEAD", cache: "no-store" } ).then( ( response ) => ( { ...size, status: response.status } ), () => ( { ...size, status: 0 } ) ) );';
 	// A hidden tab does not advance transitions, so a property under one keeps its old value after
 	// a media query changes. Measuring needs the end state: transitions are switched off.
 	const FREEZE = 'if ( ! doc.getElementById( "h2bt-freeze" ) ) { const s = doc.createElement( "style" ); s.id = "h2bt-freeze"; s.textContent = "*, *::before, *::after { transition: none !important; }"; doc.head.appendChild( s ); } ';
@@ -352,7 +428,9 @@
 				// A relayed pane frames its page in a second iframe, which has to follow.
 				const inner = pane.sameOrigin ? '' : 'win.frameElement.width = ' + value + '; ' + ( tall ? 'win.frameElement.height = ' + tall + '; ' : '' );
 				// No timer and no animation frame: a hidden tab throttles both. Reading a box forces layout.
-				return this.run( index, FREEZE + inner + 'doc.documentElement.getBoundingClientRect(); return win.innerWidth;' );
+				// A pane gets no resize event while the tab's rendering is throttled, so a script that
+				// measures on resize (a sticky header's height) would keep the old width's values.
+				return this.run( index, FREEZE + inner + 'doc.documentElement.getBoundingClientRect(); win.dispatchEvent( new win.Event( "resize" ) ); doc.documentElement.getBoundingClientRect(); return win.innerWidth;' );
 			} ) );
 		},
 		scroll( y ) {

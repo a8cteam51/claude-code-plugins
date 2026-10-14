@@ -30,13 +30,27 @@ python3 -I "<plugin-root>/scripts/mirror-site.py" --mirror "<site-path>/.h2bt/mi
 # == index.html
 #   REMOVED  script  …  (statistics)
 #   REVIEW   script  …  (may load or report something: …)
-# H2BT_MIRROR pages=<n> assets=<n> bytes=<n> removed=<n> review=<n> failed=<n> skipped=<n> manifest=<path>
+#   BLOCKED  form    …  (sends to example.com: pointed at /_h2bt/form-blocked)
+# H2BT_MIRROR pages=<n> assets=<n> bytes=<n> removed=<n> review=<n> failed=<n> skipped=<n> forms=<n> manifest=<path>
 ```
 
 - **It fetches each page once** and keeps it as it came, under `_h2bt-raw/`. A second run reads that copy and fetches only what the mirror lacks, so the command can be repeated, with new rules, without touching the live site.
 - **Read every line it prints.** Its built-in rules know the common analytics, consent and search scripts, and no such list is complete. A `REVIEW` line is a script that was kept and looks as if it loads or reports something. Decide each one, and put what has to go in a rules file: `{"remove": [{"attr": "<regex>", "body": "<regex>", "why": "…"}], "keep": [{"attr": "<regex>"}]}`. A library that only a removed script used stays unless a rule removes it.
 - **`failed` counts assets the live site itself does not serve;** the run still succeeds. `H2BT_MIRROR_FAIL` means a page could not be captured.
-- **What it does not do:** rewrite an attribute value that has no quotes, or fetch what a script loads at run time. Open the mirrored page beside the live one once before relying on it.
+- **It cannot see what a page's scripts load at run time:** a page builder's widget code split into chunks, a carousel library injected after load, a module one module imports. Without them carousels, accordions and tabs stay uninitialised in the mirror, and sections measure hundreds of pixels off. The design server's log is the list. Serve the mirror, load every mirrored page once (`h2bt.ready()` in the harness is enough), then:
+
+  ```bash
+  bash "<plugin-root>/scripts/serve-html.sh" --missing --site-path "<site-path>"
+  #    3  /wp-content/plugins/<builder>/assets/js/<chunk>.js
+  # H2BT_SERVE_MISSING count=<n> file=<site-path>/.h2bt/missing.txt log=<path>
+  python3 -I "<plugin-root>/scripts/mirror-site.py" --mirror "<site-path>/.h2bt/mirror" \
+    --base-url https://example.com/ --assets-from "<site-path>/.h2bt/missing.txt"
+  ```
+
+  Load the pages again and repeat until the list holds only files the live site itself does not serve. A run with only assets leaves the pages' records in the manifest as they were.
+- **Forms cannot send from the mirror.** A form or button that sends to another host is pointed at `/_h2bt/form-blocked` (a `BLOCKED` line each, counted as `forms`), and every page with scripts gets a guard as its first script. The guard blocks any request to the live site's host, any request other than GET or HEAD to another host, every beacon and every form sent to another host, and lists what it blocked in `window.__h2btBlocked`. The guard is needed besides the form's address: a form plugin's script usually posts to the address in its configuration (an `ajaxurl`), not to the form's action. Never press a submit button in a pane of the live site, or of a page saved by any other means.
+- **What else it does not do:** rewrite an attribute value that has no quotes. Open the mirrored page beside the live one once before relying on it.
+- **Check that each mirrored page renders as the live one before the blueprint.** `h2bt.prepare()` reports what would make every later measurement wrong: `stylesheets_failed` (a stylesheet the browser refused or never got), `families_without_face` (a font family no loaded face draws: the fonts did not load), `unsized` images, and `unhydrated` core accordions and tabs. A mirror whose fonts did not load measures with fallback fonts, and nothing else says so: the computed families are right. The script now names every stylesheet `.css`, because a browser refuses one served by extension as anything else; a mirror made by an older version can still hold such a file.
 
 - **Put the mirror at `<site-path>/.h2bt/mirror/`** unless the user names another place. A run keeps that directory when it cleans up, and a later run finds it there. Record the site's address in `run.json` as `source_url`: it is how a later session knows this run is the one being asked for again.
 
@@ -68,6 +82,7 @@ Routes, REST endpoints, script-driven regions, third-party scripts, redirects. P
 
 - **Behaviour that is out of scope is built in its default, script-free state.** An element a later script reveals is kept as a hidden block so its design is not lost (`mapping-guide.md` § JS / interactivity).
 - **Routing is part of the inventory.** One request against the original shows whether it redirects an address the rebuild would answer differently (`custom-blocks-guide.md` § What a block can know).
+- **A page builder's stored page templates.** Pages a page builder made store its own template (`elementor_header_footer`, say), which the new theme does not offer. `write-page.sh` clears such a template before it writes the page, stores the one it was given, and says so: its sentinel ends with `replaced_template=<old>`. Record each for the migration, where the same pages change on production.
 
 ## Defects of the original
 

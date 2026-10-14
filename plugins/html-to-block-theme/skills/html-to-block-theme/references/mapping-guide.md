@@ -43,7 +43,7 @@ Attribute forms move between WordPress versions. Markup written from memory of a
 | `<main>` | `core/group` with `"tagName":"main"` | In the template, around the page's content. Core's skip link targets it. |
 | Skip link (`<a href="#main">Skip to content</a>`) | nothing | Core prints one before every block template that has a `main` element, and uses that element's `id` when it has one. Rebuilding the design's own gives the page two. |
 | Logo | `core/site-logo` | No part then carries an environment URL. Its duotone setting recolours a single-colour logo (§ Images). |
-| Icon / inline SVG | `core/image` from the media library; a decorative icon inside a button or link is painted from the block's stylesheet (§ Buttons); `core/html` (bare inline SVG only) when the icon must inherit colour or animate; custom behaviour (`custom-blocks-guide.md`) if interactive | An SVG wrapped in an `<a>`/`<div>` fails the core/html policy — icon *links* are `core/social-links` (restyled by a block style variation when the glyph is bespoke). Do not invent an "icon block." |
+| Icon / inline SVG / icon-font glyph | `core/icon` on WordPress 7.1 and later: one of core's icons, or a glyph the theme registers (§ Icons). A decorative icon inside a button or link is painted from the block's stylesheet (§ Buttons); custom behaviour (`custom-blocks-guide.md`) if interactive | An SVG wrapped in an `<a>`/`<div>` fails the core/html policy — icon *links* are `core/social-links` (restyled by a block style variation when the glyph is bespoke). On an older core, an icon is a `core/image` from the media library, or `core/html` (bare inline SVG only) when it must inherit colour. |
 | Background media + overlay + content | `core/cover` | Maps cleanly to hero sections with a background image/colour and overlay. |
 | Separator / `<hr>` | `core/separator` | It has no thickness setting. A hairline between two sections is the next group's top border, with an eight-digit hex colour where the original used opacity. |
 | Spacer gap (no semantic content) | spacing supports first; `core/spacer` only if unavoidable | Prefer `blockGap`/padding over spacer blocks. |
@@ -83,8 +83,17 @@ Checked on WordPress 7.1.3, on the front end and through the validator. The skil
   ```
 
 - **Per-viewport layout.** `style["@mobile"].layout` (and `@tablet`) overrides a container's flex orientation, wrap, justification and alignment, and a child's `selfStretch`, `flexSize` and grid span. A row that stacks on phones needs no stylesheet.
+  - **The orientation prints without `!important`,** unlike per-viewport spacing and typography: `flex-direction` on the group's layout class. A registered style's `column-reverse` in a media query therefore still reverses a row that the attributes stack.
+  - **A grid is placed per viewport.** `columnCount` and `rowCount` take a value per state and print range queries. With `layout.isManualPlacement`, each child's `columnStart`, `rowStart`, `columnSpan` and `rowSpan` are set per state too, so the markup keeps the reading order while two items share a row on one viewport and stack on another: the way to level items of two side columns without CSS.
+  - **A constrained group's content size** is overridden by `style["@mobile"].layout.contentSize` (and `@tablet`): a column that is a percentage of the page only from the tablet width up needs it.
+  - **A vertical flex group that wraps** sizes its line to its widest item, not to the window: with a wide table inside, a stack became 857px wide on a 390px screen. Set `flexWrap: "nowrap"` in the `@mobile` layout state of a stack that holds wide content.
 - **A block's size in a flex row** is a child layout attribute, per viewport: `style.layout` with `selfStretch: "fixedNoShrink"` and a `flexSize`, and another `flexSize` under `@mobile`, prints the flex basis for each state on any child block. A site logo follows through its image's own `max-width`, so a logo that changes size at a viewport state needs no CSS.
-- **Visibility.** `metadata.blockVisibility` hides a block: `false` hides it everywhere, `{"viewport":{"mobile":false}}` per viewport (`mobile`, `tablet`, `desktop`).
+- **Other values that take a state:** `dimensions.minWidth` on a group; a gallery's `blockGap`, which prints as both its gap and `--wp--style--unstable-gallery-gap`.
+- **Any block, not only core's.** The states are a render filter keyed off the block's `style` attribute, so a block from the monorepo or a plugin takes them for every support its `block.json` declares (a dynamic block's `style["@mobile"].spacing.margin`, say). Probe a third-party block once before relying on it.
+- **What prints nothing per viewport,** checked on 7.1.3:
+  - **`position`.** `style["@tablet"].position` prints nothing. A band sticky above a width uses the block support, plus a rule that sets `position: static` on core's `.is-position-sticky` below that width, which keeps the editor's Position control truthful.
+  - **A Buttons row's `flexWrap`** prints nothing, and a per-viewport `justifyContent` loses to core's `is-content-justification-<x>` class: a buttons row can only switch its orientation at a viewport state.
+- **Visibility.** `metadata.blockVisibility` hides a block: `false` hides it everywhere, `{"viewport":{"mobile":false}}` per viewport (`mobile`, `tablet`, `desktop`). Hidden everywhere, the block prints nothing at all, so it is not in the page for a crawler or a screen reader either; per viewport it prints and is hidden by a media query.
 - **States.** `style[":hover"]` (also `:focus`, `:focus-visible`, `:active`) works per instance on `core/button` and `core/navigation-link` only. It accepts a gradient (`style[":hover"].color.gradient` prints the background on the link). A `filter: brightness(n)` hover on a filled button is the same fill with each channel multiplied by n, so it is a hover colour and not a rule. Transforms and filters themselves have no support.
 - **The two breakpoints** come from `theme.json` `settings.viewport` (`theme-json-guide.md`). `@mobile` is `width <= mobile`. `@tablet` is the **range** between the two, so a value wanted everywhere below the tablet breakpoint is written in both states.
 - **Each bound is inclusive, and a whole pixel.** A design rule written `max-width: N` wants the value `N`. One written `min-width: N` wants the last pixel below it, `N - 1`: `767px` for a design that changes at `min-width: 768px`. Never a fraction such as `767.98px` (§ Pixel values are whole pixels). A design that uses both forms at the same nominal breakpoint can match only one with states; the other is a stylesheet rule or a recorded normalisation.
@@ -165,6 +174,13 @@ Each was checked by box measurements against an original.
 WordPress applies a default 24px flow gap wherever `blockGap` is unset; at page scale it shows up as ~25–35px of drift in the shared chrome. Handle these up front:
 
 - **Root layout:** theme.json root `blockGap` applies via `.wp-site-blocks > * + *`, inserting a gap between the header part, `main`, and the footer on every page. Zero it with `.wp-site-blocks > header.wp-block-template-part + *, .wp-site-blocks > * + footer.wp-block-template-part { margin-block-start: 0; }`. A part is a `header` or `footer` element only when `theme.json` declares its area (`theme-json-guide.md` § Template parts).
+- **Bands in post content:** post content puts the root block gap between its top-level blocks too, which shows as strips of the page colour between full-width bands. The foundation writes one rule in the root stylesheet:
+
+  ```css
+  :is(.wp-block-post-content, .is-root-container) > .alignfull + .alignfull { margin-block-start: 0; }
+  ```
+
+  A band an editor inserts then sits flush as well (`.is-root-container` is the editor's), a plain block keeps its gap, and a margin set on a band still applies. Do not zero each band's top margin by attribute, and do not set `blockGap` to 0 on `core/post-content` in the templates: paragraphs typed into a page would then have no space between them.
 - **Template parts:** a part's root-level children each pick up `margin-block-start` from the default flow gap — zero margins on main/footer wrappers explicitly.
 - **Stacked columns:** `core/columns` stacked at ≤781px inherit a 24px vertical gap. Set `blockGap.top` explicitly — a literal px value when the design's mobile gap differs from the preset's mobile remap.
 - **Constrained-layout clamp:** a constrained parent clamps an oversized absolutely-positioned child (e.g. a decorative backdrop image wider than the content column) to content width, and the parent's `overflow: hidden` then crops it — give that child's figure `max-width: none`.
@@ -188,6 +204,29 @@ WordPress applies a default 24px flow gap wherever `blockGap` is unset; at page 
 - **Lazy loading is counted per page.** WordPress lazy-loads every content image after the third (`wp_omit_loading_attr_threshold` defaults to 3). Small icons, badges and images inside closed hover cards count, so the largest image of a first screen can come out `loading="lazy"`. It is not visible in a comparison; it costs loading time. Check and report it (`standards.md`).
 - **Generated sizes can be heavier than the source.** The resized copies WordPress makes from an optimised PNG can be larger than the original. After importing design images, compare the generated sizes with the source, and note whether production serves images through a CDN that re-encodes them, in which case it does not matter.
 - **Emoji become images** where the browser fails WordPress's newest-emoji test. Any content image rule (radius, display, margins) must exclude `img.emoji`.
+
+## Icons (WordPress 7.1 and later)
+
+Checked on WordPress 7.1.3.
+
+- **An icon is a `core/icon` block.** Core ships 88 icons in its `core` collection: `<!-- wp:icon {"icon":"core/calendar"} /-->`. The block takes a text colour for the glyph, and a background, padding, border and radius for a tile around it. `style.dimensions.width` is the tile's outer size, because the glyph is drawn inside the block's own padding with `box-sizing: border-box`.
+- **A glyph core lacks is registered by the theme,** as a collection of its own, on `init`:
+
+  ```php
+  wp_register_icon_collection( '<theme-slug>', array( 'label' => __( '<Theme name>', '<text-domain>' ) ) );
+  wp_register_icon(
+  	'<theme-slug>/<name>',
+  	array(
+  		'label'     => __( '<What it shows>', '<text-domain>' ),
+  		'file_path' => get_theme_file_path( 'assets/icons/<name>.svg' ),
+  	)
+  );
+  ```
+
+  The block then names it `"icon":"<theme-slug>/<name>"`. The `core` collection is reserved for WordPress's own.
+- **Give a registered SVG a square viewBox.** `core/icon` draws an icon at its viewBox's ratio, and an icon font's glyph box is square whatever the glyph, so with a tight viewBox a row of icons loses its level.
+- **A glyph from an icon font** is copied out of the font as a path in a square viewBox the size of the font's em box, so it sits in the box the font gave it. It keeps the font's licence: credit it in the README, and say which licence the theme then carries.
+- **An icon inside a button or a link** is still painted by the button's registered style (`block-styles-guide.md` § Icons in buttons): `core/icon` is a block of its own, not part of another block.
 
 ## Buttons
 
