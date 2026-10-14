@@ -12,7 +12,7 @@ yet; runbook steps that are unproven are marked UNTESTED.
 
 | Skill | What it does | Changes anything? |
 |---|---|---|
-| `migration-audit` | Inspects a Pressable site and writes `REPORT.md` and `RUNBOOK.md` | No |
+| `migration-audit` | Inspects a Pressable site and writes `REPORT.md`, `RUNBOOK.md` and `REPORT.html` (both as one page for a browser) | No |
 | `migration-run` | Walks the runbook, does the agent's steps, hands over the rest, records progress | Yes, with confirmation per step |
 | `migration-verify` | Compares source and target: data parity, plugins, URLs, stragglers | No |
 | `migration-dns` | Registrar and zone audit, cutover of site records, zone comparison | No (it tells a person what to change) |
@@ -40,6 +40,9 @@ hold partner email addresses; keep them out of git.
 - `team51` CLI, authenticated through 1Password
 - `gh`, authenticated, with access to `a8cteam51`
 - `dig`, `whois`, `python3` (3.8+), `php`
+- For the front-end check: Node 20+, Google Chrome, and
+  `npm ci --prefix scripts/frontend` once (installs `playwright-core`,
+  `pixelmatch` and `pngjs`; no browser download)
 - The `team51` and `context-a8c` MCP servers for Pressable, DeployHQ, Linear,
   Slack and P2 lookups. The audit still runs without them, and says what it
   could not check.
@@ -55,6 +58,9 @@ scripts/p2_extract.py    project P2 history, filtered            ─────
                                                                                ▼
 scripts/checks.py        the check catalogue          ─► findings.json, REPORT.md
 scripts/runbook.py       the steps, switched on by findings ─► RUNBOOK.md, state.json
+scripts/report_html.py   report and runbook as one page        ─► REPORT.html
+scripts/frontend/        page snapshots on both sides, compared ─► frontend/REPORT.md
+scripts/db_diff.py       row-level database diff, source vs target ─► db-diff/DIFF.md
 ```
 
 - **Checks** are plain functions in `scripts/checks.py`. Each returns findings
@@ -69,27 +75,38 @@ scripts/runbook.py       the steps, switched on by findings ─► RUNBOOK.md, s
 
 - The copy is done by Reprint through the Migration Assistant
   (`mc.a8c.com/migration-assistant/`), run by a person.
-- Every sync replaces the target database, so target-side database changes are
-  scripted in `post-sync.sh` and re-run after each sync.
-- Team 51 owns the new site, repo and domain until the partner accepts it.
-  Handover is a separate phase. It points to `/offboard-site-audit` in
-  `a8cteam51/ops-agent-skills`, which is not bundled here: run it from a clone
-  of that repo.
+- The copy runs once, inside the cutover window with the source frozen; it
+  cannot be repeated against the same target. Target-side database changes are
+  scripted in `post-sync.sh` and run once after it. A row-level database diff
+  (`scripts/db_diff.py`) is the go-live gate.
+- The migrated site stays a Team 51-managed site: Atlantis, SSO, monitoring
+  and Team 51 accounts all stay. Handing a site to a partner is a separate
+  process and is not covered here.
+- Team 51 monitoring keys on the blog ID and the Pressable site ID. The
+  runbook adds and removes the settings rows that keep a migration from
+  raising alerts, and keeps the old site connected until the new one reports
+  the production domain.
 - SafetyNet is never used on a migration target. `assets/` has a quarantine
   mu-plugin that only filters at runtime.
 - VideoPress videos do not follow a site to a new blog ID and there is no bulk
-  transfer. A few videos are moved one at a time or re-uploaded; a large
-  library holds the site until a plan is agreed with the VideoPress team. The
+  transfer. The audit flags them and a person moves or re-uploads them
+  during the migration, with the VideoPress team for a large library. The
   old site is not deleted until every video plays on the new one.
+- Stats are merged and subscribers migrated to the new blog ID on every site.
+- A staging site is made with `team51 wpcom:clone-site` as the last step,
+  after every DNS change. That command installs SafetyNet on the staging copy.
 
 ## Known gaps
 
 - No command exports a Pressable DNS zone; the DNS audit only sees names it
   guesses.
-- What the Migration Assistant's cleanup step does to the Jetpack connection
-  has not been confirmed. The verify checks test for it.
-- Whether the Assistant accepts Jetpack's built-in exporter for a Pressable
-  source is unconfirmed.
+- After the test migration, the new site's local `jetpack_options['id']`
+  still held the source's blog ID, even after the cleanup was re-run. The
+  connection itself was the new site's. Whether that is intended has not been
+  confirmed with the Reprint team.
+- On the test migration the Assistant reported complete while Blog RC still
+  showed the migration in progress, and the first cleanup removed the
+  connection owner. The runbook checks Blog RC after the copy.
 - The two mu-plugins in `assets/` are drafts and have not run on a real site.
 - The list of plugins "likely incompatible with WordPress.com" in `checks.py`
   is a starting list, not the official one.

@@ -465,9 +465,9 @@ Move a Team 51 site from Pressable to WordPress.com. A read-only audit inspects 
 **What it does:**
 
 - Starts from the production site, not from repo or project names, when working out what deploys to it
-- Holds sites with VideoPress content, and sites whose registrar or DNS login is the partner's until that access is confirmed
+- Flags VideoPress content, Jetpack plan gaps and WooPayments as work for a person, and holds sites whose registrar or DNS login is the partner's until that access is confirmed
 - Refuses to connect WordPress.com deploys where the existing deploy is stale, drifted or absent
-- Never uses SafetyNet on a migration target, and never transfers ownership during a migration
+- Never uses SafetyNet on a migration target. The migrated site stays Team 51-managed: nothing is transferred and Team 51 tooling stays
 - Says what it could not check instead of reporting a gap as clean
 
 **Requirements:**

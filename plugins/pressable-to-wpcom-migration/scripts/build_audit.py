@@ -13,7 +13,8 @@ Reads (all optional except site.json):
     context.json     notes from P2, Slack and Linear
     state.json       decisions, target site and step progress (kept across rebuilds)
 
-Writes: manifest.json, findings.json, REPORT.md, RUNBOOK.md, and updates state.json.
+Writes: manifest.json, findings.json, REPORT.md, RUNBOOK.md, REPORT.html (both, as one page to read in a
+browser), and updates state.json.
 Deterministic: the same inputs give the same report.
 """
 import argparse
@@ -26,6 +27,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import checks  # noqa: E402
+import report_html  # noqa: E402
 import runbook  # noqa: E402
 
 SEVERITY_HEADINGS = [
@@ -107,7 +109,8 @@ def main():
     values = Safe(
         scripts=scripts, assets=os.path.join(os.path.dirname(scripts), "assets"), dir=shown_dir, domain=domain, apex=apex,
         pressable_id=manifest["pressable"].get("id") or domain,
-        site_slug=re.sub(r"[^a-z0-9]+", "-", (manifest["pressable"].get("name") or apex.split(".")[0]).replace("-production", "")).strip("-"),
+        # No dashes: WordPress.com refuses them in a site name, and the team51 CLI strips them before asking.
+        site_slug=re.sub(r"[^a-z0-9]+", "", (manifest["pressable"].get("name") or apex.split(".")[0]).lower().replace("-production", "")),
         source_blog_id=site.get("jetpack", {}).get("blog_id") or "<source-blog-id>",
         php_minor=".".join(site["core"]["php_version"].split(".")[:2]),
         repo=deploy_prod.get("repo") or "<a8cteam51/repo>",
@@ -202,7 +205,8 @@ def main():
     b.append("Key values: source `%s` (Pressable `%s`, blog ID `%s`) → target `%s` (blog ID `%s`).\n" % (
         domain, values["pressable_id"], values["source_blog_id"], values["target"], values["target_blog_id"]))
     b.append("Rules that hold throughout:\n")
-    b.append("- Every sync replaces the target database. Database changes on the target go in `post-sync.sh`, never by hand.")
+    b.append("- The copy runs once, inside the cutover window, and cannot be repeated. It replaces the target database: database changes on the target go in `post-sync.sh`, never by hand.")
+    b.append("- The database diff (`verify.db-diff`) is the go-live gate. With gaps unexplained, unfreeze the source and stop.")
     b.append("- Never install SafetyNet on the target, and never use `wpcom:clone-site` to create it.")
     b.append("- Nothing on the live site changes before the freeze, apart from agreed plugin cleanup.")
     b.append("- Nobody onboards or clicks \"finish setup\" for WooPayments on the new site. An existing account is re-linked by the WooPayments team.")
@@ -222,6 +226,21 @@ def main():
     with open(os.path.join(d, "RUNBOOK.md"), "w") as fh:
         fh.write("\n".join(b) + "\n")
 
+    # ---------------------------------------------------------- REPORT.html
+    values["target_known"] = bool(target.get("domain"))
+    meta = [
+        "Audited %s" % today,
+        ("Pressable `%s` (%s)" % (pr.get("id"), pr.get("name"))) if pr.get("id") else "Pressable site details not read",
+        "Blog ID %s" % values["source_blog_id"],
+        "WordPress %s · PHP %s" % (site["core"]["wp_version"], site["core"]["php_version"]),
+        "Theme `%s`" % site["themes"]["active"],
+        "%d of %d plugins active" % (sum(1 for p in site["plugins"] if p["active"]), len(site["plugins"])),
+        "Target: %s" % (("`%s` (blog ID %s)" % (target.get("domain"), target.get("blog_id"))) if target.get("domain") else "not created yet"),
+    ]
+    page = report_html.render(domain, meta, verdict, counts, findings, steps, values, state, checks.STANDING_RULES, missing_inputs, runbook.PHASES)
+    with open(os.path.join(d, "REPORT.html"), "w") as fh:
+        fh.write(page)
+
     for step in steps:
         state["steps"].setdefault(step["id"], {"status": "todo"})
     state["step_order"] = [s["id"] for s in steps]
@@ -237,7 +256,7 @@ def main():
     print("  %d runbook steps" % len(steps))
     if missing_inputs:
         print("  not checked: " + "; ".join(missing_inputs))
-    print("  %s\n  %s" % (os.path.join(d, "REPORT.md"), os.path.join(d, "RUNBOOK.md")))
+    print("  %s\n  %s\n  %s  (open in a browser)" % (os.path.join(d, "REPORT.md"), os.path.join(d, "RUNBOOK.md"), os.path.join(d, "REPORT.html")))
 
 
 if __name__ == "__main__":

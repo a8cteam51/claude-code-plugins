@@ -1,0 +1,12 @@
+{
+  "name": "t51-migration-frontend-check",
+  "private": true,
+  "description": "Front-end snapshots of sampled pages on the source and target of a migration, and a comparison of the two.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "pixelmatch": "8.0.0",
+    "playwright-core": "1.64.0",
+    "pngjs": "7.0.0"
+  }
+}

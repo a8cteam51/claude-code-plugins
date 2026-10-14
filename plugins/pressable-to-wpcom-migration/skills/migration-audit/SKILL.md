@@ -12,6 +12,10 @@ current directory:
 
 - `REPORT.md` - blockers, decisions, manual steps, and what the process handles.
 - `RUNBOOK.md` - the ordered steps for this site, with commands filled in.
+- `REPORT.html` - both of the above as one page to read in a browser: the
+  verdict, what the job involves (the cutover window, what takes calendar
+  time, the access needed), the findings and the runbook. This is the file
+  to give a person.
 - `manifest.json`, `findings.json`, `state.json` - the facts the later skills use.
 
 The person running this is as likely to be a TAM as a developer. Write for
@@ -25,15 +29,25 @@ These rules hold for every migration. The report prints them under "Already
 settled". Never raise them as questions, in the report, in `context.json`, or
 in your summary:
 
-- Team 51 owns the new site, repo and domain until the partner accepts it.
-  Who owns what after handover is not a migration question.
+- The migrated site stays a Team 51-managed site. Team 51 owns the site, repo
+  and domain, and Atlantis, SSO, monitoring and Team 51 accounts all stay.
+  Handing a site to a partner is a separate process. Do not raise ownership,
+  handover or removing Team 51 tooling in a migration audit.
 - A Pressable development or staging site is not migrated. A WordPress.com
-  staging site is made from the new production site after cutover.
+  staging site is made from the new production site with the Team 51 CLI, as
+  the last step, once the move is complete and DNS has changed.
 - WordPress.com GitHub Deployments replace DeployHQ where the existing deploy
   is connected and current.
 - Pressable-hosted DNS zones move to WordPress.com DNS.
-- Atlantis is removed; other Team 51 access stays until handover.
+- Team 51 monitoring (OpsOasis) is adjusted around the cutover and loses PHP
+  fatals scanning and Poseidon site cloning on WordPress.com. The report says
+  so on every site; it is not a decision.
 - Jetpack features that a Business or Commerce plan includes need no decision.
+- Stats are merged and subscribers migrated on every site.
+- VideoPress content, Jetpack plan gaps and WooPayments are flagged as work for
+  a person to do during the migration. They are not decisions and they do not
+  stop a site being scheduled. Keep VideoPress at the top of your summary all
+  the same: it is the item most likely to be missed.
 
 A **decision** is something specific to this site that a person has to choose
 and that changes what the migration does: a redesign in flight, a second site
@@ -321,7 +335,9 @@ Plain language, short, in this order:
    unlike a standard one, in terms the partner's TAM would recognise ("email
    for the domain runs through this DNS zone", not "MX records present").
 4. **Not checked,** and what that leaves uncertain.
-5. Where the report and runbook are, and that `migration-run` starts the work.
+5. Where the report is: give the path to `REPORT.html` and offer to open it
+   (`open "$D/REPORT.html"` on a Mac). Then say that `migration-run` starts
+   the work.
 
 Leave out commands, file names of scripts, check IDs and counts of steps
 unless the user asks. Do not repeat the report.

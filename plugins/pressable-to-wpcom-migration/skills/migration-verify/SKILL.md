@@ -46,9 +46,16 @@ PHP, constants, REST namespaces, cron hooks.
 python3 "$S/compare_sites.py" "$D/site.json" "$D/site-target.json"
 ```
 
-**Jetpack identity** - the target must report its own blog ID. Both scripts
-above flag a target that carries the source's ID. That is a stop: two sites
-claiming one identity.
+**Jetpack connection** - the copy leaves the source's blog ID in the target's
+local `jetpack_options['id']`, and the WordPress.com cleanup does not change
+it. Both scripts above note it; on its own it is not a failure. What decides
+it is the connection in the Jetpack debug tool
+(`https://jptools.wordpress.com/debug/?url=<target URL>`): connected, owner
+connected, no warnings or identity-crisis flag, on the target's blog ID. After
+a checksum run, the site must not carry the `out-of-sync-posts` sticker.
+Never disconnect or reconnect Jetpack on either site to fix anything; report
+it and stop. Also check Blog RC shows the migration complete: the Assistant
+saying so is not enough.
 
 **URL crawl** - same paths on both hosts, status codes and redirects.
 
@@ -56,8 +63,29 @@ claiming one identity.
 python3 "$S/url_check.py" https://<source> https://<target> --limit 150
 ```
 
-For how pages look, use the `site-launch-comparison` skill with the same two
-hosts.
+**Front end** - what a logged-out visitor gets, on a fixed sample of pages,
+desktop and mobile. Needs Node 20+ and Google Chrome; run
+`npm ci --prefix "$S/frontend"` once.
+
+```bash
+node "$S/frontend/sample.mjs" https://<source> --out "$D/frontend-paths.txt"   # once; edit to add key pages
+node "$S/frontend/snapshot.mjs" https://<source> --paths "$D/frontend-paths.txt" --out "$D/frontend/source"
+node "$S/frontend/snapshot.mjs" https://<target> --paths "$D/frontend-paths.txt" --out "$D/frontend/target"
+node "$S/frontend/compare.mjs" "$D/frontend/source" "$D/frontend/target" --out "$D/frontend/REPORT.md"
+```
+
+The comparison groups the same difference across pages into one line and
+splits it into issues and notes. Issues: a stylesheet or script the source
+loads and the target does not, fonts that fail, new console errors or failed
+requests, requests to the old host, mixed content, changed computed styles,
+broken images, large layout or pixel differences, and content differences.
+Notes: platform assets (Pressable's `gaug.es` tracker, WordPress.com's
+`bilmur.min.js`, core block assets served by the Gutenberg plugin on
+WordPress.com), the quarantine's noindex, small size and pixel changes.
+Content differences after the first sync are usually posts created on the
+live source since; check them against parity before calling them a fault.
+The snapshots bypass the system proxy, because through the Automattic proxy
+WordPress.com renders its admin and debug bars for logged-out visitors.
 
 **Quarantine and freeze status**
 
@@ -65,6 +93,23 @@ hosts.
 "$S/mu_plugin.sh" status wpcom <target> t51-migration-quarantine.php
 "$S/mu_plugin.sh" status pressable <source> t51-migration-freeze.php
 ```
+
+**Database diff** - every table on both sides, row by row, read-only. Host
+names are treated as equal, so the copy's URL rewrite does not count.
+
+```bash
+python3 "$S/db_diff.py" --source <source domain or Pressable ID> --target <target> \
+  --hosts <source host>,<target host> --out "$D/db-diff" --sql
+```
+
+`DIFF.md` splits the result into **gaps** (rows on the source that are missing
+or different on the target: data that would be lost) and target-only or
+platform differences (options, caches, queues, tables WordPress.com adds;
+not gaps). `delta.sql` holds each gap row as a REPLACE statement for a
+developer to review; nothing applies it. A password-only difference on a user
+is expected: site creation rotates the admin password. Fingerprinting is done
+in SQL in buckets of 1,000 rows, so even a large database takes a few calls;
+a table with more than 50 differing buckets is reported, not listed.
 
 **Stragglers** - rows written to the old site after the freeze time.
 
@@ -80,10 +125,9 @@ its Pressable ID.
 
 | Checkpoint | Run | Pass means |
 |---|---|---|
-| `first-sync` | parity, site comparison, Jetpack identity, URL crawl, quarantine status | No missing tables or plugins. Data differences are explained by activity on the live source since the sync. Quarantine present. Target has its own blog ID. |
-| `pre-cutover` | all of the above after the rehearsal sync, plus `dig` for the lowered TTL | Same as above, and the rehearsal's `post-sync.sh` ran clean. |
-| `cutover` | freeze status (source, `frozen`), then parity after the final sync | `RESULT: PARITY` with no notes about recent rows. This is the go/no-go gate. |
-| `post-cutover` | DNS resolution, certificate, site comparison against the live domain, quarantine absent, stragglers | Domain resolves to WordPress.com from more than one resolver, valid certificate, quarantine removed, straggler counts all zero. |
+| `pre-window` | `dig` for the lowered TTL, quarantine present on the target, front-end sample picked | TTL at 300 seconds for longer than the old TTL. |
+| `copy` | freeze status (source, `frozen`), parity, site comparison, Jetpack connection and Blog RC status, URL crawl, front end against the baseline, then the database diff | No missing tables or plugins. No missing assets or new errors on the front end. Jetpack connection healthy. `db_diff.py` reports NO GAPS, or every gap is resolved or recorded. This is the go-live gate. |
+| `post-cutover` | DNS resolution, certificate, site comparison against the live domain, front end against the pre-freeze baseline, quarantine absent, stragglers | Domain resolves to WordPress.com from more than one resolver, valid certificate, quarantine removed, straggler counts all zero. |
 
 For `post-cutover` DNS and TLS:
 

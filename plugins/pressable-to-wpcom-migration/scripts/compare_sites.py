@@ -64,7 +64,10 @@ def main():
     if dst["core"].get("environment_type") != "production":
         notes.append("target environment type is %r" % dst["core"].get("environment_type"))
     if src["jetpack"].get("blog_id") and src["jetpack"]["blog_id"] == dst["jetpack"].get("blog_id"):
-        problems.append("target has the SOURCE Jetpack blog ID %s" % src["jetpack"]["blog_id"])
+        # Seen on the test migration after a clean Migration Assistant run: the local option keeps the source's ID while
+        # the connection itself is the target's. Check connection health instead; never reconnect to change it.
+        notes.append("target's local jetpack_options id is the SOURCE blog ID %s (left by the copy; check connection health in the "
+                     "Jetpack debug tool, do not reconnect)" % src["jetpack"]["blog_id"])
     if dst["team51"].get("safety_net"):
         problems.append("SafetyNet is present on the target: remove it before anything else")
 

@@ -28,18 +28,19 @@ CHECKS = []
 # and says so; it does not ask anyone to decide them again. Change them here,
 # not per site.
 STANDING_RULES = [
-    "Team 51 owns the new site, repo and domain until the partner accepts it. Ownership moves at handover, not during migration.",
-    "A development or staging site on Pressable is not migrated. A WordPress.com staging site is made from the new production site after cutover; the old one is deleted at decommission.",
+    "The migrated site stays a Team 51-managed site. Team 51 owns the site, repo and domain; Atlantis, SSO, monitoring and Team 51 accounts all stay. Handing a site to a partner is a separate process and not part of this.",
+    "A development or staging site on Pressable is not migrated. A WordPress.com staging site is made from the new production site with the Team 51 CLI once the move is complete, DNS included; the old one is deleted at decommission.",
+    "Stats are merged and subscribers migrated to the new blog ID on every site.",
+    "VideoPress content, Jetpack plan gaps and WooPayments are flagged here and handled by a person during the migration. They do not stop a site being scheduled.",
     "WordPress.com GitHub Deployments replace DeployHQ, but only where the existing deploy is connected and current.",
     "DNS zones hosted at Pressable move to WordPress.com DNS.",
-    "Atlantis is removed from the new site. Other Team 51 access and tooling stays until handover.",
     "Jetpack features covered by a WordPress.com Business or Commerce plan need no decision. Only real gaps are raised.",
 ]
 
 # Who can answer or do each finding, by ID prefix. First match wins.
 OWNERS = [
     ("videopress.", "Developer, with the VideoPress team"),
-    ("jetpack.features", "Management"),
+    ("jetpack.features", "TAM (arranges any extra comp)"),
     ("jetpack.payments", "Developer, with the Jetpack team"),
     ("jetpack.blog-id", "Developer (MC tools, after cutover)"),
     ("dns.access.", "TAM, with the partner"),
@@ -52,6 +53,7 @@ OWNERS = [
     ("woo.gateways", "Developer, with the partner"),
     ("woo.api-keys", "TAM asks the partner; developer checks"),
     ("woo.", "Developer"),
+    ("opsoasis.", "Developer with OpsOasis admin access"),
     ("estate.existing-wpcom", "TAM"),
     ("estate.related", "TAM"),
     ("estate.no-partner-user", "TAM"),
@@ -142,7 +144,7 @@ KNOWN_REST = ("akismet/", "jetpack", "my-jetpack/", "wpcom/", "videopress/", "wc
 CONSTANT_NOTES = {
     "WPCOMSP_BILMUR": "Team 51 Bilmur performance tracking. Decide whether it continues after the move.",
     "WPC_BOT_PROTECTION_ENABLED": "WP Cloud bot protection, set by `team51 pressable:enable-bot-protection`. Confirm the WordPress.com equivalent.",
-    "A8CSP_ATLANTIS": "Belongs to Atlantis. Drop it with the plugin.",
+    "A8CSP_ATLANTIS": "Belongs to Atlantis, which stays. Carry it over.",
     "SAFETY_NET": "SafetyNet setting. SafetyNet must not run on a migration target.",
     "WP_ENVIRONMENT_TYPE": "Must be `production` on the target before cutover.",
     "WP_DEBUG": "Development flag. Usually not carried over.",
@@ -189,16 +191,16 @@ def videopress(m):
         common = ("Videos are stored against the source blog ID. On the new blog ID they are orphaned and the player reports the "
                   "video as private. There is no bulk transfer (tracked in VIDP-93). ")
         if n and n <= 25:
-            return [F("videopress.in-use", "VideoPress", "decision", "Site has VideoPress content: %s videos" % n, detail,
+            return [F("videopress.in-use", "VideoPress", "manual", "Site has VideoPress content: %s videos" % n, detail,
                       common + "With this few, either move them one at a time with https://mc.a8c.com/tools/video-move/ or "
                       "re-upload them on the new site and re-point each block. Ask in #videopress with both blog IDs first. "
                       "Do not delete or disconnect the old site until every video plays on the new one.",
                       steps=["prep.videopress", "post.videopress"])]
-        return [F("videopress.in-use", "VideoPress", "blocker", "Site has VideoPress content: %s videos" % (n or "an unknown number of"), detail,
+        return [F("videopress.in-use", "VideoPress", "manual", "Site has VideoPress content: %s videos" % (n or "an unknown number of"), detail,
                   common + "At this size the working route is: keep the videos serving from the old blog ID (a complimentary "
                   "VideoPress plan on it), bulk-download them (MC File Tools → List Blog Videos → Download All Videos), re-upload "
                   "on the new site and re-point every block and embed. Agree that plan with the VideoPress team, with both blog "
-                  "IDs, before scheduling. The old site cannot be deleted until this is finished.",
+                  "IDs, before cutover. The old site cannot be deleted until this is finished.",
                   steps=["prep.videopress", "post.videopress"])]
     if vp.get("module_active"):
         return [F("videopress.module-only", "VideoPress", "info", "VideoPress module is on but no VideoPress content was found",
@@ -221,10 +223,9 @@ def jetpack(m):
         out.append(F("jetpack.blog-id", "Jetpack and blog ID", "manual", "Blog ID will change (source is %s)" % blog_id,
                      "Stats, subscribers and other WordPress.com-side data stay on the source blog ID. Subscribers: %s. Views, last 30 days: %s." % (
                          subs if subs is not None else "not checked", views if views is not None else "not checked"),
-                     "After cutover, merge stats from %s into the new blog ID, and migrate subscribers%s. The subscriber figure is "
-                     "WordPress.com's and can include social followers. Skip stats only if the partner wants a fresh start." % (
-                         blog_id, " (none recorded, so that step is left out)" if subs == 0 else ""),
-                     steps=["post.stats"] + ([] if subs == 0 else ["post.subscribers"])))
+                     "After cutover, merge stats from %s into the new blog ID and migrate subscribers. Both are done on every "
+                     "site. The subscriber figure is WordPress.com's and can include social followers." % blog_id,
+                     steps=["post.stats", "post.subscribers"]))
     else:
         out.append(F("jetpack.not-connected", "Jetpack and blog ID", "info", "No Jetpack blog ID found on the source",
                      "Jetpack is not connected, so there are no stats or subscribers to move.", ""))
@@ -261,12 +262,12 @@ def jetpack(m):
             plan_line += " Jetpack Complete is usually comped on the Team 51 account against this blog ID and will not follow the site."
         table = "| Feature in use on the source | On a WordPress.com Business or Commerce plan | Note |\n|---|---|---|\n" + "\n".join(rows)
         if gaps:
-            out.append(F("jetpack.features", "Jetpack and blog ID", "decision",
+            out.append(F("jetpack.features", "Jetpack and blog ID", "manual",
                          "Jetpack features in use that the WordPress.com plan does not include: %s" % ", ".join(gaps),
                          plan_line + "\n\n" + table,
                          "For Boost and Social, find out whether the paid tier is actually used (the audit can see the plugin or "
-                         "module, not the tier). Anything the partner relies on needs buying or comping for the new site: a "
-                         "management decision, not a per-site one.", steps=["prep.plan"]))
+                         "module, not the tier). Anything in real use needs an extra comp or purchase against the new blog ID, "
+                         "in place by cutover.", steps=["prep.plan"]))
         else:
             out.append(F("jetpack.features", "Jetpack and blog ID", "info",
                          "Every Jetpack feature in use is covered by a WordPress.com Business or Commerce plan",
@@ -284,14 +285,10 @@ def jetpack(m):
                      "These run through WordPress.com against the source blog ID: the Stripe connection, the plans and any paying "
                      "subscribers. There is no known procedure here for moving them. Find one with the Jetpack memberships team "
                      "before migrating."))
-    if jp.get("reprint_exporter"):
-        out.append(F("reprint.jetpack-exporter", "Reprint", "info", "Jetpack's built-in Reprint exporter is available on this site",
-                     "Jetpack %s reports the exporter as available, so the source may not need the Reprint plugin installed." % jp.get("version"),
-                     "Use it if the Migration Assistant accepts it; otherwise install the Reprint plugin on the source."))
-    else:
-        out.append(F("reprint.plugin-needed", "Reprint", "manual", "Source needs the Reprint plugin",
-                     "Jetpack's built-in exporter is not available here (needs Jetpack 16.2+ on Pressable).",
-                     "Install the Reprint exporter plugin on the source, or update Jetpack first.", steps=["sync.source-exporter"]))
+    out.append(F("reprint.plugin", "Reprint", "auto", "The Reprint exporter plugin is installed on the source for the copy",
+                 "The Migration Assistant asks for the Reprint exporter plugin and a public key in its settings.",
+                 "Installed on the source as a runbook step, and removed from the new site after cutover.",
+                 steps=["sync.source-exporter"]))
     return out
 
 
@@ -436,7 +433,7 @@ def writes(m):
         out.append(F("writes.activity", "Data written by visitors and editors", "manual",
                      "Site receives writes that a freeze must cover" if strict else "Site receives occasional writes",
                      "; ".join(kinds),
-                     ("Use a strict freeze: block checkout, forms, registration and comments on the source for the final sync."
+                     ("Use a strict freeze: block checkout, forms, registration and comments on the source for the cutover window, which holds the one copy."
                       if strict else "A light freeze is enough: close comments and ask editors not to publish during the window."),
                      steps=["cut.freeze"]))
     else:
@@ -534,7 +531,7 @@ def plugins(m):
         out.append(F("plugins.incompatible", "Plugins and themes", "manual", "%d plugins are likely unnecessary or disallowed on WordPress.com" % len(hits),
                      "\n".join("- " + h for h in hits),
                      "Check each against https://wordpress.com/support/incompatible-plugins/. Remove inactive ones on the source "
-                     "before the final sync where the partner agrees; deactivate active ones on the target after it.",
+                     "before the copy where the partner agrees; deactivate active ones on the target after cutover.",
                      steps=["prep.plugin-cleanup"]))
     inactive = [p["slug"] for p in plugs if not p["active"]]
     if len(inactive) >= 5:
@@ -542,22 +539,26 @@ def plugins(m):
                      ", ".join("`%s`" % s for s in inactive[:40]), "Optional cleanup before migrating. Less to copy and less to audit."))
     t51 = g(m, "site", "team51", default={})
     if t51.get("atlantis_present"):
-        mentions = t51.get("theme_mentions_atlantis") or 0
-        out.append(F("team51.atlantis", "Team 51 tooling", "auto" if not mentions else "manual",
-                     "Atlantis is installed and must not stay on the new site",
-                     "Active: %s. Files in the active theme that mention Atlantis or a colophon: %s." % (t51.get("atlantis_active"), mentions),
-                     ("Remove Atlantis on the target after the final sync." if not mentions else
-                      "The theme references Atlantis or its colophon. Remove those references first (see recent "
-                      "`remove atlantis-dependent colophon` PRs in a8cteam51 for the pattern), or the footer breaks when the "
-                      "plugin goes. Then remove Atlantis on the target after the final sync."),
-                     steps=["post.atlantis"] + (["platform.colophon"] if mentions else [])))
+        out.append(F("team51.atlantis", "Team 51 tooling", "info", "Atlantis is installed and stays",
+                     "Active on the source: %s." % t51.get("atlantis_active"),
+                     "The site remains Team 51-managed, so Atlantis is kept. Checked on the new site after cutover.",
+                     steps=["post.atlantis"]))
+    else:
+        out.append(F("team51.no-atlantis", "Team 51 tooling", "info", "Atlantis is not on the source",
+                     "Site creation installs it on the new site, but the copied database will not have it active.",
+                     "Activate and check it on the new site after cutover.", steps=["post.atlantis"]))
+    if "plugin-autoupdate-filter" in all_slugs(m) | set(g(m, "site", "mu_plugins", "dirs", default=[]) or []):
+        out.append(F("team51.autoupdate-filter", "Team 51 tooling", "info", "The older `plugin-autoupdate-filter` is installed",
+                     "It travels with the copy and keeps working. It has no timeout: the site stops all plugin, theme and core "
+                     "updates whenever the Team 51 settings server is unreachable or answers an error.",
+                     "No action for the migration. Worth replacing with Atlantis alone when convenient."))
     if t51.get("safety_net"):
         out.append(F("team51.safety-net", "Team 51 tooling", "blocker", "SafetyNet is present on the source",
                      "SafetyNet deletes or scrubs data on any non-production environment.",
                      "Remove it from the source before syncing, and never install it on a migration target."))
     if t51.get("sso_plugins"):
         out.append(F("team51.sso", "Team 51 tooling", "info", "Team 51 SSO plugin present",
-                     ", ".join("`%s`" % s for s in t51["sso_plugins"]), "Leave in place for now. Removed at handover."))
+                     ", ".join("`%s`" % s for s in t51["sso_plugins"]), "Leave in place. The site stays Team 51-managed."))
     theme = g(m, "site", "themes", default={})
     premium_themes = {"Divi": "Elegant Themes", "Avada": "ThemeFusion", "astra": None, "flatsome": "UX Themes", "bridge": "Qode",
                       "enfold": "Kriesi", "betheme": "Muffin", "salient": "ThemeNectar", "the7": "Dream-Theme", "kadence": None}
@@ -640,15 +641,16 @@ def database(m):
     if files_mb:
         size += "; files %s MB" % files_mb
     sev = "info"
-    action = "Small. The freeze should be minutes."
+    action = "Small. The copy should take minutes."
     if mb > 2000:
-        action = "Large. Rehearse the sync and time it; the database pull and apply time is the freeze length. Jetpack's exporter closes its window after an hour, so plan for that or use the Reprint plugin."
+        action = ("Large. The copy runs once, inside the freeze, so its length sets the window. Ask in #reprint how long a "
+                  "database this size takes before agreeing the window.")
         sev = "manual"
     elif mb > 300:
-        action = "Medium. Rehearse the sync and time it; that time is the freeze length."
+        action = "Medium. Allow for the copy time in the window; the first real migrations will give a figure."
     out.append(F("db.size", "Database and files", sev, size,
                  "Largest tables: %s." % ", ".join("%s (%s MB)" % (t["name"], t["mb"]) for t in (db.get("largest") or [])[:6]),
-                 action, steps=["sync.rehearse"]))
+                 action, steps=["decide.window"]))
     foreign = db.get("foreign_prefix") or []
     if foreign:
         core_like = [t for t in foreign if t in ("wp_options", "wp_posts", "wp_users", "wp_postmeta", "wp_usermeta", "wp_comments")]
@@ -756,7 +758,9 @@ def deploys(m):
     elif state == "not-connected":
         out.append(F("deploy.not-connected", "Deploys", "manual", "No deploy targets the production site",
                      prod.get("evidence") or "No DeployHQ server or host deployment was found for this site.",
-                     "Do not connect WordPress.com deploys. Migrate files as they are. Getting production code into git is a separate task.",
+                     "Do not connect WordPress.com deploys. Migrate files as they are. Getting production code into git is a separate "
+                     "task. Without a connected deployment, Team 51 tooling cannot match the repo to the new site, so the repo's "
+                     "blog ID property is set by hand afterwards.",
                      steps=["platform.deploy-skip"]))
     else:
         out.append(F("deploy.unknown", "Deploys", "manual", "Deploy state could not be determined", prod.get("evidence") or "",
@@ -786,9 +790,8 @@ def estate(m):
     if dev_sites:
         out.append(F("estate.dev-sites", "Related sites", "auto", "%d development or staging site%s on Pressable" % (len(dev_sites), "" if len(dev_sites) == 1 else "s"),
                      "\n".join(line(r) for r in dev_sites),
-                     "Standing rule: not migrated. After cutover a WordPress.com staging site is created with the `develop` branch "
-                     "connected, and these are deleted at decommission. Say so only if this site needs something different.",
-                     steps=["post.staging"]))
+                     "Standing rule: not migrated. A WordPress.com staging site is created from the new production site once the "
+                     "move is complete, and these are deleted at decommission. Say so only if this site needs something different."))
     if other_sites:
         out.append(F("estate.related", "Related sites", "decision", "%d other site%s on the Pressable account with this site's name" % (len(other_sites), "" if len(other_sites) == 1 else "s"),
                      "\n".join(line(r) for r in other_sites),
@@ -811,13 +814,30 @@ def estate(m):
         if len(ours) == len(admins):
             out.append(F("estate.no-partner-user", "Access", "info", "No administrator on the site belongs to the partner",
                          "All %d administrators are Automattic accounts." % len(admins),
-                         "Nothing to do for the migration. At handover the partner's WordPress.com username will be needed; worth "
-                         "asking for early."))
+                         "Nothing to do for the migration."))
         out.append(F("estate.admins", "Access", "info", "%d administrators or shop managers (%d look like ours)" % (len(admins), len(ours)),
                      ", ".join("%s <%s>" % (u["login"], u["email"]) for u in admins[:30]),
-                     "Accounts travel with the database. Team 51 accounts are removed at handover, not during migration; "
-                     "`/offboard-site-audit` in a8cteam51/ops-agent-skills covers that."))
+                     "Accounts travel with the database. Team 51 accounts stay: the site is still Team 51-managed."))
     return out
+
+
+@check
+def monitoring(m):
+    """What Team 51's own tooling (OpsOasis) does when a managed site changes host and blog ID."""
+    blog_id = g(m, "site", "jetpack", "blog_id")
+    pid = g(m, "pressable", "id")
+    return [F("opsoasis.cutover", "Team 51 monitoring", "manual", "Team 51 monitoring needs adjusting around the cutover",
+              "The site stays managed, but monitoring keys on the blog ID (%s) and the Pressable site ID (%s), and both change. "
+              "Left alone, the old blog ID is reported as disconnected, and can raise an `@here` \"Production site removed\" "
+              "alert if the old connection drops before the new site reports the production domain." % (
+                  blog_id or "unknown", pid or "unknown"),
+              "Two settings rows are added before cutover and removed afterwards, and the cutover keeps the old site connected "
+              "until the new one reports the domain. The runbook has the steps.",
+              steps=["rehearse.opsoasis", "decom.opsoasis"]),
+            F("opsoasis.coverage", "Team 51 monitoring", "info", "Two Team 51 features stop covering the site on WordPress.com",
+              "PHP fatals scanning only covers Pressable sites, so fatal errors are no longer filed as GitHub issues. Poseidon "
+              "can no longer clone the production site or capture from it, because it proves ownership through a Pressable site.",
+              "Nothing to do for the migration. Both are gaps in the tooling, the same for every migrated site.")]
 
 
 @check

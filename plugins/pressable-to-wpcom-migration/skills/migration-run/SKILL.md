@@ -1,7 +1,7 @@
 ---
 name: migration-run
 version: 0.1.0
-description: Walk a Pressable to WordPress.com site migration through its runbook - preparing the target, syncing with Reprint via the Migration Assistant, platform items, rehearsal, the cutover freeze and DNS switch, post-cutover tasks (stats, subscribers, payments), decommission and handover. Use this whenever someone wants to start, continue, resume or check progress on a site migration that has already been audited ("what's next for the example.org migration", "run the cutover", "continue the migration"), or asks how to do a specific migration step. Needs a migrations/<domain>/ folder from the migration-audit skill; if there is none, run that skill first.
+description: Walk a Pressable to WordPress.com site migration through its runbook - preparing the target, platform items, the cutover window (freeze, the one Reprint copy via the Migration Assistant, checks, the database diff gate, DNS switch), post-cutover tasks (stats, subscribers, payments), Team 51 monitoring, the staging site and decommission. Use this whenever someone wants to start, continue, resume or check progress on a site migration that has already been audited ("what's next for the example.org migration", "run the cutover", "continue the migration"), or asks how to do a specific migration step. Needs a migrations/<domain>/ folder from the migration-audit skill; if there is none, run that skill first.
 argument-hint: "<site domain> [step-id]"
 ---
 
@@ -28,8 +28,7 @@ re-run it first: sites change.
 Nothing has to be supplied up front. The source blog ID is already in the
 audit. The target site does not exist yet: creating it is a runbook step, and
 its address and blog ID are recorded then (`state.py target`), after which the
-runbook is rebuilt with those values in every command and link. The partner's
-WordPress.com username is only needed at handover.
+runbook is rebuilt with those values in every command and link.
 
 So the first session usually goes: confirm the report's "Needs an answer" list
 is empty or answered, agree a cutover window, then prepare the target. If the
@@ -86,14 +85,21 @@ stopped.
 
 ## Rules that hold throughout
 
-- **Every sync replaces the target's database.** A database change made on the
-  target before the final sync is lost. Keep all of them as commands in
-  `$D/post-sync.sh` and run that file after every sync. Files added to the
-  target survive re-syncs.
+- **There is one copy.** It runs inside the cutover window, with the source
+  frozen, and cannot be repeated against the same target. It replaces the
+  target's database, so database changes made on the target before it are
+  lost: keep them as commands in `$D/post-sync.sh`, run once after the copy.
+  Files added to the target beforehand are kept.
+- **The database diff is the go-live gate.** `verify.db-diff` lists every row
+  on the source that is missing or different on the target. Resolve or record
+  each before the DNS change. If gaps cannot be explained, unfreeze the source
+  and stop: the live site has not changed.
 - **Never SafetyNet.** It deletes users, orders and subscriptions and scrubs
   keys, even in its keep-data mode. Never install it on a target and never
   create a target with `wpcom:clone-site`. The quarantine mu-plugin in
-  `assets/` is the non-destructive replacement.
+  `assets/` is the non-destructive replacement. The one place it appears is
+  the staging copy made in the last phase, where `wpcom:clone-site` installs
+  it on the copy, not on production. Never sync that copy back to production.
 - **The live site is not touched before the freeze**, apart from plugin cleanup
   the partner agreed to.
 - **The old site stays frozen after cutover**, so visitors with stale DNS
@@ -102,8 +108,20 @@ stopped.
   existing account will show a setup prompt on the new blog ID; clicking
   through it creates a second Stripe account and orphans the real one. The
   WooPayments team re-links the existing account instead.
-- **Ownership stays with Team 51** until the handover phase. Do not transfer
-  anything during the migration.
+- **The site stays Team 51-managed.** Do not transfer anything, and do not
+  remove Atlantis, SSO, Team 51 accounts or monitoring. Handing a site to a
+  partner is a separate process.
+- **The old site stays connected to Jetpack** until the new one reports the
+  production domain. Dropping the old connection first raises an `@here`
+  alert.
+- **Never disconnect or reconnect Jetpack on either site.** The new site's
+  local `jetpack_options['id']` keeps the source's blog ID after the copy; that
+  is expected and not fixed by reconnecting, which could register the new site
+  under the source's ID. Check connection health in the Jetpack debug tool and
+  raise anything wrong in `#reprint`.
+- **The Assistant saying "complete" is not proof.** After the copy, check
+  Blog RC (step `sync.cleanup`) and re-queue the cleanup if it is still in
+  progress.
 - **Secrets stay out of the conversation.** Read constant values and keys on
   the site and set them on the target without echoing them.
 
@@ -116,14 +134,24 @@ do what works, with the user's agreement, and write what happened to
 
 ## The Migration Assistant
 
-The sync itself is run by a person in `mc.a8c.com/migration-assistant/` (the
+The copy itself is run by a person in `mc.a8c.com/migration-assistant/` (the
 runbook has the link with the target's blog ID). It runs Reprint's preflight,
-the migration and a WordPress.com-side cleanup. It can be re-run; each run
-re-pulls the database and applies only changed files.
+the migration and a WordPress.com-side cleanup. It runs once per target: a
+second run against the same target is not possible, so it happens inside the
+cutover window with the source frozen.
 
 If it fails: same-site redirects, TLS and storage warnings can be continued
-through in the Assistant; an authentication error means the source's exporter
-or secret is wrong; anything else, take the blog ID link to `#reprint`.
+through in the Assistant; an authentication error means the Reprint exporter
+plugin is missing on the source or its public key does not match the one the
+Assistant shows; anything else, take the blog ID link to `#reprint`.
+
+After the copy, and again after the domain change, a person repairs the new
+site's Jetpack connection in the
+Jetpack debug tool
+(`https://jptools.wordpress.com/debug/?url=<site URL>#async_section_connection_health`):
+**Restore User Connection** in the connection health section, then
+**Schedule Sync** in the Full Sync section. The copy replaces the database, so
+WordPress.com's view of the site is stale until then.
 
 ## Useful commands
 
