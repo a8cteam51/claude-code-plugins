@@ -46,6 +46,15 @@ reduce this class of issue. This is the immediate next step.
 
 ## What's next
 
+- **html-to-block-theme integration (started 2026-10-08)**, on branch
+  `h2bt-integration` (worktree `../sp-site-design-harness-h2bt`). Plan and
+  milestones live outside the repo in `../sp-site-design-harness-plans/`
+  (`h2bt-integration.md`). **M0 baseline done** (`h2bt-m0-baseline.md` there): h2bt's mechanics are strong, but nothing in
+  DESIGN.md/decisions.md reaches it, so a11y fixes, real IA and content status
+  were all lost. Next: GitHub issues for h2bt's maintainer (TommusRhodus): a comment on
+  claude-code-plugins#11 with standalone bugs, plus a new integration issue.
+  Then M1 (standards).
+
 - `/iterate` behavior tests passed 2026-09-25: L0 swap, mixed batch, frozen-HTML
   guard, theme-phase preset swap. They ran as isolated subagents following
   SKILL.md on scratch copies of `harness-test-1`, because the headless `claude`
