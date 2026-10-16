@@ -101,6 +101,23 @@ Each entry has four fields. Keep entries short — a paragraph, not a page.
   per se, it's applying that mirroring inconsistently to only one element of
   the pattern.
 
+### CC-004 — Added 2026-10-16
+
+- **Symptom observed:** A wave-shaped SVG divider sat between two bands of
+  the same dark colour. Its height came out fractional (a `clamp` in `vw`),
+  so a 1px line of the page background showed between the divider and the
+  footer below it, a pale hairline across the full width.
+- **Why it read as unintentional:** A full-width line one pixel high, a
+  slightly different colour from both sides, has no role in the composition.
+  It sits exactly where two shapes meet, which is where the eye expects a
+  join, so it reads as a gap in the join.
+- **Generalized principle:** Where two shapes are meant to meet seamlessly,
+  sub-pixel sizes can leave a hairline of whatever is behind them. When a
+  join should be invisible, make the shapes overlap rather than abut, and
+  check the seam at the widths where sizes come out fractional.
+- **Not a rule because:** A deliberate gap or rule at a join is a
+  legitimate device. The problem is a seam nobody chose.
+
 <!-- Append new entries below this line, oldest first, sequential IDs. -->
 
 ## Adding a new entry
