@@ -1,6 +1,6 @@
 # STATUS
 
-**Current version:** 0.2.0 (per `.claude-plugin/plugin.json`)
+**Current version:** 0.3.0 (per `.claude-plugin/plugin.json`)
 
 ## Where things are
 
@@ -45,6 +45,30 @@ whether the craft-corrections log and the new re-validation steps actually
 reduce this class of issue. This is the immediate next step.
 
 ## What's next
+
+- **Site templates step (started 2026-10-13)**, on branch `site-templates`
+  (worktree `../sp-site-design-harness-site-templates`). Plan:
+  `../sp-site-design-harness-plans/site-templates-plan.md`. S2 written:
+  `design-site-templates` (portable), `/prep-handoff` (harness command that
+  absorbs dev-handoff's sequencing), site-preview mode in
+  `/publish-design-options`, and the moved freeze point in `/iterate`.
+  Plugin 0.3.0.
+  **S3 test run done (2026-10-13)** on `tests-spsdh/site-templates-s3` (Body
+  Dao, Terraced Garden), stages 1–4:
+  - Output: DESIGN.md plus home, page, single with comments, index, search
+    and 404, three state files, one shared stylesheet, and identical chrome
+    in all nine files.
+  - Checks: every view passes at 1440, 1024, 768 and 375.
+  - Critic: round 1 scored 6/10; its craft findings were fixed.
+  - Stage 5 ran 2026-10-16: `decisions.md` written; package check passed
+    (all files load, no console errors, nothing points outside `source/`).
+  - Allan reviewed the result and approved merging. The open taste calls
+    (reading-page beds, homepage details) are left for real projects.
+  - The run's 13 lessons are folded into the skills.
+
+  Merged to `main` as 0.3.0 on 2026-10-16. Known gaps are in the README.
+  Next: sync to `a8cteam51/claude-code-plugins` (PR), then S4 (h2bt on the
+  full set, including how it handles the state files).
 
 - **html-to-block-theme integration (started 2026-10-08)**, on branch
   `h2bt-integration` (worktree `../sp-site-design-harness-h2bt`). Plan and

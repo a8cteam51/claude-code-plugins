@@ -1,6 +1,7 @@
 # Index page templates
 
-Shared house templates for the design-options index/nav page. Both
+Shared house templates for the design-options index/nav page, also used as
+the overview page of a site preview. Both
 `create-design` (`directions/index.html`, written after every design run) and
 `/publish-design-options` (the packaged `index.html` sent to partners) fill
 one of these — never improvise a nav page ad hoc. Using the same template in
@@ -43,11 +44,15 @@ call site can fill any of them without special-casing:
 | Token | Value |
 |---|---|
 | `{{PROJECT}}` | Project or client name |
+| `{{TITLE}}` | `Design options`, or `Site preview` for a site preview |
+| `{{TITLE_LOWER}}` | `{{TITLE}}` in lowercase, for the `<title>` |
+| `{{HEADLINE}}` | `{{TITLE}}` with `&nbsp;` between the words, inserted unescaped (`Design&nbsp;options`, `Site&nbsp;preview`) |
+| `{{NOUN}}` | `options`, or `views` for a site preview |
 | `{{VERSION}}` | `Version 1.0`, or the round of review this is |
 | `{{DATE}}` | Long-form date, e.g. `January 1, 2026` |
-| `{{COUNT}}` | Number of options/directions |
+| `{{COUNT}}` | Number of options/directions, or of views in a site preview |
 | `{{OPTIONS}}` | One `<li>` per option (see `design-options-index.html` for the expected markup shape) |
 | `{{PROVENANCE}}` | `<dt>`/`<dd>` pairs: a timestamp, then one per option naming its source |
 
-HTML-escape every substituted value, and assert no `{{` remains in the output
+HTML-escape every substituted value except `{{HEADLINE}}`, and assert no `{{` remains in the output
 before writing it.
