@@ -105,7 +105,8 @@ $safe_value = array( 'WP_ENVIRONMENT_TYPE', 'WP_MEMORY_LIMIT', 'WP_MAX_MEMORY_LI
 $defined_in_config = array();
 $config_path       = file_exists( ABSPATH . 'wp-config.php' ) ? ABSPATH . 'wp-config.php' : ( file_exists( dirname( ABSPATH ) . '/wp-config.php' ) ? dirname( ABSPATH ) . '/wp-config.php' : null );
 foreach ( array_filter( array_unique( array( $config_path, dirname( WP_CONTENT_DIR ) . '/wp-config.php' ) ) ) as $cfg ) {
-	if ( is_readable( $cfg ) && preg_match_all( '/^\s*define\s*\(\s*[\'"]([A-Za-z0-9_]+)[\'"]/m', (string) file_get_contents( $cfg ), $m ) ) {
+	/* Not anchored to the line start: Atlantis writes its key as `if ( ! defined( ... ) ) { define( ... ); }`. */
+	if ( is_readable( $cfg ) && preg_match_all( '/\bdefine\s*\(\s*[\'"]([A-Za-z0-9_]+)[\'"]/', (string) file_get_contents( $cfg ), $m ) ) {
 		$defined_in_config = array_merge( $defined_in_config, $m[1] );
 	}
 }
@@ -364,6 +365,9 @@ $out['team51'] = array(
 		return false !== strpos( $s, 'force-jetpack-sso' );
 	} ) ),
 	'theme_mentions_atlantis' => null,
+	/* Atlantis encrypts its messages with this key. Only a short hash is reported, to tell whether two sites share it. */
+	'atlantis_key'            => defined( 'A8CSP_ATLANTIS_ENCRYPTION_KEY' ) ? substr( hash( 'sha256', (string) A8CSP_ATLANTIS_ENCRYPTION_KEY ), 0, 8 ) : null,
+	'atlantis_messages'       => $table_exists( $wpdb->prefix . 'a8csp_atlantis_messages' ) ? $count( "SELECT COUNT(*) FROM {$wpdb->prefix}a8csp_atlantis_messages" ) : null,
 );
 /* A theme that calls Atlantis (colophon, tracking) breaks when the plugin goes. */
 $hits = 0;

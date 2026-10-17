@@ -106,11 +106,24 @@ for (const s of src.pages) {
 		const kind = k === 'scripts' ? 'script' : 'stylesheet';
 		// WordPress.com runs the Gutenberg plugin, so a core block asset can be served from the plugin instead.
 		const tail = (u) => u.split('/').slice(-2).join('/');
-		const replaced = (x) => /\/wp-includes\//.test(x) && a.added.find((y) => y.includes('/plugins/gutenberg/') && tail(y) === tail(x));
+		// Packages move too: wp-includes/js/dist/hooks.min.js becomes gutenberg/build/scripts/hooks/index.min.js.
+		const distName = (u) => (u.match(/\/wp-includes\/js\/dist\/([\w-]+)\.min\.js/) || [])[1];
+		const gbName = (u) => (u.match(/\/plugins\/gutenberg\/build\/scripts\/([\w-]+)\/index\.min\.js/) || [])[1];
+		const byGutenberg = (x) => /\/wp-includes\//.test(x) && a.added.find((y) => y.includes('/plugins/gutenberg/') &&
+			(tail(y) === tail(x) || (distName(x) && gbName(y) === distName(x))));
+		// A Jetpack package bundled in the Jetpack plugin on the source can be served from wpcomsh's copy on the target.
+		const vendor = (u) => (u.match(/\/jetpack_vendor\/(.+)$/) || [])[1];
+		const byVendor = (x) => vendor(x) && a.added.find((y) => y !== x && vendor(y) === vendor(x));
+		const replaced = (x) => byGutenberg(x) || byVendor(x);
 		for (const x of a.gone) {
-			const sub = replaced(x);
+			const sub = byGutenberg(x);
 			if (sub) {
 				add('NOTE', page, `${kind} served by the Gutenberg plugin on target instead of core`, `${x} → ${sub}`);
+				continue;
+			}
+			const pkg = byVendor(x);
+			if (pkg) {
+				add('NOTE', page, `${kind} served from the platform's copy of the same Jetpack package`, `${x} → ${pkg}`);
 				continue;
 			}
 			const platform = PLATFORM.test(hostOf(x));

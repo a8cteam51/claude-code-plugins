@@ -45,6 +45,7 @@ OWNERS = [
     ("jetpack.blog-id", "Developer (MC tools, after cutover)"),
     ("dns.access.", "TAM, with the partner"),
     ("dns.account.", "TAM"),
+    ("dns.owner.", "TAM"),
     ("dns.other-sites.", "TAM"),
     ("dns.", "Developer"),
     ("woo.woopayments", "Developer, with the WooPayments team (#woosupport)"),
@@ -142,11 +143,12 @@ KNOWN_REST = ("akismet/", "jetpack", "my-jetpack/", "wpcom/", "videopress/", "wc
               "regenerate-thumbnails/", "mailpoet/", "wp-mail-smtp/", "elementor/", "code-snippets/")
 
 CONSTANT_NOTES = {
-    "WPCOMSP_BILMUR": "Team 51 Bilmur performance tracking. Decide whether it continues after the move.",
-    "WPC_BOT_PROTECTION_ENABLED": "WP Cloud bot protection, set by `team51 pressable:enable-bot-protection`. Confirm the WordPress.com equivalent.",
+    "WPCOMSP_BILMUR": "Team 51 Bilmur tracking, configured for Pressable (service `pressable.com`). Dropped.",
+    "WPC_BOT_PROTECTION_ENABLED": "WP Cloud bot protection, set by `team51 pressable:enable-bot-protection`. Dropped.",
+    "A8CSP_ATLANTIS_ENCRYPTION_KEY": "Atlantis message encryption key. Carried over by its own step, `platform.atlantis-key`.",
     "A8CSP_ATLANTIS": "Belongs to Atlantis, which stays. Carry it over.",
     "SAFETY_NET": "SafetyNet setting. SafetyNet must not run on a migration target.",
-    "WP_ENVIRONMENT_TYPE": "Must be `production` on the target before cutover.",
+    "WP_ENVIRONMENT_TYPE": "Not needed: WordPress.com already reports `production` without it. Check `wp_get_environment_type()`.",
     "WP_DEBUG": "Development flag. Usually not carried over.",
     "DISABLE_WP_CRON": "Cron trigger setting. The target host manages this.",
     "WP_MEMORY_LIMIT": "Memory setting. Check the target's limit before carrying over.",
@@ -543,6 +545,13 @@ def plugins(m):
                      "Active on the source: %s." % t51.get("atlantis_active"),
                      "The site remains Team 51-managed, so Atlantis is kept. Checked on the new site after cutover.",
                      steps=["post.atlantis"]))
+        msgs = t51.get("atlantis_messages")
+        if t51.get("atlantis_key") or msgs:
+            out.append(F("team51.atlantis-key", "Team 51 tooling", "manual", "Carry over the Atlantis encryption key",
+                         "Atlantis encrypts its messages with `A8CSP_ATLANTIS_ENCRYPTION_KEY` from wp-config. Site creation gives "
+                         "the new site a different key, and the copied messages then read as empty. Messages on the source: %s."
+                         % ("unknown" if msgs is None else msgs),
+                         "Before the copy, set the new site's key to the source's.", steps=["platform.atlantis-key"]))
     else:
         out.append(F("team51.no-atlantis", "Team 51 tooling", "info", "Atlantis is not on the source",
                      "Site creation installs it on the new site, but the copied database will not have it active.",
@@ -686,6 +695,8 @@ def dns(m):
                   "Run scripts/dns_audit.py for each apex domain attached to the site.")]
     for z in zones:
         apex = z.get("apex")
+        # A domain registered at WordPress.com switches name servers the moment it moves to the new site.
+        zone_step = "cut.zone-records" if z.get("registrar_class") == "automattic" else "dns.zone-move"
         reg = (g(z, "registrar", "registrar") or "unknown registrar").rstrip(".")
         base = "Registrar: %s. Name servers: %s." % (reg, ", ".join(z.get("name_servers") or []) or "unknown")
         if z.get("access_needed_from_partner"):
@@ -698,21 +709,33 @@ def dns(m):
                          "`state.py decide registrar_access.%s confirmed`." % apex, steps=["prep.dns-access"]))
         elif z.get("case") == "automattic-registrar/pressable-dns":
             out.append(F("dns.account." + apex, "DNS and domains", "manual", "%s: registered with Automattic, DNS at Pressable" % apex,
-                         base, "Find which WordPress.com account holds the registration. The zone moves to WordPress.com DNS.",
-                         steps=["dns.zone-move"]))
+                         base, "Find which WordPress.com account holds the registration. Moving the domain to the new site in "
+                         "the window switches it to WordPress.com's name servers at once, so the zone is exported before and "
+                         "rebuilt straight after.", steps=["dns.export", "cut.domain-move", zone_step]))
         elif z.get("case") == "unknown":
             out.append(F("dns.unknown." + apex, "DNS and domains", "manual", "%s: could not read name servers or registrar" % apex,
                          base, "Check by hand."))
+        if z.get("registrar_class") == "automattic":
+            owner = g(m, "decisions", "domain_owner", apex)
+            out.append(F("dns.owner." + apex, "DNS and domains", "info" if owner else "manual",
+                         "%s: registered at WordPress.com, %s" % (apex, "owned by %s" % owner if owner else "owning account not identified"),
+                         "DARC moves a domain only to a site its owner is an administrator on. The new site is created under "
+                         "`a8cteam51`, so the owner's WordPress.com account is connected to it before the move.",
+                         "Find which WordPress.com account holds the registration (and whether it sits on a domain-only site) and "
+                         "record it with `state.py decide domain_owner.%s <account>`. After the copy, `verify.domain-owner` "
+                         "connects that account through the Jetpack debug tool, with no partner action; `cut.domain-move` then "
+                         "moves the domain. The alternative is transferring the domain to `a8cteam51`." % apex,
+                         steps=["prep.domain-owner", "verify.domain-owner", "cut.domain-move"]))
         if z.get("dns_host") == "pressable":
             out.append(F("dns.zone." + apex, "DNS and domains", "manual", "%s: the whole DNS zone is hosted at Pressable and must move" % apex,
                          "Records found by guessing names: %s. This is a floor, not the full zone." % ", ".join(sorted(z.get("records", {}).keys())),
-                         "Export the full zone from Pressable, recreate it in WordPress.com DNS, and switch name servers last.",
-                         steps=["dns.export", "dns.zone-move"]))
+                         "Export the full zone from Pressable before the window and recreate it in WordPress.com DNS.",
+                         steps=["dns.export", zone_step]))
         if z.get("mail_related"):
             out.append(F("dns.mail." + apex, "DNS and domains", "manual", "%s: email depends on this zone (%s)" % (apex, z.get("mail_provider_hint")),
                          "Mail-related names: %s." % ", ".join(z["mail_related"]),
                          "Every MX, SPF, DKIM and DMARC record must exist in the new zone before name servers change. DKIM selectors "
-                         "cannot be guessed reliably; get them from the zone export.", steps=["dns.zone-move"]))
+                         "cannot be guessed reliably; get them from the zone export.", steps=[zone_step]))
         if z.get("points_at_other_wpcloud_site"):
             out.append(F("dns.other-sites." + apex, "DNS and domains", "decision", "%s: subdomains point at other sites on our platform" % apex,
                          ", ".join(z["points_at_other_wpcloud_site"]),
@@ -739,17 +762,17 @@ def deploys(m):
     where = "Repo `%s`, branch `%s`, DeployHQ project `%s`." % (prod.get("repo"), prod.get("branch"), prod.get("project"))
     if state == "connected-current":
         out.append(F("deploy.current", "Deploys", "auto", "Deploy is connected and current", where + " " + (prod.get("evidence") or ""),
-                     "Safe to connect WordPress.com GitHub Deployments from the same branch.", steps=["platform.deploy-connect"]))
+                     "Safe to connect WordPress.com GitHub Deployments from the same branch.", steps=["post.deploy-connect"]))
     elif state == "behind-tooling-only":
         out.append(F("deploy.tooling-only", "Deploys", "auto", "Deploy is connected; undeployed commits only touch repo tooling",
                      where + " " + (prod.get("evidence") or ""),
                      "Safe to connect WordPress.com GitHub Deployments. The undeployed commits change nothing on the server.",
-                     steps=["platform.deploy-connect"]))
+                     steps=["post.deploy-connect"]))
     elif state == "behind":
         out.append(F("deploy.behind", "Deploys", "decision", "Deploy is connected but the branch is ahead of the server",
                      where + " " + (prod.get("evidence") or ""),
                      "Review the undeployed commits. Either deploy them on Pressable first and test, or accept that they go live with "
-                     "the first WordPress.com deploy.", steps=["platform.deploy-connect"]))
+                     "the first WordPress.com deploy.", steps=["post.deploy-connect"]))
     elif state == "drifted":
         out.append(F("deploy.drifted", "Deploys", "manual", "Files on the server differ from the deployed revision",
                      where + " " + (prod.get("evidence") or ""),

@@ -38,7 +38,7 @@ Read `case` and `access_required`:
 
 | Registrar | DNS hosted at | What changes | Access needed |
 |---|---|---|---|
-| Automattic / WordPress.com | Pressable | Zone moves to WordPress.com; we switch name servers | Which WordPress.com account holds the domain |
+| Automattic / WordPress.com | Pressable | Moving the domain to the new site in DARC switches it to WordPress.com's name servers at once; the zone is rebuilt straight after | Which WordPress.com account holds the domain, and its user ID |
 | Automattic / WordPress.com | WordPress.com | Records change in place | None |
 | Third party | Pressable | Zone moves to WordPress.com; name servers change at the registrar | **Partner's registrar login** |
 | Third party | Third party | Site records change at that DNS host; no zone move | **Partner's DNS host login** |
@@ -59,16 +59,38 @@ provider.
 
 ## Get the full zone
 
-For a Pressable-hosted zone, export every record from Pressable: the API
-(`GET /zones` then `GET /zones/{zone_id}/records`; the zone ID is on each
-record returned by `mcp__team51__pressable_list_site_domains`) or the DNS tab
-of the Pressable dashboard. The team51 CLI has no command for this yet. Save
-the export as `$D/zone-export.json` or, as a BIND file, `$D/zone-export.txt`.
+For a Pressable-hosted zone, copy every record by hand from the MyPressable
+DNS editor, before the window, and save it as a BIND file at
+`$D/zone-export.txt`. Nothing can fetch it automatically: the team51 CLI
+reaches Pressable through OpsOasis, which has no zones route, and Pressable's
+name servers refuse zone transfers. Leave out the `atomic-domain-…` TXT; it
+belongs to the old site.
 
 Check the export against the audit: every name the audit found must be in it.
 If the audit found a name the export lacks, the export is incomplete.
 
-## Cutover: repoint the site records
+## Moving the domain off Pressable
+
+Pressable and WordPress.com are both WP Cloud hosts, so a domain attached to
+the Pressable site cannot be made primary on WordPress.com ("Domain already
+used on a different site … TXT record verification is required"). The
+runbook's `cut.*` steps handle it; in short (Dotcom University, *Moving
+Domains Between WP Cloud Hosts*, and the 2026-10-16 migration):
+
+1. Registered at WordPress.com under the partner's account: connect the
+   owner's WordPress.com account to the new site (`verify.domain-owner`, via
+   the Jetpack debug tool), then move the domain to the new site in DARC
+   (`cut.domain-move`). That move is the DNS change.
+2. Remove the domain and its `www` alias from the Pressable site. Team 51 owns
+   it, so we can (`cut.release-pressable`).
+3. Replace the `atomic-domain` TXT records at the apex and `www` with fresh
+   values from Blog RC's Domain Verification Record tool, then set the domain
+   primary (`cut.domain`).
+4. Check both the apex and `www` report WordPress.com at
+   `/.well-known/hosting-provider`, and that `www` resolves; add a `www` CNAME
+   if the zone lacks one (`cut.hosting-check`).
+
+## Cutover: repoint the site records (domain registered elsewhere)
 
 1. A day or more ahead, lower the TTL on the apex and `www` records to 300.
 2. Attach the domain to the WordPress.com site as a connected domain. The

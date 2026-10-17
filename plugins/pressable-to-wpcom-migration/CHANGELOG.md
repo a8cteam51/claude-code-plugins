@@ -12,6 +12,36 @@
   Atlantis is kept and checked, not removed, and the handover phase is gone.
 - Deleting the Pressable site is gated on stats, subscribers, WooPayments and
   VideoPress being finished.
+- Domains registered at WordPress.com get an ownership finding: the owning
+  account must be a WordPress.com user on the new `a8cteam51` site before the
+  domain is attached (`prep.domain-owner`, `verify.domain-owner`).
+- The Atlantis encryption key is carried over by its own step
+  (`platform.atlantis-key`). The audit records a short hash of the key and the
+  message count, and `compare_sites.py` flags a key mismatch.
+- The audit's wp-config parser now finds constants defined inside a
+  `defined()` guard, as Atlantis writes its key. It missed them before.
+- From the first real migration (2026-10-16):
+  - Go-live steps for moving a domain between WP Cloud hosts: move a
+    WordPress.com-registered domain in DARC (`cut.domain-move`), remove it
+    from the Pressable site (`cut.release-pressable`), replace the
+    `atomic-domain` TXT records before setting primary (`cut.domain`), rebuild
+    the zone straight away when the move switched name servers
+    (`cut.zone-records`), and check the apex and `www` hosting provider
+    (`cut.hosting-check`).
+  - `verify.domain-owner` connects the domain owner's WordPress.com account
+    through the Jetpack debug tool, with no partner action.
+  - The Pressable zone export moved before the window.
+  - The freeze mu-plugin does nothing outside Pressable (the copy carried it
+    to the new site, where it blocked XML-RPC), and `post-sync.sh` removes it.
+  - Connecting WordPress.com deploys moved after cutover (`post.deploy-connect`).
+  - `cut.unquarantine` clears the edge cache, which kept the quarantine's
+    `noindex`.
+  - The front-end comparison treats core packages served by Gutenberg and
+    Jetpack packages served from wpcomsh as notes.
+  - Create-site notes: `site_name_refused` from a domain-only subscription,
+    the second confirmation prompt, the platform's default plugins.
+  - Bilmur and bot-protection constants are dropped; `WP_ENVIRONMENT_TYPE` is
+    not needed.
 
 - The source step installs the Reprint exporter plugin and adds the public
   key the Migration Assistant shows. Jetpack's built-in exporter is not used.

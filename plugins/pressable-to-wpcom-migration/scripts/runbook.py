@@ -41,6 +41,17 @@ def pressable_dns(m, on):
     return any(z.get("dns_host") == "pressable" for z in m.get("dns") or [])
 
 
+def wpcom_registered(m, on):
+    return any(z.get("registrar_class") == "automattic" for z in m.get("dns") or [])
+
+
+def zone_moves_later(m, on):
+    """Pressable DNS whose name servers we switch ourselves, after cutover. A domain registered at WordPress.com
+    switches to WordPress.com's name servers the moment it is attached (step cut.domain), so its zone is rebuilt
+    inside the window instead (step cut.zone-records)."""
+    return pressable_dns(m, on) and not wpcom_registered(m, on)
+
+
 STEPS = [
     # ---------------------------------------------------------------- decide
     dict(id="decide.blockers", phase="decide", actor="human", title="Clear every blocker in the audit report", when=None,
@@ -66,6 +77,20 @@ STEPS = [
               "that they will be available during the cutover window and the later name server change.\n\n"
               "```bash\npython3 {scripts}/state.py --dir {dir} decide registrar_access.<apex-domain> confirmed\n```",
          verify="Re-run the audit build; the access finding drops from blocker to info."),
+    dict(id="prep.domain-owner", phase="prep", actor="human", title="Identify the WordPress.com account that owns the domain",
+         when=has("prep.domain-owner"),
+         body="For each domain the report marks **registered at WordPress.com**: find the account that holds the registration "
+              "(Store Admin, or the domain's page in the owner's dashboard). WordPress.com attaches a domain only to a site "
+              "owned by the same account, or to a site that account is a user on. The new site is owned by `a8cteam51`, so "
+              "the owning account must be a user on it before `cut.domain`.\n\n"
+              "Note whether the domain sits on a **domain-only** site (Store Admin for the owner). On 2026-10-16 it did: that "
+              "subscription also held the site name at creation (`site_name_refused`), showed a Jetpack conflict for the "
+              "domain in Domain RC, and was deleted when the domain was moved to the new site, as expected.\n\n"
+              "The owner's account is connected to the new site in the window (`verify.domain-owner`), with no partner "
+              "action. Copy their WordPress.com user ID and email now. The alternative is transferring the domain to "
+              "`a8cteam51` beforehand.\n\n"
+              "```bash\npython3 {scripts}/state.py --dir {dir} decide domain_owner.<apex-domain> <account>\n```",
+         verify="Re-run the audit build; the ownership finding names the account."),
     dict(id="prep.woopayments", phase="prep", actor="human", title="Line up the WooPayments re-link", when=has("prep.woopayments"),
          body=UNTESTED +
               "WooPayments is a Stripe account linked to the site's blog ID through the Jetpack connection. The Stripe account, "
@@ -121,10 +146,16 @@ STEPS = [
               "name with a dash, the server answers \"A site with this name already exists\" although no such site exists. "
               "Use the CLI, or pass the name exactly as written above.\n"
               "- It asks \"Would you like to deploy to the site from a GitHub repository?\" and the default is yes. **Answer no.** "
-              "The repo is connected later, and only if the audit found the existing deploy current. Connecting now would deploy "
-              "the repo onto the empty site before the copy arrives.\n"
+              "It then asks to confirm creating the site without a repository: **answer yes.** The repo is connected after "
+              "cutover (step `post.deploy-connect`), and only if the audit found the existing deploy current. Connecting now "
+              "would deploy the repo onto the empty site before the copy arrives.\n"
               "- If it reports `site_already_exists` for a name without dashes, a site with that name does exist (see below, or "
               "pick another name).\n"
+              "- `409 site_name_refused` for a name no public site uses: the name is probably held by a domain-only "
+              "subscription for the same domain (seen 2026-10-16). Add the TLD, e.g. `{site_slug}org`.\n"
+              "- The new site comes with plugins of its own active (on 2026-10-16: gutenberg, mailpoet, mailpoet-premium, "
+              "page-optimize). The copy replaces the active plugin list with the source's; `verify.plugins` shows what is "
+              "left over.\n"
               "- Atlantis is installed here and stays: the migrated site remains a Team 51-managed site. The sync replaces the "
               "database, so its settings afterwards are the source's; step `post.atlantis` checks it.\n"
               "- Do NOT use `wpcom:clone-site` for this. That makes a staging copy of an existing WordPress.com site and scrubs it.\n\n"
@@ -169,8 +200,10 @@ STEPS = [
                 "without starting the migration."),
     dict(id="cut.go", phase="sync", actor="human", title="Go / no-go", when=None,
          body="Confirm: no open blockers; TTL lowered at least a day ago; Reprint exporter installed and the Assistant past "
-              "step 2; partner informed of the content freeze; registrar or DNS access available now; WooPayments re-link "
-              "scheduled if applicable; time left in the window for the checks; someone available to roll back.\n\n"
+              "step 2; partner informed of the content freeze; registrar or DNS access available now; the Pressable zone "
+              "exported if it is hosted there; for a domain registered at WordPress.com, the owner's user ID and email at "
+              "hand; WooPayments re-link scheduled if applicable; time left in the window for the checks; someone available "
+              "to roll back.\n\n"
               "There is one copy. If anything before the DNS change fails, the rollback is to unfreeze the source and stop: "
               "the live site has not changed.",
          verify="Explicit go from the migration owner."),
@@ -207,7 +240,7 @@ STEPS = [
               "On the test migration (2026-10-13) the Assistant reported the migration complete and clean, but the cleanup had "
               "not finished: Blog RC for the new site still showed the migration in progress with a **Complete Migration** "
               "button, the cleanup ran twice, and its \"jp sync fix\" removed the `a8cteam51` user and the connection owner's "
-              "token part way through.\n\n"
+              "token part way through. It stalled the same way on the first real migration (2026-10-16), so expect it.\n\n"
               "1. Open Blog RC for blog `{target_blog_id}`.\n"
               "2. If it still shows the migration in progress, push **Enqueue post migration cleanup job** and wait for it to "
               "finish (about a minute). Its log entries are \"migration cleanup started/completed\", then \"jp sync fix\". "
@@ -223,7 +256,36 @@ STEPS = [
 
     # ---------------------------------------------------------------- verify
     dict(id="cut.post-sync", phase="sync", actor="agent", title="Run the post-sync script", when=None,
-         body="```bash\nbash {dir}/post-sync.sh\n```", verify="Exits 0."),
+         body="```bash\nbash {dir}/post-sync.sh\n```\n\n"
+              "The script must start by removing the freeze from the NEW site. The copy brings the source's mu-plugins, freeze "
+              "included (seen 2026-10-16). Left in place on the new site, it refuses XML-RPC, so the Jetpack debug tool "
+              "reports \"XML-RPC is not responding correctly\"; it also pauses cron and shows the freeze banner. The freeze "
+              "file now does nothing on WordPress.com, but remove it anyway:\n\n"
+              "```bash\n{scripts}/mu_plugin.sh remove wpcom {target} t51-migration-freeze.php\n```\n\n"
+              "The quarantine stays: it was installed on the new site on purpose.",
+         verify="Exits 0. `{scripts}/mu_plugin.sh status wpcom {target} t51-migration-freeze.php` reports the file absent, "
+                "and the quarantine file present."),
+    dict(id="verify.domain-owner", phase="verify", actor="both", title="Connect the domain owner's WordPress.com account to the new site",
+         when=has("verify.domain-owner"),
+         body="Needed only when the domain is registered at WordPress.com under an account other than `a8cteam51` "
+              "(recorded as `domain_owner.<apex-domain>`). DARC moves a domain only to a site its owner is an "
+              "administrator on, so the owner's WordPress.com account must be connected to the new site before "
+              "`cut.domain`. The site stays owned by `a8cteam51`, and the partner keeps owning and paying for the domain. "
+              "Do it after the copy: the copy replaces the users table.\n\n"
+              "Done this way on 2026-10-16 (Dotcom University, *Reconnecting Jetpack → Reconnecting Non-Owner Admins*):\n\n"
+              "1. The owner needs a local administrator with their WordPress.com email. Check, and create it if missing "
+              "(the CLI part):\n\n"
+              "```bash\nteam51 wpcom:run-site-wp-cli-command {target_blog_id} 'user list --role=administrator --fields=ID,user_login,user_email'\n"
+              "team51 wpcom:run-site-wp-cli-command {target_blog_id} 'user create <login> <wpcom email> --role=administrator'\n```\n\n"
+              "2. Copy the owner's WordPress.com user ID from Store Admin or User RC.\n"
+              "3. Open the Jetpack debug tool for the new site and check the blog ID under **Connection Health** is "
+              "`{target_blog_id}`: https://jptools.wordpress.com/debug/?url={target_blog_id}\n"
+              "4. Paste the owner's user ID into the **user ID** field and click **Check Connection**. If the **User token** "
+              "column shows 🛑, click **Restore User Connection**.\n\n"
+              "No invitation is sent and the partner does not have to do anything. `mcp__team51__wpcom_list_site_users` can "
+              "confirm the result, but it failed with an expired session on 2026-10-16.",
+         verify="Checking the owner's user ID in the Jetpack debug tool shows a ✅ user token, and DARC for the domain lists "
+                "the new site as one the domain can be moved to."),
     dict(id="verify.parity", phase="verify", actor="agent", title="Compare data between source and target", when=None,
          body="```bash\n{scripts}/wp_eval.sh pressable {domain} {scripts}/parity.php > {dir}/parity-source.json\n"
               "T51_ARGS='{{\"other_host\":\"{domain}\"}}' {scripts}/wp_eval.sh wpcom {target} {scripts}/parity.php > {dir}/parity-target.json\n"
@@ -322,7 +384,10 @@ STEPS = [
          body="The copy REPLACES the target database, so a database change made on the target before the window is lost. "
               "Keep each one as a command in `{dir}/post-sync.sh`; it runs once, straight after the copy. File changes made "
               "on the target now (wp-config, mu-plugins, deployed code) are kept.\n\n"
-              "Start the file with the steps below that apply, and add to it as you go.",
+              "Start the file with the freeze removal (see `cut.post-sync`), then the steps below that apply, and add to it "
+              "as you go:\n\n"
+              "```bash\n#!/usr/bin/env bash\nset -euo pipefail\n"
+              "{scripts}/mu_plugin.sh remove wpcom {target} t51-migration-freeze.php   # copied over from the source\n```",
          verify="`{dir}/post-sync.sh` exists and running it twice gives the same result."),
     dict(id="platform.constants", phase="platform", actor="both", title="Carry over wp-config constants", when=has("platform.constants"),
          body=UNTESTED +
@@ -333,6 +398,32 @@ STEPS = [
               "mu-plugin instead.\n\n"
               "```bash\nteam51 wpcom:run-site-wp-cli-command {target} 'config set <NAME> <value> --type=constant'\n```",
          verify="`config get <NAME>` on the target returns the expected value for each constant carried over."),
+    dict(id="platform.atlantis-key", phase="platform", actor="both", title="Give the new site the source's Atlantis encryption key",
+         when=has("platform.atlantis-key"),
+         body="Atlantis encrypts its messages with `A8CSP_ATLANTIS_ENCRYPTION_KEY`. When site creation installed Atlantis on "
+              "the new site, it wrote a new key into that site's wp-config. The copy brings the source's encrypted messages "
+              "but not its wp-config, so with the new key they read as empty, with no error. On the test migration the two "
+              "keys differed.\n\n"
+              "Do this before the copy; wp-config survives it. The key is a secret: never paste it into chat, notes or the "
+              "report.\n\n"
+              "1. Agent: put the source's key into the new site's wp-config, without printing it:\n\n"
+              "```bash\nprint_key='eval \"echo A8CSP_ATLANTIS_ENCRYPTION_KEY;\"'\n"
+              "KEY=$(team51 pressable:run-site-wp-cli-command \"$print_key\" {domain} -n --no-ansi </dev/null 2>&1 | grep -E '^[0-9a-f]{{64}}$')\n"
+              "[ -n \"$KEY\" ] && team51 wpcom:run-site-wp-cli-command {target} \"config set A8CSP_ATLANTIS_ENCRYPTION_KEY $KEY --type=constant\" -n --no-ansi </dev/null 2>&1 | grep -E '^(Success|Error)' | sed 's/ with the value.*//'\n"
+              "unset KEY\n```\n\n"
+              "`config set` does not recognise Atlantis's guarded line, so it adds a second, plain define after it "
+              "(tested 2026-10-16). Atlantis's line still runs first and keeps the new site's own key, and the plain one "
+              "raises an \"already defined\" warning on every request until step 2 is done.\n\n"
+              "2. Person, over SFTP on the new site only: in `/srv/htdocs/wp-config.php` there are now two lines:\n\n"
+              "```php\nif ( ! defined( 'A8CSP_ATLANTIS_ENCRYPTION_KEY' ) ) {{ define( 'A8CSP_ATLANTIS_ENCRYPTION_KEY', '<new site key>' ); }}\n"
+              "define( 'A8CSP_ATLANTIS_ENCRYPTION_KEY', '<source key>' );\n```\n\n"
+              "Copy the value from the plain `define` into Atlantis's line, replacing its value, then delete the plain line. "
+              "One define of the constant is left, in Atlantis's form.",
+         verify="The key fingerprint matches on both sites (only a hash is printed):\n\n"
+                "```bash\nfp='eval \"echo substr(hash(\\\"sha256\\\", A8CSP_ATLANTIS_ENCRYPTION_KEY), 0, 8);\"'\n"
+                "team51 pressable:run-site-wp-cli-command \"$fp\" {domain} -n --no-ansi </dev/null 2>&1 | tail -1\n"
+                "team51 wpcom:run-site-wp-cli-command {target} \"$fp\" -n --no-ansi </dev/null 2>&1 | tail -1\n```\n\n"
+                "After the copy, `compare_sites.py` reports a problem if they differ."),
     dict(id="platform.root-files", phase="platform", actor="both", title="Carry over files outside wp-content", when=has("platform.root-files"),
          body=UNTESTED +
               "Only wp-content is copied. For each file the report lists (for example `custom-redirects.php`), read it on the "
@@ -343,8 +434,9 @@ STEPS = [
          body="Search the site's repo and mu-plugins, and any database-stored snippets, for host-specific code:\n\n"
               "```bash\ngrep -rnI -i -E 'IS_PRESSABLE|pressable|batcache|pcm_|edge.?cache|mystagingwebsite|openhostingservice' .\n```",
          verify="Each hit is either harmless or has a change planned."),
-    dict(id="platform.deploy-connect", phase="platform", actor="agent", title="Connect WordPress.com GitHub Deployments", when=has("platform.deploy-connect"),
-         body=UNTESTED +
+    dict(id="post.deploy-connect", phase="post", actor="agent", title="Connect WordPress.com GitHub Deployments", when=has("post.deploy-connect"),
+         body="After cutover, not before: a deploy before the window would land on the empty site and be replaced by the "
+              "copy, and a push during the window would deploy to both hosts. Done this way on 2026-10-16.\n\n"
               "The audit found the existing deploy connected and current, so connecting is safe.\n\n"
               "```bash\nteam51 wpcom:connect-site-repository {target} {repo_name} --branch {deploy_branch} --target_dir /wp-content/\n```\n\n"
               "This also creates the deployment webhook to OpsOasis, which needs its secret stored there under the new blog ID "
@@ -358,7 +450,7 @@ STEPS = [
     dict(id="platform.deploy-reconcile", phase="platform", actor="both", title="Reconcile server changes into the repo before connecting deploys", when=has("platform.deploy-reconcile"),
          body="Files on the server differ from the repo. Read `{dir}/deploy.json` for the list. Bring each real change into the "
               "repo through a pull request, deploy through the existing pipeline, and re-run the drift check until it is clean. "
-              "Only then connect WordPress.com deploys (step `platform.deploy-connect`).",
+              "Only then connect WordPress.com deploys (step `post.deploy-connect`).",
          verify="`deploy_check.py drift` reports `clean`."),
     dict(id="platform.deploy-skip", phase="platform", actor="human", title="Leave deploys unconnected", when=has("platform.deploy-skip"),
          body="No deploy targets production, so connecting one risks overwriting files nobody has in git. Migrate the files as "
@@ -390,35 +482,95 @@ STEPS = [
          verify="`dig +noall +answer {domain}` shows the lower TTL."),
 
     # ------------------------------------------------------------------- cut
-    dict(id="cut.domain", phase="cut", actor="both", title="Attach the domain to the WordPress.com site and make it primary", when=None,
-         body=UNTESTED +
-              "In the WordPress.com dashboard for the target: add `{domain}` (and `www`) as a connected domain and set it as "
-              "primary. Then rewrite the temporary URL in content:\n\n"
-              "```bash\nteam51 wpcom:run-site-wp-cli-command {target} \"search-replace '//{target}' '//{domain}' --all-tables-with-prefix --precise --skip-columns=guid --report-changed-only\"\n"
-              "team51 wpcom:run-site-wp-cli-command {target} 'cache flush'\n```",
-         verify="`option get home` and `option get siteurl` on the target return `https://{domain}`. The parity script's "
-                "`other_host_references` for the temporary host is zero."),
-    dict(id="cut.dns", phase="cut", actor="human", title="Point the site records at WordPress.com", when=None,
+    dict(id="cut.domain-move", phase="cut", actor="human", title="Move the WordPress.com-registered domain to the new site in DARC",
+         when=wpcom_registered,
+         body="For a domain registered at WordPress.com (often on a domain-only site under the partner's account). Needs "
+              "`verify.domain-owner` done: DARC only offers sites the domain's owner is an administrator on.\n\n"
+              "1. Open DARC for `{apex}`, choose the new site (`{target}`) in the move drop-down, leave the checkbox under it "
+              "**unchecked**, and click **Move**.\n"
+              "2. Reload DARC after the success message: the domain now belongs to the new site. A domain-only site it came "
+              "from is deleted; that is expected. The partner still owns and pays for the domain.\n\n"
+              "**This is the DNS change.** On 2026-10-16 the move switched the domain's name servers to WordPress.com's at "
+              "once, and Pressable's name servers stopped answering for it. From here until `cut.domain` the site does not "
+              "load at `{domain}`, so do `cut.release-pressable`, `cut.domain` and `cut.zone-records` back to back. The "
+              "Pressable zone must already be exported (`dns.export`).",
+         verify="DARC shows the domain on blog `{target_blog_id}`, and `dig NS {apex} +short` returns WordPress.com name servers."),
+    dict(id="cut.release-pressable", phase="cut", actor="human", title="Remove the domain from the Pressable site", when=None,
+         body="Pressable and WordPress.com are both WP Cloud hosts. While the domain is attached to the Pressable site, "
+              "WordPress.com refuses to make it primary (\"Domain already used on a different site … TXT record verification "
+              "is required to bypass this check\", logged in `#atat-bots`). Dotcom University, *Moving Domains Between WP "
+              "Cloud Hosts*, recommends removing it from the old host, and Team 51 owns the Pressable site, so we can.\n\n"
+              "In MyPressable, open the site's domains and remove `{domain}` and its `www` alias. Pressable then serves the old "
+              "site at its `.mystagingwebsite.com` address and changes its `home` to that (seen 2026-10-16); it stays frozen.\n\n"
+              "Done this way on 2026-10-16, straight after `cut.domain-move`. Where there is no DARC move, this is where "
+              "the site stops loading at `{domain}` until `cut.domain`, so do the two back to back. If the DNS change is the partner's (a third-party DNS host) and "
+              "they are not ready this minute, do not remove the domain yet: use the TXT route in `cut.domain` instead, "
+              "which does not stop Pressable serving the site.",
+         verify="The domain and `www` are gone from the Pressable site's domain list."),
+    dict(id="cut.domain", phase="cut", actor="both", title="Make the domain primary on the WordPress.com site", when=None,
+         body="1. If it is not attached yet (registered elsewhere), add `{domain}` to the new site as a connected domain.\n"
+              "2. Replace the WP Cloud verification records. In Blog RC for `{target_blog_id}` (Site info), use **Domain "
+              "Verification Record** to generate a TXT value for `{apex}`, then, separately, one for `www.{apex}`. Put each "
+              "in place of the existing `atomic-domain-…` TXT at that name (apex and `www`), in WordPress.com DNS or at the "
+              "partner's DNS host. Replace the old values rather than adding beside them. On 2026-10-16 this was needed "
+              "even after `cut.release-pressable`.\n"
+              "3. Set `{domain}` as **primary**, in the dashboard or DARC. `www` cannot be primary on WordPress.com; it "
+              "redirects to the apex. If it is refused with \"already used on a different site … TXT record verification is "
+              "required\", step 2 is not in place yet (or has not propagated).\n\n"
+              "Setting primary rewrites the temporary address in content itself, including JSON-escaped links in blocks: on "
+              "2026-10-16 the search-replace below then changed only `wp_users.user_url`. Run it anyway, by blog ID: until "
+              "DNS points here, commands addressed by domain can fail with `host_not_found`.\n\n"
+              "```bash\nteam51 wpcom:run-site-wp-cli-command {target_blog_id} \"search-replace '//{target}' '//{domain}' --all-tables-with-prefix --precise --skip-columns=guid --report-changed-only\"\n"
+              "team51 wpcom:run-site-wp-cli-command {target_blog_id} 'cache flush'\n```",
+         verify="`option get home` and `option get siteurl` on the target return `https://{domain}`. No content still holds "
+                "the temporary host, escaped or not: `db search '{target}' --all-tables-with-prefix --stats` finds nothing "
+                "outside `guid`."),
+    dict(id="cut.zone-records", phase="cut", actor="human", title="Recreate the zone's records in WordPress.com DNS now",
+         when=lambda m, on: wpcom_registered(m, on) and pressable_dns(m, on),
+         body="Straight after `cut.domain`: since `cut.domain-move` the name servers already point at WordPress.com, whose zone starts with the "
+              "apex A records and an `atomic-domain` TXT only. Anything else the Pressable zone held, email included, is "
+              "missing until it is added here.\n\n"
+              "From `{dir}/zone-export.txt`, add in this order: MX, then SPF, DKIM and DMARC (TXT), then the other TXT "
+              "records, then CNAMEs and anything else. Leave out the old `atomic-domain-…` TXT. Add `www` as a CNAME to "
+              "`{apex}.` if it is missing: on 2026-10-16 neither zone had one, so `www` did not resolve until it was added. "
+              "(**Import BIND file** in the DNS records menu takes the export in one go, but errors on records that already "
+              "exist.)",
+         verify="```bash\npython3 {scripts}/dns_compare.py {apex} --old ns1.openhostingservice.com --new ns1.wordpress.com --names-from {dir}\n```\n\n"
+                "Pressable no longer answers, so compare against the export: every name in it resolves on "
+                "`ns1.wordpress.com` with the same values, and `dig +short www.{apex} @1.1.1.1` answers."),
+    dict(id="cut.dns", phase="cut", actor="human", title="Point the site records at WordPress.com", when=lambda m, on: not wpcom_registered(m, on),
          body="In the CURRENT DNS host, change only the site's own records (apex and `www`) to the values WordPress.com shows for "
               "the connected domain. Leave name servers and every other record alone; the zone move is a separate, later phase.\n\n"
-              "Rollback is changing these records back.",
+              "Rollback is changing these records back, and adding the domain back to the Pressable site.",
          verify="```bash\ndig +short {domain} @1.1.1.1\ndig +short www.{domain} @8.8.8.8\n```\nreturn the WordPress.com values. "
                 "`curl -sI https://{domain}` shows a valid certificate and a response from the new site."),
+    dict(id="cut.hosting-check", phase="cut", actor="agent", title="Confirm both addresses are served by WordPress.com", when=None,
+         body="Check the apex AND `www`: other WP Cloud hosts often map `www` as an alias, so it can stay on Pressable while "
+              "the apex has moved.\n\n"
+              "```bash\nfor h in {apex} www.{apex}; do echo \"== $h\"; dig +short $h @1.1.1.1; curl -sL https://$h/.well-known/hosting-provider; echo; curl -sI https://$h | head -3; done\n```\n\n"
+              "DARC shows the same under **Hosting provider**. A local resolver may still hold an old or negative answer "
+              "for a while; 1.1.1.1 is the reference.",
+         verify="Both report WordPress.com as the hosting provider, the apex answers 200 with a valid certificate, and `www` "
+                "redirects to the apex."),
     dict(id="cut.jetpack-host", phase="cut", actor="agent", title="Confirm the new site reports the production domain through Jetpack", when=None,
          body=UNTESTED +
-              "Order matters. The Jetpack connection monitor forgives a blog ID change only if the new site already reports "
-              "the production domain when the old connection disappears. Otherwise the old blog ID becomes an `@here` "
-              "\"Production site removed\" alert.\n\n"
+              "The Jetpack connection monitor forgives a blog ID change only if the new site already reports the production "
+              "domain when the old one stops. Check it now, straight after the domain change:\n\n"
               "```bash\ncurl -s 'https://public-api.wordpress.com/rest/v1.1/sites/{target_blog_id}?fields=ID,URL'\n```\n\n"
-              "Until this shows the production domain, do NOT disconnect Jetpack on the Pressable site, remove its domain or "
-              "delete it. The old site stays connected and frozen; it is only removed in the decommission phase.",
+              "The old Pressable site keeps its Jetpack connection, now at its `.mystagingwebsite.com` address. Do not "
+              "disconnect it or delete the site; it is removed in the decommission phase.",
          verify="`URL` is `https://{domain}`. If it still shows the temporary address after ten minutes, check the Jetpack "
                 "connection on the new site before going further."),
-    dict(id="cut.unquarantine", phase="cut", actor="agent", title="Remove the quarantine from the new site", when=None,
-         body="Only once DNS resolves to the new site and the checks above pass. The quarantine never lifts by itself: until "
-              "this file is removed the live site sends no email, runs no scheduled jobs and takes no payments.\n\n"
-              "```bash\n{scripts}/mu_plugin.sh remove wpcom {domain} t51-migration-quarantine.php\n```",
-         verify="Status reports the file absent. Scheduled jobs run; a test email arrives."),
+    dict(id="cut.unquarantine", phase="cut", actor="agent", title="Remove the quarantine from the new site and clear its cache", when=None,
+         body="Only once both addresses are served by WordPress.com and the checks above pass. The quarantine never lifts by "
+              "itself: until this file is removed the live site sends no email, runs no scheduled jobs and takes no "
+              "payments.\n\n"
+              "```bash\n{scripts}/mu_plugin.sh remove wpcom {target_blog_id} t51-migration-quarantine.php\n```\n\n"
+              "Then clear the site's cache from its WordPress.com hosting settings. On 2026-10-16 the edge cache kept serving "
+              "the home page with the quarantine's `noindex, nofollow` after the file was gone.",
+         verify="Status reports the file absent. Scheduled jobs run; a test email arrives. A fresh request shows no "
+                "quarantine `noindex`: `curl -s https://{domain}/ | grep -i 'noindex'` prints nothing (unless the site sets it "
+                "on purpose)."),
     dict(id="cut.leave-frozen", phase="cut", actor="human", title="Leave the old site frozen", when=None,
          body="Do NOT remove the freeze from the Pressable site. Visitors whose DNS has not updated still reach it; frozen, they "
               "cannot create data that would be lost.",
@@ -525,12 +677,18 @@ STEPS = [
                 "Pressable ID `{pressable_id}`, target `{domain}`) and port them."),
 
     # ------------------------------------------------------------------- dns
-    dict(id="dns.export", phase="dns", actor="both", title="Export the full zone from Pressable", when=pressable_dns,
-         body="The audit's DNS records are guesses at common names, not the full zone. Get every record from Pressable "
-              "(API: `GET /zones/{{zone_id}}/records`, or the DNS tab of the Pressable dashboard) and save it as "
-              "`{dir}/zone-export.json` or a BIND file. The zone IDs are on the records from `pressable_list_site_domains`.",
+    dict(id="dns.export", phase="ready", actor="human", title="Export the full zone from Pressable", when=pressable_dns,
+         body="The audit's DNS records are guesses at common names, not the full zone. Copy every record by hand from the "
+              "MyPressable DNS editor (the gear icon next to the domain) and save it as a BIND file at `{dir}/zone-export.txt`. "
+              "No tool can fetch the zone yet: the team51 CLI's Pressable access has no zones route, and Pressable's name "
+              "servers refuse zone transfers.\n\n"
+              "Leave out the `atomic-domain-…` TXT record: it verifies the old Pressable site, and WordPress.com adds its own "
+              "for the new one.\n\n"
+              "Do it before the window. For a domain registered at WordPress.com it cannot wait: moving the domain in the "
+              "window switches its name servers at once, and the Pressable zone is no longer reachable (step "
+              "`cut.domain-move`). Check the export again just before the window if anyone has edited the zone.",
          verify="The export contains every name in the audit's DNS findings, plus any DKIM selectors."),
-    dict(id="dns.zone-move", phase="dns", actor="human", title="Recreate the zone in WordPress.com DNS and switch name servers", when=pressable_dns,
+    dict(id="dns.zone-move", phase="dns", actor="human", title="Recreate the zone in WordPress.com DNS and switch name servers", when=zone_moves_later,
          body=UNTESTED +
               "1. In the WordPress.com dashboard, Domains → the domain → DNS records → menu → **Import BIND file**. It imports A, "
               "AAAA, CNAME, MX, SRV, TXT and NS, and errors on conflicts with existing records.\n"

@@ -118,7 +118,16 @@ stopped.
   local `jetpack_options['id']` keeps the source's blog ID after the copy; that
   is expected and not fixed by reconnecting, which could register the new site
   under the source's ID. Check connection health in the Jetpack debug tool and
-  raise anything wrong in `#reprint`.
+  raise anything wrong in `#reprint`. **Restore User Connection** in the debug
+  tool is not a reconnect and is used: for the connection owner after the copy,
+  and to connect a domain owner's account (`verify.domain-owner`).
+- **The domain leaves Pressable in the window.** Pressable and WordPress.com
+  are both WP Cloud hosts, so the domain is removed from the Pressable site and
+  its `atomic-domain` TXT records replaced before it can be primary on
+  WordPress.com. A domain registered at WordPress.com switches name servers the
+  moment it is moved to the new site, so its zone is exported beforehand.
+- **The copy brings the freeze file with it.** It no longer acts on
+  WordPress.com, but `post-sync.sh` removes it from the new site first.
 - **The Assistant saying "complete" is not proof.** After the copy, check
   Blog RC (step `sync.cleanup`) and re-queue the cleanup if it is still in
   progress.

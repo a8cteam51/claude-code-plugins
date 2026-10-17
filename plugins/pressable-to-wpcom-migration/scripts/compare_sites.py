@@ -68,6 +68,10 @@ def main():
         # the connection itself is the target's. Check connection health instead; never reconnect to change it.
         notes.append("target's local jetpack_options id is the SOURCE blog ID %s (left by the copy; check connection health in the "
                      "Jetpack debug tool, do not reconnect)" % src["jetpack"]["blog_id"])
+    src_key, dst_key = src["team51"].get("atlantis_key"), dst["team51"].get("atlantis_key")
+    if src_key and src_key != dst_key:
+        problems.append("Atlantis encryption key differs (source %s, target %s): the copied Atlantis messages cannot be "
+                        "decrypted; see step platform.atlantis-key" % (src_key, dst_key or "none"))
     if dst["team51"].get("safety_net"):
         problems.append("SafetyNet is present on the target: remove it before anything else")
 

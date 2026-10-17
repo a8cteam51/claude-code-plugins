@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Team 51 Migration Freeze
  * Description: Makes the live site read-only for the final sync of a migration. Runtime filters only: nothing is written to the database, so deleting this file lifts the freeze.
- * Version: 0.1.0
+ * Version: 0.2.0
  *
  * Installed on the migration SOURCE (the Pressable site) at the start of the
  * cutover window. It stays in place after cutover so visitors whose DNS has
@@ -21,10 +21,18 @@
  * path only, never on the query string. A payment callback named by query
  * (`?wc-api=...`) is the one exception, and only while draining.
  *
- * STATUS: draft, not yet proven on a real migration.
+ * The copy carries this file to the new WordPress.com site with the other
+ * mu-plugins. There it refused XML-RPC (breaking the Jetpack connection check),
+ * paused cron and showed the banner (2026-10-16), so it only acts on Pressable.
+ *
+ * STATUS: used on one real migration (2026-10-16).
  */
 
 defined( 'ABSPATH' ) || exit;
+
+if ( ! ( defined( 'IS_PRESSABLE' ) && IS_PRESSABLE ) ) {
+	return;
+}
 
 if ( ! defined( 'T51_FREEZE_MODE_DEFAULT' ) ) {
 	define( 'T51_FREEZE_MODE_DEFAULT', '__T51_FREEZE_MODE__' );

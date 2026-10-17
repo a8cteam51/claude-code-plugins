@@ -74,7 +74,7 @@ def main():
     decisions = {}
     for key, value in state["decisions"].items():  # "a.b" keys become nested for the checks.
         node = decisions
-        parts = key.split(".", 1) if key.startswith("registrar_access.") else [key]
+        parts = key.split(".", 1) if key.startswith(("registrar_access.", "domain_owner.")) else [key]
         if len(parts) == 2:
             node = decisions.setdefault(parts[0], {})
             node[parts[1]] = value.get("value") if isinstance(value, dict) else value
