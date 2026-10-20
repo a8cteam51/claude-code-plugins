@@ -17,9 +17,11 @@
  *   __PARENT_PATH__   path of the page this one sits under (about, or about/team), or empty
  *   __TEMPLATE__      page template slug, or "default"
  *   __CONTENT_FILE__  basename of the block-markup file in this same directory
+ *   __EXCERPT_FILE__  basename of a file in this same directory holding the excerpt, or
+ *                     empty to leave the stored excerpt as it is
  *
- * The title travels in a file because it is free text: substituting it into this
- * source corrupts a title holding a character the substitution treats specially.
+ * The title and the excerpt travel in files because they are free text: substituting
+ * them into this source corrupts text holding a character the substitution treats specially.
  */
 
 $title_file    = __DIR__ . '/__TITLE_FILE__';
@@ -27,6 +29,7 @@ $slug          = '__PAGE_SLUG__';
 $parent_path   = '__PARENT_PATH__';
 $template      = '__TEMPLATE__';
 $content_file  = __DIR__ . '/__CONTENT_FILE__';
+$excerpt_name  = '__EXCERPT_FILE__';
 
 if ( ! is_readable( $content_file ) ) {
 	echo 'H2BT_FAIL: content file not readable: ' . $content_file . "\n";
@@ -45,6 +48,16 @@ if ( false === $title || '' === trim( $title ) ) {
 	exit;
 }
 $title = trim( $title );
+
+$excerpt = null;
+if ( '' !== $excerpt_name ) {
+	$excerpt = is_readable( __DIR__ . '/' . $excerpt_name ) ? file_get_contents( __DIR__ . '/' . $excerpt_name ) : false;
+	if ( false === $excerpt ) {
+		echo 'H2BT_FAIL: excerpt file not readable: ' . __DIR__ . '/' . $excerpt_name . "\n";
+		exit;
+	}
+	$excerpt = trim( $excerpt );
+}
 
 $parent_id = 0;
 if ( '' !== $parent_path ) {
@@ -106,8 +119,24 @@ $postarr = array(
 	'post_parent'  => $parent_id,
 	'post_content' => wp_slash( $content ),
 );
+if ( null !== $excerpt ) {
+	$postarr['post_excerpt'] = wp_slash( $excerpt );
+}
 
+// WP-CLI runs with no current user, so a page written here would be stored with no author.
 $created = ! $existing instanceof WP_Post;
+$admins  = get_users(
+	array(
+		'role'    => 'administrator',
+		'number'  => 1,
+		'orderby' => 'ID',
+		'fields'  => 'ID',
+	)
+);
+if ( $admins && ( $created || 0 === (int) $existing->post_author ) ) {
+	$postarr['post_author'] = (int) $admins[0];
+}
+
 if ( $created ) {
 	$post_id = wp_insert_post( $postarr, true );
 } else {
@@ -155,6 +184,11 @@ if ( $stored_title !== $title ) {
 $stored_template = (string) get_post_meta( $post_id, '_wp_page_template', true );
 if ( $stored_template !== ( 'default' === $template ? '' : $template ) ) {
 	echo 'H2BT_FAIL: page ' . $post_id . ' was written, but its stored template is "' . $stored_template . '", not "' . $template . "\".\n";
+	exit;
+}
+
+if ( null !== $excerpt && get_post_field( 'post_excerpt', $post_id, 'raw' ) !== $excerpt ) {
+	echo 'H2BT_FAIL: page ' . $post_id . " was written, but its stored excerpt differs from the requested one.\n";
 	exit;
 }
 
