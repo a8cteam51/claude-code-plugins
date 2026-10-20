@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.8.2] - 2026-10-20
+
+From a run that built a WooCommerce store with WooCommerce Subscriptions as a block theme in a project-template repository, on WordPress 7.1.3 with WooCommerce 11.2.1, Subscriptions 9.3.0 and Jetpack 16.3.1. Facts the builders reported were checked again afterwards, on that site, by render probe, the block validator or in source; where a check refuted part of one, the guide says what held. Not checked:
+- whether the block add-to-cart submits a chosen Subscriptions plan for a simple product;
+- the mini-cart's price format;
+- any of it in Safari or Firefox.
+
+### Changed
+- **A store's pages are checked before the report describes them.** WooCommerce's checkout template uses its own cut-down header and no footer, while its cart and order-confirmation templates use the theme's parts. The run left the store pages to WooCommerce, never loaded the checkout with a filled cart, and its report said every store page carried the theme's header and footer. Phase 4 now loads each page left to a plugin's template, in the state that fills it, at desktop and phone width (`SKILL.md`). A new section, `mapping-guide.md` § WooCommerce, gives the theme's `page-checkout.html` and covers:
+  - Subscriptions' plan options, which `woocommerce/add-to-cart-with-options` does not print for a product with variations, and the four filters that make the classic form's options one list;
+  - a product collection's own grid layout, and the one inner block without interactivity support that turns client-side navigation off for the page;
+  - product images, lazy in the first row;
+  - a cover with `useFeaturedImage` as a product tile;
+  - `woocommerce_price_trim_zeros`, which the block cart and checkout do not apply;
+  - `get_page_by_path()`, which also finds attachments.
+- **WooCommerce's coming-soon mode is switched off in the foundation.** A new install (9.3 and later) turns it on for the store pages, and the harness requests pages logged out (`SKILL.md` Phase 2, step 7).
+- **`core/button`'s width is not written into the markup.** The guide said the width prints on the wrapper with `has-custom-width`; it does, but from the render. The saved HTML carries neither, and a hand-written class is moved into `className` by the validator, which then fails the class audit. Also stated: a phone-only width prints without the class, and core's `max-width: none` on custom-width buttons (`mapping-guide.md` § Buttons). The `button-fixed-width` probe's pass example no longer writes them.
+- **Registered icons are drawn with fills only.** `WP_Icons_Registry` drops stroke attributes, `g` and `clipPath`, so a stroked glyph rendered as blobs or nothing; outline it first (`mapping-guide.md` § Icons).
+- **Images in the header count towards the lazy-loading threshold on every page.** Product tiles in a closed mega-menu panel made a post's featured image lazy. The guide gives the filter that makes them lazy outright, and why it must hang on a block inside the panel: `pre_render_block` does not fire for blocks `core/navigation` renders itself (`mapping-guide.md` § Images).
+- **Template mode:** the root layout rules go in a partial the editor stylesheet loads too, because `style-editor.scss` loads only `base`; the block stylesheets are enqueued by their full built path, which is what the audit looks for; and a script module outside a block is hand-written, because `wp-scripts` builds modules only from `block.json` (`project-template-guide.md`).
+- **The harness:** change pages by loading a new harness URL, since setting a pane's `src` from a script stops the relay; load it from the WordPress origin to compare a filled cart; and a builder cannot answer the extension's permission prompt, so the user grants it while the blueprint is open (`SKILL.md` Phase 1, step 7; `visual-refinement.md`).
+- **Leaving a Site Editor tab that a plugin block made dirty** without the "Leave site?" dialog, which stops the extension (`visual-refinement.md` § The editor canvas).
+- Smaller facts: `core/tabs` prints every panel `hidden` until its script runs; `core/breadcrumbs`' separator is overridden with a `nav.` prefix; a Jetpack form in a part needs `formTitle`; a PHP file just saved can still run as it was (opcache); the staged-file cleanup is a `find`, because in zsh a glob that matches nothing stops the command.
+
+### Added
+- **`group-designs.py --exclude <folder>`** skips a design's build sources. A handoff whose pages a build script assembles from `src/` and `parts/` fragments was grouped as 20 views, 11 of them fragments. A folder that does not exist fails the script.
+- **`write-page.sh --excerpt <file>`** stores the page's excerpt, for a template that prints it as a subtitle, and reads it back before the sentinel. Without it the stored excerpt is left as it is.
+
+### Fixed
+- **`write-page.sh` wrote pages with no author:** WP-CLI runs with no user. A page it creates, or one stored with no author, now gets the site's first administrator. Tried on the eval site with a new page, a rewrite, a page whose author was cleared, and an empty excerpt.
+
 ## [0.8.1] - 2026-10-14
 
 From a run that rebuilt a site made with a page builder (Elementor) as a block theme, on WordPress 7.1.3 with Gutenberg 24.1. Each script defect below was reproduced on 0.8.0 and tried again after its fix:

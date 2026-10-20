@@ -389,7 +389,7 @@
   pass_example: |
     <!-- wp:buttons -->
     <div class="wp-block-buttons"><!-- wp:button {"backgroundColor":"primary","textColor":"base","style":{"dimensions":{"width":"240px"}}} -->
-    <div class="wp-block-button has-custom-width" style="width:240px"><a class="wp-block-button__link has-base-color has-primary-background-color has-text-color has-background wp-element-button" href="/start">Start</a></div>
+    <div class="wp-block-button"><a class="wp-block-button__link has-base-color has-primary-background-color has-text-color has-background wp-element-button" href="/start">Start</a></div>
     <!-- /wp:button --></div>
     <!-- /wp:buttons -->
   fail_example: |
