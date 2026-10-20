@@ -60,7 +60,6 @@ These will silently corrupt output if missed. They come from Studio, not from Wo
 3. **`studio wp eval-file -` (a script on standard input) can silently no-op** on the sandboxed runtime — exit 0, no output, database unchanged. Always pass a real file path and have the PHP echo a sentinel line the caller greps for. Trust nothing without the sentinel.
 4. **Build files serially — all of them, not just page-content writes.** Concurrent `wp_update_post`/`wp_insert_post` under SQLite trips Yoast indexable errors and corrupts results, and every builder also mutates shared theme files (`functions.php`, `theme.json`, block CSS) and refines against the same live site — a parallel builder would screenshot another's half-applied changes. So template-only files are serial too. One `section-builder` at a time — and "no file writes for a while" is **not** a completion signal (builders go quiet for long stretches during browser refinement); wait for the agent's completion notification before dispatching the next.
 5. **`studio wp` output is not a clean value.** Under a newer PHP the `studio` CLI can print PHP deprecation notices on standard output, so `$(studio wp … --field=…)` captures a notice. Read values with an `eval-file` script that prints one sentinel line. And the Studio MCP's WP-CLI tool is not a drop-in for `studio wp`: it can run a different PHP version from the site's, below which a plugin with a PHP floor loads nothing, with no error.
-6. **A PHP file just saved can still run as it was.** PHP's opcache revalidates a changed file on a timer, so the first request after an edit may run the old code. Request the page twice before concluding that a filter or a render change does nothing.
 
 ## Tooling
 
@@ -104,7 +103,7 @@ Check these before any work, in this order. Steps 1 to 6 only read, so that noth
     - **Template mode.** The theme is the repository's (the sentinel's `theme_dir`). On a new run, a working tree with uncommitted changes, or one whose theme no longer holds the template's example content (the sentinel's `examples` lists none of `footer-default-pattern`, `index-query-pattern` and `singular-template`), holds work that is not this run's: say what the run would replace, and ask before going on.
     - **Either way,** list what is stored in the database for that theme: `wp_template`, `wp_template_part` and `wp_global_styles` posts made in the Site Editor win over the theme's files, so with one in place an edit to the file shows nothing. Name any in the blueprint summary and ask whether to remove them. An empty `wp_global_styles` post is not one of them: loading an editor stores it, and it overrides nothing.
     - Record `theme` in `run.json`, and bind its `dir` as `<theme-dir>`.
-11. **Working directory, and prior lessons.** Create `<site-path>/.h2bt/` with `analysis/`, `pages/` and `results/` in it, and remove the loose staged files of a prior aborted run (`content-*`, `title-*`, `excerpt-*`, `write-*`, `probe-*`) with `find <site-path>/.h2bt -maxdepth 1 -type f -name '<prefix>*' -delete`, one `-name` per prefix: in zsh a glob that matches nothing stops the whole command. Keep everything else there: the records a run leaves and every directory. Read `lessons.md` if present: it holds lessons recorded by previous runs against this site and environment, and they apply to this run.
+11. **Working directory, and prior lessons.** Create `<site-path>/.h2bt/` with `analysis/`, `pages/` and `results/` in it, and remove the loose staged files of a prior aborted run (`content-*`, `title-*`, `write-*`, `probe-*`). Keep everything else there: the records a run leaves and every directory. Read `lessons.md` if present: it holds lessons recorded by previous runs against this site and environment, and they apply to this run.
 
 ### Start or resume
 
@@ -137,8 +136,6 @@ This is also where a turn starts after the conversation has been summarised: the
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/group-designs.py" --dir "<design-dir>" --out "<site-path>/.h2bt/analysis/groups.json"
    ```
 
-   A design whose pages are assembled by a build script keeps its fragments in folders of their own (`src/` and `parts/` beside a `build.js`, say). Pass each such folder with `--exclude <its path in the design directory>`, or every fragment is grouped as a view.
-
    For each file it gives a `name`, unique in the set and used for that view's report, page source and result; its `template` group; and its `role`: `representative`, `same` (same template, same sections, stylesheets and `<style>` blocks as its representative) or `differs` (with `differs_by`). It also lists every stylesheet with the number of files that use it (`stylesheets`), and the CSS that pages carry in `<style>` blocks (`inline_styles`). The groups are a proposal made from markup alone: look at one `same` file beside its representative before relying on it.
 
 3. Read the design's tokens once. Dispatch one **`blueprint-analyzer`** with `mode: tokens`, the design directory, the path of `groups.json` and the report path `<site-path>/.h2bt/analysis/tokens.json`, and for a mirror of a live site that it is one. It reads the stylesheets, and the `<style>` blocks where a design keeps its CSS in the pages, and reports colours, type, spacing, widths, font faces and every breakpoint.
@@ -169,7 +166,7 @@ This is also where a turn starts after the conversation has been summarised: the
    - Write and remove a file in `<theme-dir>` and in `<site-path>/.h2bt/`.
    - Run `render-probe.sh` on one line of markup: it stages a file in the site and runs `studio wp eval-file`.
    - Call the validator on one block.
-   - Open the harness with a design file and the site's front page, and run `h2bt.ready()`: it must report `status: 200` for both panes. If the extension asks before it runs the script, have the user grant it `localhost` and `127.0.0.1` for good: a builder cannot answer that prompt, and its script calls then time out while navigation and screenshots still work.
+   - Open the harness with a design file and the site's front page, and run `h2bt.ready()`: it must report `status: 200` for both panes.
    - Open `<site-url>/wp-admin/` in Chrome. If it asks to log in, ask the user to open WP Admin from Studio once. Do not type the site's password into the browser yourself.
    - In template mode, run `npm run build` once.
 
@@ -226,7 +223,6 @@ Build what every view shares, before any view. Load `${CLAUDE_PLUGIN_ROOT}/skill
 
 5. Route assets per `mapping-guide.md` § Asset routing: fonts → `theme.json` `fontFamilies` with files copied into `assets/fonts/`; design images → the media library, with Safe SVG installed first when any of them is an SVG (`studio wp plugin install safe-svg --activate --path=<site-path>`), imported with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/import-media.sh" --site-path <site-path> --list <list.json>`, which must end `H2BT_MEDIA … failed=0` and writes the one manifest every builder takes ids from (`<site-path>/.h2bt/media.json`); only the images a template, part or stylesheet itself needs → theme `assets/`.
 6. **Write the dynamic pieces a view needs before its builder starts, and test them through a rendered template** (`custom-blocks-guide.md` § Test groundwork): bindings sources, render filters, sample content for a post type.
-7. **A store's pages must answer a logged-out request.** A new WooCommerce install (9.3 and later) switches coming-soon mode on for the store pages. A logged-in administrator still sees the store, but the harness requests pages logged out, so it would compare the original with the coming-soon page. Switch it off (`studio wp option update woocommerce_coming_soon no --path=<site-path>`) and record that under `changed`.
 
 Whatever this phase changes on the site and leaves goes under `changed` in `run.json` (a plugin installed, the PHP version), and whatever it makes and must remove goes under `temporary` (a throwaway site, a mu-plugin shim), at the moment it is made.
 
@@ -288,7 +284,6 @@ While a builder runs, do only work that touches neither the theme, the database 
 Set `phase` to `verify` in `run.json`.
 
 1. Full-page comparison per view in the harness: a sweep of the run's widths for document height, sideways overflow and text; then a look at each page top to bottom at desktop and phone width. Read the `loading` attribute of the largest image on each view's first screen (`standards.md`).
-   - **Pages the blueprint leaves to a plugin's own templates are views too:** WooCommerce's cart, checkout, account and order confirmation, say. Load each at desktop and phone width, in the state that fills it (a product in the cart), and check that it carries the theme's header and footer, before the report says anything about it. A plugin's template need not use the theme's parts (`mapping-guide.md` § WooCommerce).
 2. Block-validity summary across all views, and one check in the editor itself (`visual-refinement.md` § The editor canvas): open a page per template in the block editor and confirm it loads with no invalid block, that every section is there and none is collapsed or unstyled, that the content's root is constrained, that its full-width sections span the canvas, and that a block at the root with no alignment is as wide as the content column. Each builder has looked at its own view there; this pass sees what changed since. Read, do not edit: type nothing and insert nothing, so that the editor has nothing to save or to warn about when the tab closes. What an unaligned block gets can be measured without inserting one: append a plain element to the canvas's root container, measure it and remove it in the same call.
 3. Standards audit:
 

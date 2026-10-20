@@ -10,7 +10,7 @@
 # non-zero.
 #
 #   write-page.sh --site-path <site> --title <title> --slug <slug> [--parent <page-path>] \
-#                 [--template <template-slug|default>] [--excerpt <text-file>] --content <markup-file>
+#                 [--template <template-slug|default>] --content <markup-file>
 #
 # On success the PHP sentinel line is printed and the staged files are removed:
 #   H2BT_OK id=<id> slug=<slug> parent=<id|0> template=<template> bytes=<n> php=<version>
@@ -23,10 +23,6 @@
 # --parent puts the page under another page, named by its path (about, or about/team): a
 # site whose addresses are nested keeps them. The parent has to exist, so write it first.
 #
-# --excerpt stores the file's text as the page's excerpt, for a template that prints it (a
-# subtitle). Without it the stored excerpt is left as it is. A page this script creates gets
-# the site's first administrator as its author: WP-CLI runs with no user.
-#
 set -euo pipefail
 
 # From bash 5.2 an `&` in the replacement of ${var//pattern/replacement} stands for the
@@ -38,13 +34,12 @@ usage() {
 	cat <<'EOF'
 Usage:
   write-page.sh --site-path <site> --title <title> --slug <slug> [--parent <page-path>] \
-                [--template <template-slug|default>] [--excerpt <text-file>] --content <markup-file>
+                [--template <template-slug|default>] --content <markup-file>
 
 Upserts a WordPress page whose post_content is the block markup in <markup-file>,
 assigned to <template-slug> (or the default page template). <template-slug> is the slug
 of a template of the active theme, such as page-home, not a file path. --parent names the
-page this one sits under, by its path (about, or about/team); it must exist. --excerpt
-stores a text file as the page's excerpt; without it the excerpt is left alone. Prints the H2BT_OK
+page this one sits under, by its path (about, or about/team); it must exist. Prints the H2BT_OK
 sentinel on success; exits non-zero on any failure. Trust the exit code — it is
 derived from the sentinel, not from `studio wp`'s own exit status.
 EOF
@@ -59,7 +54,6 @@ slug=""
 template="default"
 content=""
 parent=""
-excerpt=""
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -69,7 +63,6 @@ while [[ $# -gt 0 ]]; do
 		--template) need_value "$@"; template="$2"; shift 2 ;;
 		--content) need_value "$@"; content="$2"; shift 2 ;;
 		--parent) need_value "$@"; parent="$2"; shift 2 ;;
-		--excerpt) need_value "$@"; excerpt="$2"; shift 2 ;;
 		-h|--help) usage; exit 0 ;;
 		*) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
 	esac
@@ -78,7 +71,6 @@ done
 [[ -n "$site_path" && -n "$title" && -n "$slug" && -n "$content" ]] || { usage >&2; exit 2; }
 [[ -d "$site_path" ]] || { echo "Site path not found: $site_path" >&2; exit 1; }
 [[ -r "$content" && -s "$content" ]] || { echo "Content file missing or empty: $content" >&2; exit 1; }
-[[ -z "$excerpt" || -r "$excerpt" ]] || { echo "Excerpt file not readable: $excerpt" >&2; exit 1; }
 [[ "$slug" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]] || { echo "Slug must be lowercase kebab-case: $slug" >&2; exit 2; }
 [[ "$template" =~ ^[A-Za-z0-9_-]+$ ]] || { echo "Template must be a template slug (page-home, not templates/page-home.html) or \"default\": $template" >&2; exit 2; }
 [[ "$title" != *$'\n'* ]] || { echo "Title must be a single line" >&2; exit 2; }
@@ -101,12 +93,7 @@ stage_key="$slug"
 content_basename="content-${stage_key}.html"
 title_basename="title-${stage_key}.txt"
 script_basename="write-${stage_key}.php"
-excerpt_basename=""
 cp "$content" "$stage_dir/$content_basename"
-if [[ -n "$excerpt" ]]; then
-	excerpt_basename="excerpt-${stage_key}.txt"
-	cp "$excerpt" "$stage_dir/$excerpt_basename"
-fi
 
 # The title is free text, so it travels in its own file and is never substituted into PHP.
 printf '%s' "$title" > "$stage_dir/$title_basename"
@@ -118,7 +105,6 @@ tmpl_body="${tmpl_body//__PAGE_SLUG__/$slug}"
 tmpl_body="${tmpl_body//__PARENT_PATH__/$parent}"
 tmpl_body="${tmpl_body//__TEMPLATE__/$template}"
 tmpl_body="${tmpl_body//__CONTENT_FILE__/$content_basename}"
-tmpl_body="${tmpl_body//__EXCERPT_FILE__/$excerpt_basename}"
 printf '%s\n' "$tmpl_body" > "$stage_dir/$script_basename"
 
 out="$(cd "$site_path" && studio wp eval-file ".h2bt/$script_basename" --path="$site_path" 2>&1)" || true
@@ -129,7 +115,6 @@ sentinel="$(grep -E '^H2BT_(OK|FAIL)' <<<"$out" | tail -1 || true)"
 if [[ "$sentinel" == H2BT_OK* ]]; then
 	printf '%s\n' "$sentinel"
 	rm -f "$stage_dir/$content_basename" "$stage_dir/$title_basename" "$stage_dir/$script_basename"
-	[[ -z "$excerpt_basename" ]] || rm -f "$stage_dir/$excerpt_basename"
 	exit 0
 fi
 

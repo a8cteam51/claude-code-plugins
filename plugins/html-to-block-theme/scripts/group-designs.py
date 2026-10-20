@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Group the HTML files of a design directory before they are analysed.
 
-    group-designs.py --dir <design-dir> [--out <groups.json>] [--exclude <folder>]...
+    group-designs.py --dir <design-dir> [--out <groups.json>]
 
 Analysing every file on its own reads the same stylesheets once per file and gives twenty
 analyses to twenty posts of one template. This script reads only what tells files apart:
@@ -24,9 +24,7 @@ The groups are a proposal, made from markup alone. What sits inside a post-conte
 container is content and is not compared. The orchestrator decides what to merge.
 
 Directories whose name starts with _h2bt or a dot are skipped: a mirror keeps its reading
-aids and script-free copies there. --exclude skips a folder more, named by its path in the
-design directory (src, or design/parts): a design whose pages are assembled by a build
-script keeps its fragments in one, and a fragment is not a view.
+aids and script-free copies there.
 
 Last line: H2BT_GROUPS files=<n> stylesheets=<n> inline_styles=<n> templates=<n> analyse=<n> out=<path|->
 analyse is the number of files that are not "same": the analyses the set needs.
@@ -160,23 +158,15 @@ def main():
     parser = argparse.ArgumentParser(description='Group the HTML files of a design directory before analysis.')
     parser.add_argument('--dir', required=True)
     parser.add_argument('--out')
-    parser.add_argument('--exclude', action='append', default=[], help='a folder to skip, by its path in the design directory; repeatable')
     args = parser.parse_args()
 
     root = os.path.realpath(args.dir)
     if not os.path.isdir(root):
         sys.exit('Directory not found: %s' % args.dir)
 
-    excluded = {os.path.normpath(os.path.join(root, folder.strip('/'))) for folder in args.exclude}
-    for folder in sorted(excluded):
-        if not os.path.isdir(folder):
-            sys.exit('--exclude names no folder in the design directory: %s' % os.path.relpath(folder, root))
     paths = []
     for folder, folders, names in os.walk(root):
-        folders[:] = sorted(
-            name for name in folders
-            if not name.startswith(('_h2bt', '.')) and name != 'node_modules' and os.path.join(folder, name) not in excluded
-        )
+        folders[:] = sorted(name for name in folders if not name.startswith(('_h2bt', '.')) and name != 'node_modules')
         for name in sorted(names):
             if name.lower().endswith(('.html', '.htm')):
                 paths.append(os.path.join(folder, name))

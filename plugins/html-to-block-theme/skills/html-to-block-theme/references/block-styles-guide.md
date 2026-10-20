@@ -179,7 +179,6 @@ These are stated where the block is mapped; a stylesheet has to honour them:
 - A link colour set on a block removes the theme's link hover inside it, and a background colour on one button removes the theme's button hover (§ Links, headings and lists; § Buttons).
 - `core/query-pagination` is styled on the block itself, never on a wrapper (§ Query loops, archives and pagination).
 - A list inside a query loop is a nested list, with a different default marker (same section).
-- `core/breadcrumbs` draws its separator as `.wp-block-breadcrumbs li:not(:last-child)::after` (margin `0 0.5em`, opacity `.7`, 7.1.3). The same selector in the theme only ties with core's, so stylesheet order decides: write `nav.wp-block-breadcrumbs li:not(:last-child)::after`. The separator character is the `--separator` property the block prints inline.
 
 ## Discipline
 
