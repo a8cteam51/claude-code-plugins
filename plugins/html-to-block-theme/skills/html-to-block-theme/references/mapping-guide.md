@@ -202,6 +202,7 @@ WordPress applies a default 24px flow gap wherever `blockGap` is unset; at page 
 - **Decoration:** the image block has `isDecorative`, which prints `role="none"` and an empty alternative text.
 - **A linked image that is inline sits on a text line.** When the original's `<a>` around an image is inline or inline-block inside a plain block, a few pixels of descender space hang under the image. `core/image`'s figure does not reproduce that, so a rebuilt stack of such images is shorter by that space per image, and in the original the space disappears wherever the wrapper becomes a flex container. Decide per case whether it is a defect to fix or rhythm to keep as explicit spacing, and record it.
 - **Lazy loading is counted per page.** WordPress lazy-loads every content image after the third (`wp_omit_loading_attr_threshold` defaults to 3). Small icons, badges and images inside closed hover cards count, so the largest image of a first screen can come out `loading="lazy"`. It is not visible in a comparison; it costs loading time. Check and report it (`standards.md`).
+- **Images in the header count on every page,** closed menu panels included: three product tiles in a mega-menu panel made a single post's featured image lazy. Make such images lazy outright, which takes them out of the count: from `pre_render_block` on a block inside the panel, until its `render_block` filter, answer `pre_wp_get_loading_optimization_attributes` with `array( 'loading' => 'lazy' )` for `img`. Key it on a block that renders its inner blocks the usual way (a product collection, a group): `pre_render_block` does not fire for the blocks `core/navigation` renders itself. Checked on WordPress 7.1.3: the featured image went from `loading="lazy"` to `fetchpriority="high"`.
 - **Generated sizes can be heavier than the source.** The resized copies WordPress makes from an optimised PNG can be larger than the original. After importing design images, compare the generated sizes with the source, and note whether production serves images through a CDN that re-encodes them, in which case it does not matter.
 - **Emoji become images** where the browser fails WordPress's newest-emoji test. Any content image rule (radius, display, margins) must exclude `img.emoji`.
 
@@ -224,14 +225,16 @@ Checked on WordPress 7.1.3.
   ```
 
   The block then names it `"icon":"<theme-slug>/<name>"`. The `core` collection is reserved for WordPress's own.
+- **A registered glyph is drawn with fills only.** The registry keeps `svg`, `path` and `polygon`, and on a path only `d`, `fill`, `fill-rule` and `transform` (`WP_Icons_Registry::sanitize_icon_content()`, 7.1.3); stroke attributes, `g` and `clipPath` are dropped, and the block's stylesheet fills every path. A glyph drawn with strokes then renders as filled blobs or not at all. Convert its strokes to outlines before registering it: with skia-pathops, `Path.stroke( width, cap, join )`, then `convertConicsToQuads()` and `simplify()`, at the stroke width the design draws.
 - **Give a registered SVG a square viewBox.** `core/icon` draws an icon at its viewBox's ratio, and an icon font's glyph box is square whatever the glyph, so with a tight viewBox a row of icons loses its level.
 - **A glyph from an icon font** is copied out of the font as a path in a square viewBox the size of the font's em box, so it sits in the box the font gave it. It keeps the font's licence: credit it in the README, and say which licence the theme then carries.
 - **An icon inside a button or a link** is still painted by the button's registered style (`block-styles-guide.md` § Icons in buttons): `core/icon` is a block of its own, not part of another block.
 
 ## Buttons
 
-- **Width.** `core/button` has no minimum width. On WordPress 7.1 its width is `style.dimensions.width` with any CSS length or dimension preset, not only the four percentages. It prints on the wrapper with `has-custom-width`, and a viewport state can override it. A fixed-width button, or a minimum the label never reaches, therefore needs no CSS. Only a minimum that the label can outgrow is a rule in a registered button style.
-- **A fixed-width button gives way to a narrower column** only if its buttons block is as wide as the column. In a centred vertical group the buttons block shrink-wraps and overflows: set the group's justification to stretch and centre each buttons block.
+- **Width.** `core/button` has no minimum width. On WordPress 7.1 its width is `style.dimensions.width` with any CSS length or dimension preset, not only the four percentages, and a viewport state can override it. A fixed-width button, or a minimum the label never reaches, therefore needs no CSS. Only a minimum that the label can outgrow is a rule in a registered button style.
+- **The width is not saved in the markup.** The block's saved HTML carries neither `has-custom-width` nor the width: the render adds both to the wrapper from the attribute. Do not write either by hand: the validator moves a hand-written `has-custom-width` into `className`, which the class audit then fails. A width set only in `style["@mobile"]` prints as a viewport state, without the class; the link still fills the wrapper. Checked on 7.1.3.
+- **A fixed-width button gives way to a narrower column** only if its buttons block is as wide as the column. In a centred vertical group the buttons block shrink-wraps and overflows: set the group's justification to stretch and centre each buttons block. Core also sets `max-width: none` on a custom-width button (`.wp-block-buttons > .wp-block-button.has-custom-width`, 0,3,0), so in a vertical buttons block a width wider than the column overflows, and a theme cap needs that specificity. In a horizontal buttons block the button shrinks to fit.
 - **Icons.** `core/button` has no icon, and the `core/html` policy rejects an SVG inside a link. Paint a decorative icon in a button label from the button's registered style (`block-styles-guide.md` § Icons in buttons).
 - **Hover.** A background colour on one button silences the theme's hover background, whether it is an inline style or an `!important` preset class. A button with its own colour needs its own `:hover` state.
 - **Accessible names.** `core/button` has no `aria-label` attribute. A link whose accessible name differs from its visible text (one that adds "opens in a new tab", say) cannot be carried over as it is. The choices are the visible label as the name, the `title` attribute, or a render filter. Ask at blueprint time.
@@ -281,7 +284,43 @@ When the design includes a contact or newsletter form and Jetpack is available, 
 - On local Studio sites the `contact-form` module works offline; the `subscriptions` module cannot activate without a WordPress.com connection — do not map newsletter signups to subscription blocks locally.
 - Field blocks are **composed** (Jetpack Forms 16.x): a self-closing `<!-- wp:jetpack/field-email /-->` fails validation. The required shape is the field's wrapping `<div>` + `wp:jetpack/label` + `wp:jetpack/input` inner blocks.
 - Any non-default `is-style-*` on `jetpack/contact-form` suppresses field labels (16.0.1) — apply `"className":"is-style-default is-style-<custom>"` together.
+- **A form in a template part takes the page's title as its accessible name** unless `formTitle` is set: set it to what the form is. Read in Jetpack Forms 16.3.1.
 - **The submit button is a `core/button`** with `"tagName":"button"` and `"type":"submit"`, inside the form, as the editor writes it. The form prints a button of its own, labelled "Submit", whenever its rendered content holds neither a `wp-block-button` nor a `wp-block-jetpack-button` class. A button block that validates and renders nothing is therefore replaced without a word: compare the button's label with the design's after the write. Read in Jetpack Forms 16.1.2.
+
+## WooCommerce
+
+Checked with WooCommerce 11.2.1 and WooCommerce Subscriptions 9.3.0 on WordPress 7.1.3.
+
+- **WooCommerce's checkout template does not use the theme's header or footer.** Its `page-checkout` template puts WooCommerce's own `checkout-header` part at the top (the site title and a cart link) and has no footer; its cart and order-confirmation templates use the theme's `header` and `footer`. A store theme carries `templates/page-checkout.html`, WooCommerce's checkout body between the theme's parts:
+
+  ```html
+  <!-- wp:template-part {"slug":"header","tagName":"header"} /-->
+
+  <!-- wp:woocommerce/page-content-wrapper {"page":"checkout"} -->
+  <!-- wp:group {"metadata":{"name":"Main"},"tagName":"main","layout":{"type":"constrained"}} -->
+  <main class="wp-block-group"><!-- wp:woocommerce/store-notices /-->
+
+  <!-- wp:post-content {"align":"wide"} /--></main>
+  <!-- /wp:group -->
+  <!-- /wp:woocommerce/page-content-wrapper -->
+
+  <!-- wp:template-part {"slug":"footer","tagName":"footer"} /-->
+  ```
+
+  A design that shows a cut-down checkout header gets a part of the theme's for it.
+- **Subscriptions' plan options need the classic add-to-cart form on a product with variations.** In `woocommerce/add-to-cart-with-options` Subscriptions prints no plan options for such a product: they travel in each variation's price HTML, which only the classic variation script swaps in. `woocommerce/add-to-cart-form` prints them. Its default layout puts a one-time/subscribe choice with neither radio checked above the plans; four filters give one list:
+  - `wcsatt_subscription_options_layout` returning `'flat'`;
+  - `wcsatt_single_product_options` to order the options;
+  - `wcsatt_get_default_subscription_scheme_id` to preselect a plan;
+  - `wcsatt_single_product_one_time_option_has_price` to show the one-time price.
+
+  For a simple product the block form prints the options; whether its add-to-cart submits the chosen plan was not checked.
+- **A product collection lays itself out.** `woocommerce/product-collection` takes a grid layout of its own, with per-viewport `columnCount` and `blockGap`, so a card grid that changes its columns at a breakpoint needs no CSS.
+- **One block without interactivity support in a product collection turns client-side navigation off for the whole page** (`ProductCollection\Controller::is_block_compatible()`): a block counts when its `block.json` has `supports.interactivity` set to `true`, or `clientNavigation: true`. Check each block type you put in a collection; filters and pagination then reload the page instead.
+- **Product images are lazy, the first row included.** `woocommerce/product-image` prints `loading="lazy"` unless `woocommerce_product_image_loading_attr` returns `eager` or `auto` (WooCommerce 10.6 and later). A shop's first screen is then lazy whatever WordPress's threshold says: report it (`standards.md`).
+- **A product image tile with text over it needs no custom block.** Inside `woocommerce/product-template`, a `core/cover` with `useFeaturedImage` renders each product's own featured image as its background.
+- **`woocommerce_price_trim_zeros` reaches only prices WooCommerce formats in PHP.** The block cart and checkout format prices in the browser, so a product card's "$90" is "$90.00" there.
+- **Sample products are looked up by post type.** `get_page_by_path( $slug, OBJECT, 'product' )` also searches attachments (core adds them when the post type is a string), and a product named like its image ("Lavender Oil", `lavender-oil.png`) resolves to the image. Pass `array( 'product' )`, or use `get_posts( array( 'post_type' => 'product', 'name' => $slug ) )`.
 
 ## File classification: template vs part vs page
 
@@ -354,7 +393,7 @@ Static JS in the design (sliders, accordions, mobile menus, scroll effects) has 
 - **Core block already does it** → use the core block; drop the bespoke JS.
   - A mobile menu is `core/navigation`.
   - An accordion is `core/accordion` (with `core/accordion-item`, `core/accordion-heading` and `core/accordion-panel`; its `autoclose` attribute closes the other items) or a run of `core/details` blocks. Native `<details name="group">` (same `name` on siblings) gives one-open-at-a-time groups with zero JS — also usable inside a block's `render.php`. Choose by which markup is closer to the design's.
-  - Tabs are `core/tabs`, which holds a `core/tab-list` and a `core/tab-panels` with one `core/tab-panel` per tab.
+  - Tabs are `core/tabs`, which holds a `core/tab-list` and a `core/tab-panels` with one `core/tab-panel` per tab. Every panel, the first included, is printed `hidden` until the block's script runs (7.1.3): without JavaScript no tab shows its content. Content that must be readable without scripts is not only in tabs.
   - The accordion and tabs blocks are in WordPress 7.1. On an older core, check that the block exists before planning on it (§ Read the installed core, then probe).
 - **Needs custom behaviour** → follow `custom-blocks-guide.md`. Try the Interactivity API on an existing block, a variation or a filter first; then a block reused from the blocks monorepo; and only then a new block built in the monorepo. This is the home the user wants for "functionality beyond core."
 - **Purely decorative scroll/animation** → reproduce with CSS where cheap; otherwise drop it and note it in the report. Do not enqueue the original JS file wholesale.

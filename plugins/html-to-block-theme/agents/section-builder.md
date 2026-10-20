@@ -62,9 +62,9 @@ Read `block-styles-guide.md` or `custom-blocks-guide.md`, in the same directory,
      ```bash
      bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-page.sh" \
        --site-path <site-path> --title "<title>" --slug <slug> [--parent <parent-page-path>] \
-       --template <template-slug-or-default> --content <site-path>/.h2bt/pages/<name>.html
+       --template <template-slug-or-default> [--excerpt <text-file>] --content <site-path>/.h2bt/pages/<name>.html
      ```
-     A page whose address is nested (`/about/team/`) takes `--parent about`; the parent page has to exist first.
+     A page whose address is nested (`/about/team/`) takes `--parent about`; the parent page has to exist first. A page whose template prints the excerpt (a subtitle) takes `--excerpt` with a file holding it; without the flag the stored excerpt is left as it is.
      It stages the markup and the title inside the site dir, fills the `write-page-content.php.tmpl` placeholders, runs it through `studio wp eval-file`, reads the stored title, slug, template and content back, and derives its exit code from the `H2BT_OK` sentinel. `--template` takes a template's slug (`page-home`), not a file path. A non-zero exit is a hard failure, and its `H2BT_FAIL` line says what to change: a slug held by a media item, a template the theme does not have, a slug WordPress would not store. Do not fall back to `post update --post_content=$(<file)` (ARG_MAX) or `eval-file -` (silent no-op).
    - **Images** → take each attachment's id and URL from the media manifest and write the image block as the editor does (`id`, the URL, the `wp-image-<id>` class). An image missing from the manifest is reported, not pointed at a theme file.
    - **Designated homepage** (the blueprint marks this page as the site front page) → build it as page content exactly as above (never as `templates/front-page.html`), then point WordPress at it after the sentinel-verified write:

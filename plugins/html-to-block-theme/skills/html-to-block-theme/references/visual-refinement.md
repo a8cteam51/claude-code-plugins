@@ -25,6 +25,7 @@ Open one tab on the harness:
 ```
 
 - `a` is the design file's path on the design server, as it is in the design directory (`about.html`, `about/index.html`), and `b` is the WordPress page's full address on the site's `localhost` URL. A path is read from the server's root, with or without a leading slash.
+- **To change pages, load a new harness URL.** Setting a pane's `src` from a script stops the relay answering.
 
 - `a` and `b` sit side by side as panes 0 and 1, at the same width. `&strip=<n>` shows each page as n consecutive screenfuls, so one capture covers a whole page. `&scale=<n>` sets the stage scale; `&y=<px>` the starting scroll.
 - Drive it with `javascript_tool` through `window.h2bt`:
@@ -47,6 +48,7 @@ What the harness cannot show:
 
 - An iframe does not emulate touch or `hover: none`.
 - The extension's hover does not reach a cross-origin pane. To test `:hover` on the WordPress page, load the harness from the WordPress origin (`<site-url>/_h2bt/viewport.html?a=<wordpress-path>&b=<original-url>`), so that page is the same-origin pane.
+- A state kept in a cookie, such as a filled WooCommerce cart, when the harness comes from the design server: the WordPress pane is then a cross-site frame, and its session cookie is not stored. Load the harness from the WordPress origin, as for hover.
 - A tab that reports `visibilityState: hidden` stalls scroll timelines, smooth scrolling and transitions, loads no lazy image, sends no resize event, and moves no focus on a key press. After five minutes hidden it also runs timers once a minute. `prepare()` and `resize()` work around the first four, and the harness's own waits run on a message channel, which is not throttled; a wait you write in a pane does the same, or it stalls. A screenshot forces a frame.
 - **A `click()` or `focus()` run in a pane does not make `:focus` match,** and a real click sent to a pane of an unfocused tab can close a dialog that watches `focusout`. A state that depends on focus or on a pointer sequence is checked in a page of its own (§ JS-driven sections).
 
@@ -55,7 +57,8 @@ What the harness cannot show:
 1. Call `tabs_context_mcp` once before any other browser tool — it returns the tab group and valid tab ids. Never reuse tab ids from an earlier session.
 2. Create **one tab** for the harness with `tabs_create_mcp` and `navigate` it to the harness URL. Open a second tab on a page directly only when something needs real interaction with it.
 3. Run `await h2bt.ready()` and `await h2bt.prepare()` before the first measurement, and `prepare()` again after any reload.
-4. This drives the user's **real Chrome** — tabs are visible on their screen, and the extension needs site permission for `127.0.0.1`/`localhost`. Close the tabs with `tabs_close_mcp` when the view's refinement is done; don't leave strays behind.
+4. **A builder cannot answer a permission prompt.** When the extension asks before running a script and nobody answers, `javascript_tool` times out while `navigate` and screenshots still work. Where the Chrome DevTools MCP is installed, it can load the same harness (`new_page`, then `evaluate_script` for `h2bt.*`), sink included. Its browser is not logged in to WordPress, so the editor canvas still needs the extension.
+5. This drives the user's **real Chrome** — tabs are visible on their screen, and the extension needs site permission for `127.0.0.1`/`localhost`. Close the tabs with `tabs_close_mcp` when the view's refinement is done; don't leave strays behind.
 
 ## The two URLs
 
@@ -151,6 +154,7 @@ Each of these can require a markup change, so they belong before the last valida
 A person edits the build in the block editor, so each view is looked at there once, after its final validation. The canvas need not match the front end. It must not look broken.
 
 - **Open it and read, do not edit.** A page opens at `<site-url>/wp-admin/post.php?post=<id>&action=edit`; a template or a part opens in the Site Editor. Type nothing and insert nothing, so that the editor has nothing to save or to warn about when the tab closes. The canvas is a frame on the same origin, so its document can be measured from the editor's tab.
+- **A part that holds a plugin block can open with unsaved changes** (a Jetpack form adds its default attributes when it loads). Leaving the tab then raises the browser's "Leave site?" dialog, which stops the extension. Discard the edit first, `wp.data.dispatch( 'core' ).clearEntityRecordEdits( 'postType', 'wp_template_part', '<theme>//<slug>' )`, or run `window.addEventListener( 'beforeunload', ( e ) => e.stopImmediatePropagation(), true )` in the tab before navigating away. Neither saves anything.
 - **What to check:** the editor reports no invalid block, every section of the view is there and visible, and nothing is collapsed to no height, laid over its neighbour or unstyled.
 - **Where to look when a section is right on the front end and broken here:**
   - a rule that hangs on something only the front end has: `.wp-site-blocks`, the template around a page's content, a class a view script adds;
