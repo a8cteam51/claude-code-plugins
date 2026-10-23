@@ -24,6 +24,7 @@ Add the marketplace once, then install whichever plugins you need:
 | [ai-canvas](#ai-canvas) | Design a WordPress page locally as a full-width Custom HTML block, then move it to the site through your logged-in Chrome with no connection setup | Natural language |
 | [site-launch-comparison](#site-launch-comparison) | Screenshot two versions of a site and build a side-by-side before/after report | Natural language |
 | [vip-plugin-updates](#vip-plugin-updates) | Turn a folder of plugin zips into one PR per plugin against a VIP repo that vendors its plugins | Natural language |
+| [fresh-eyes-review](#fresh-eyes-review) | Re-check a change Claude just made for missed bugs and regressions, then fix them | Natural language |
 
 ## plugin-review
 
@@ -444,6 +445,32 @@ Turn a folder of downloaded plugin zips into **one pull request per plugin** aga
 
 # After merging and testing the staging site:
 # > Staging looks good — run the production pass.
+```
+
+## fresh-eyes-review
+
+Re-examine a change Claude **just made in this session** and fix what the first pass missed. The stance is to distrust recent work: the bugs that survive are the ones Claude was confident about, so the skill re-derives from the real diff and the real APIs instead of re-confirming from memory. Distinct from a first-pass review of unfamiliar code.
+
+**What's included:**
+
+- **fresh-eyes-review skill** - Natural-language trigger for phrases like "recheck with fresh eyes", "double-check this", "did we miss anything" or "sanity-check the change", typically after implementing a change or opening a PR
+
+**What it does:**
+
+- Re-reads the actual diff rather than its memory of what it wrote
+- Greps every caller of a function, hook, constant or return shape whose contract changed, including callers outside the edited file
+- Checks guessed identifiers, field names, paths and config keys against the real schema, API response or file, and flags anything it could not verify
+- Proves a change is additive rather than assuming it, by asking whether inputs that used to work still behave the same
+- Re-checks gates and allowlists for fail-closed behaviour, over-broad grants and smuggled writes
+- Confirms logging, caching and other side effects fire on the right path the right number of times, and that tests cover the risky cases
+- Applies the fixes, re-runs tests and linters, and reports found-and-fixed, needs-your-decision and checked-clean separately, without inventing issues to look thorough
+
+```bash
+# Install fresh-eyes-review
+/plugin install fresh-eyes-review@a8cteam51-claude-code-plugins
+
+# Then, after Claude has made a change:
+# > Recheck that with fresh eyes — anything we missed?
 ```
 
 ## License
