@@ -79,9 +79,8 @@ S="$PLUGIN_DIR/scripts"
 ```
 
 Needed on this machine: the `team51` CLI, `gh` (authenticated), `dig`, `whois`,
-`python3`, `php`, and the Spacefast CLI signed in to the Team 51 team
-(`npx -y spacefast@0.5.0 login`, valid 30 days; `space.py` uses `sf` if it is
-installed and `npx` otherwise). The team51 CLI reads credentials from 1Password; if a command
+`python3`, `php`, and Node (`space.py` runs the Spacefast CLI through `npx`
+when `sf` is not installed). The team51 CLI reads credentials from 1Password; if a command
 hangs or reports a 1Password prompt error, run
 `op vault list --account a8cteam51.1password.com` and ask the user to approve.
 
@@ -102,7 +101,15 @@ named file. Run independent steps in parallel where you can.
 
 Every migration has an entry in the Team 51 migrations space
 (`https://t51-pressable-migrations.space.fast/`), so check it before anything
-else:
+else.
+
+**Spacefast sign-in.** Before the first space command, run
+`python3 "$S/space.py" login`. Exit 0: already signed in. Exit 10: it printed a
+link and a code; give both to the user, ask them to open the link, check the
+code matches and approve, then run `python3 "$S/space.py" login --wait`, which
+returns 0 once they have (4 if not within 10 minutes; start again). Exit 2:
+the account is not in the Team 51 team, or the CLI failed; tell the user. A
+sign-in lasts 30 days, so this is usually exit 0.
 
 ```bash
 python3 "$S/space.py" check <domain>
@@ -114,8 +121,9 @@ python3 "$S/space.py" check <domain>
   continue without a yes; someone else may be part way through. On a yes, and
   if `$D/state.json` does not exist here, fetch the recorded progress first so
   the re-audit keeps it: `python3 "$S/space.py" pull <domain> --dir "$D"`.
-- **Exit 2, an error:** usually the Spacefast login (`sf login`). Tell the
-  user, and carry on only if they agree to audit without the check.
+- **Exit 2, an error:** if it is a sign-in error, sign in as above and check
+  again. Otherwise tell the user, and carry on only if they agree to audit
+  without the check.
 
 ### 1. Resolve the site → `pressable.json`
 

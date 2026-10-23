@@ -71,6 +71,10 @@
   `migration-status` skill answers status questions from the space.
   `build_audit.py` now stores step titles, phases, the verdict and counts in
   `state.json`.
+- `space.py login`: the skills sign in to Spacefast themselves. It starts the
+  CLI's device login in the background and prints the approval link for the
+  agent to pass on; `login --wait` returns once it is approved. No command to
+  run before starting the agent.
 - `pages/process.html`: the migration process as one page (every step, who
   does it, the branches the audit decides), published to the space's
   `/process/` with `space.py publish-process`.

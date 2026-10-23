@@ -23,7 +23,15 @@ If `$D/RUNBOOK.md` does not exist, stop and run the `migration-audit` skill.
 If the audit is more than a few days old, or the site is about to be cut over,
 re-run it first: sites change.
 
-Then check the Team 51 migrations space, which is the shared record:
+Then check the Team 51 migrations space, which is the shared record.
+
+**Spacefast sign-in.** Before the first space command, run
+`python3 "$S/space.py" login`. Exit 0: already signed in. Exit 10: it printed a
+link and a code; give both to the user, ask them to open the link, check the
+code matches and approve, then run `python3 "$S/space.py" login --wait`, which
+returns 0 once they have (4 if not within 10 minutes; start again). Exit 2:
+the account is not in the Team 51 team, or the CLI failed; tell the user. A
+sign-in lasts 30 days, so this is usually exit 0.
 
 ```bash
 python3 "$S/space.py" check <domain>

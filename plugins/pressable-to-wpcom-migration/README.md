@@ -63,8 +63,10 @@ the raw audit data, database diffs and notes stay in the local folder.
 - `team51` CLI, authenticated through 1Password
 - `gh`, authenticated, with access to `a8cteam51`
 - `dig`, `whois`, `python3` (3.8+), `php`
-- The Spacefast CLI, signed in to the Team 51 team:
-  `npx -y spacefast@0.5.0 login` (an approval in the browser; lasts 30 days)
+- Node, for the Spacefast CLI (run through `npx`). Nothing to set up first:
+  when a skill needs Spacefast and you are not signed in, it gives you a link
+  to approve in the browser. The sign-in lasts 30 days and needs a WordPress.com
+  account in the Team 51 Spacefast team.
 - For the front-end check: Node 20+, Google Chrome, and
   `npm ci --prefix scripts/frontend` once (installs `playwright-core`,
   `pixelmatch` and `pngjs`; no browser download)

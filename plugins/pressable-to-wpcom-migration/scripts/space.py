@@ -6,6 +6,7 @@
     space.py pull <domain> --dir DIR copy the site's state.json (progress, decisions, target) to DIR
     space.py publish --dir DIR [--event "text"] [--no-rebuild]
     space.py publish-process         publish pages/process.html as /process/
+    space.py login [--wait]          sign in to Spacefast if needed (see cmd_login)
 
 The space holds, per site, `migrations/<domain>/index.html` (the audit report and runbook, REPORT.html) and
 `migrations/<domain>/status.json`, and `migrations/<domain>/state.json` so someone else can pick the migration
@@ -13,7 +14,8 @@ up with `pull`; at the root, `migrations.json` (one line per site) and `index.ht
 it). A publish sends only this site's files and the root pair, in additive mode, so other sites' pages
 are never touched. Each publish is a Spacefast version, which is the revision history.
 
-Needs `sf login` (the Spacefast CLI; `npx -y spacefast@0.5.0` is used when `sf` is not installed).
+Needs a Spacefast sign-in, which `space.py login` starts (the Spacefast CLI; `npx -y spacefast@0.5.0` is used
+when `sf` is not installed).
 The space, team and live URL can be overridden with SPACEFAST_MIGRATIONS_SPACE, SPACEFAST_MIGRATIONS_TEAM
 and SPACEFAST_MIGRATIONS_URL (for a test space).
 Not `sites/`: the CLI takes a top-level `sites/` folder for build output and publishes only its contents.
@@ -63,7 +65,7 @@ def sf(args, check=True):
         out = {}
     if check and p.returncode != 0:
         err = out.get("error") or {}
-        hint = " Run `sf login`." if err.get("code") in ("auth_required", "unauthorized") else ""
+        hint = " Sign in with `space.py login`." if err.get("code") in ("auth_required", "unauthorized") else ""
         raise SpaceError("sf %s failed: %s%s" % (args[0], err.get("message") or p.stderr.strip()[-300:], hint))
     return p.returncode, out
 
@@ -80,6 +82,60 @@ def fetch_json(path):
             raise SpaceError("could not read %s from the space: %s" % (path, err))
         with open(dest) as fh:
             return json.load(fh)
+
+
+LOGIN_LOG = os.path.join(tempfile.gettempdir(), "t51-spacefast-login.log")
+
+
+def signed_in():
+    """(name, team slugs) for the current Spacefast credential, or None."""
+    code, out = sf(["whoami"], check=False)
+    data = out.get("data") or {}
+    if code != 0 or not data.get("account"):
+        return None
+    return data["account"].get("name") or "unknown", [t.get("slug") for t in data.get("teams") or []]
+
+
+def cmd_login(wait, timeout):
+    """Sign in without the person running anything.
+
+    `sf login` prints a link and code, then waits for the person to approve in a browser. An agent cannot relay
+    the link while the command is still running, so this starts it in the background, prints the link once it
+    appears, and exits 10. The agent gives the person the link, then runs `login --wait`, which returns 0 once
+    the approval lands. Exit 0 straight away when already signed in.
+    """
+    who = signed_in()
+    if who and not wait:
+        print("signed in to Spacefast as %s (teams: %s)" % (who[0], ", ".join(who[1])))
+        if TEAM not in who[1]:
+            print("this account is not in the %s team: ask a team admin to add you" % TEAM)
+            return 2
+        return 0
+    if wait:
+        deadline = datetime.datetime.now() + datetime.timedelta(seconds=timeout)
+        while datetime.datetime.now() < deadline:
+            who = signed_in()
+            if who:
+                print("signed in to Spacefast as %s (teams: %s)" % (who[0], ", ".join(who[1])))
+                return 0 if TEAM in who[1] else 2
+            subprocess.run(["sleep", "5"])
+        print("not approved within %d seconds. Run `space.py login` again for a fresh code." % timeout)
+        return 4
+    log = open(LOGIN_LOG, "w")
+    subprocess.Popen(sf_cmd() + ["login"], stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+    deadline = datetime.datetime.now() + datetime.timedelta(seconds=120)  # the first npx run installs the CLI
+    while datetime.datetime.now() < deadline:
+        with open(LOGIN_LOG) as fh:
+            text = fh.read()
+        link = next((ln.split(":", 1)[1].strip() for ln in text.splitlines() if ln.startswith("Link:")), None)
+        code = next((ln.split(":", 1)[1].strip() for ln in text.splitlines() if ln.startswith("Code:")), None)
+        if link:
+            print("Spacefast sign-in needed. Open this link, check the code is %s, and approve:\n%s" % (code, link))
+            print("The code lasts 30 minutes. Then run: space.py login --wait")
+            return 10
+        subprocess.run(["sleep", "1"])
+    print("sf login did not print a link; its output is in %s" % LOGIN_LOG)
+    return 2
 
 
 def whoami():
@@ -357,6 +413,9 @@ def main():
     c.add_argument("domain")
     c.add_argument("--json", action="store_true", help="the full status: decisions, recent steps, the log")
     sub.add_parser("list")
+    g = sub.add_parser("login")
+    g.add_argument("--wait", action="store_true", help="wait for the person to approve a sign-in started earlier")
+    g.add_argument("--timeout", type=int, default=600)
     sub.add_parser("publish-process")
     u = sub.add_parser("pull")
     u.add_argument("domain")
@@ -371,6 +430,8 @@ def main():
             return cmd_check(bare(a.domain), a.json)
         if a.command == "list":
             return cmd_list()
+        if a.command == "login":
+            return cmd_login(a.wait, a.timeout)
         if a.command == "publish-process":
             return cmd_publish_process()
         if a.command == "pull":
