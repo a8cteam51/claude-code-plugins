@@ -1,0 +1,465 @@
+<title>Pressable to WordPress.com Migration Process</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* Layout: one reading column; phases are numbered sections; the cutover window (phases 5-7) carries a tinted rail. */
+:root {
+  --bg: #f4f6f7;
+  --surface: #ffffff;
+  --fg: #18212b;
+  --muted: #586473;
+  --line: #d9dfe5;
+  --accent: #0f6b66;
+  --accent-soft: #e3f1ef;
+  --agent: #2f56b8;
+  --agent-soft: #e7edfb;
+  --person: #9a4d0b;
+  --person-soft: #fbeedd;
+  --flag: #8a1f3d;
+  --flag-soft: #f8e6ec;
+  --window: #0f6b66;
+  --code-bg: #eef1f4;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161b; --surface: #182028; --fg: #e4e9ee; --muted: #98a4b2; --line: #2b3540;
+    --accent: #5cc2b6; --accent-soft: #173431; --agent: #8fa9f2; --agent-soft: #1d2741;
+    --person: #e7a462; --person-soft: #3a2816; --flag: #ef8fab; --flag-soft: #3b1c27;
+    --window: #5cc2b6; --code-bg: #212a33; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161b; --surface: #182028; --fg: #e4e9ee; --muted: #98a4b2; --line: #2b3540;
+  --accent: #5cc2b6; --accent-soft: #173431; --agent: #8fa9f2; --agent-soft: #1d2741;
+  --person: #e7a462; --person-soft: #3a2816; --flag: #ef8fab; --flag-soft: #3b1c27;
+  --window: #5cc2b6; --code-bg: #212a33; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--f-body); }
+.wrap { max-width: 900px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 80px; }
+a { color: var(--accent); }
+code { font: 0.86em var(--f-mono); background: var(--code-bg); padding: 0.08em 0.35em; border-radius: 3px; overflow-wrap: anywhere; }
+
+header h1 { font: 600 2.1rem/1.15 var(--f-display); letter-spacing: -0.01em; margin: 0 0 10px; text-wrap: balance; }
+header .lede { color: var(--muted); max-width: 66ch; margin: 0 0 16px; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 18px; font: 0.82rem var(--f-mono); color: var(--muted); margin: 0 0 24px; padding: 0; list-style: none; }
+
+.toolbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-block: 10px; border-bottom: 1px solid var(--line); margin-bottom: 28px; }
+.toolbar button { font: 500 0.82rem var(--f-body); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+.toolbar button:hover { border-color: var(--accent); }
+.toolbar button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.toolbar nav { display: flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }
+.toolbar nav a { font: 500 0.78rem var(--f-mono); text-decoration: none; color: var(--muted); padding: 4px 7px; border-radius: 4px; }
+.toolbar nav a:hover { background: var(--surface); color: var(--fg); }
+.toolbar nav a.win { color: var(--window); }
+
+h2 { font: 600 1.05rem/1.3 var(--f-display); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 12px; }
+.intro { display: grid; gap: 22px; margin-bottom: 40px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; min-width: 0; }
+.panel p { margin: 0 0 8px; max-width: 70ch; }
+.legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px 22px; }
+.legend div { display: flex; gap: 10px; align-items: baseline; font-size: 0.9rem; }
+
+.chip { display: inline-block; font: 600 0.68rem/1 var(--f-body); letter-spacing: 0.05em; text-transform: uppercase; padding: 4px 6px; border-radius: 4px; white-space: nowrap; }
+.chip.agent { color: var(--agent); background: var(--agent-soft); }
+.chip.person { color: var(--person); background: var(--person-soft); }
+.chip.both { color: var(--fg); background: linear-gradient(90deg, var(--agent-soft) 50%, var(--person-soft) 50%); }
+.chip.flag { color: var(--flag); background: var(--flag-soft); }
+.chip.gate { color: var(--surface); background: var(--accent); }
+.if { font: 0.8rem var(--f-body); color: var(--accent); }
+.if::before { content: "If "; font-weight: 600; }
+
+.branches { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.tablebox { overflow-x: auto; }
+.branches th, .branches td { text-align: left; vertical-align: top; padding: 8px 10px; border-top: 1px solid var(--line); }
+.branches th { font: 600 0.72rem var(--f-body); text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); border-top: 0; }
+.branches td:first-child { font-weight: 500; min-width: 180px; }
+
+.rules { margin: 0; padding-left: 1.1em; }
+.rules li { margin-bottom: 6px; max-width: 72ch; }
+
+.phase { position: relative; margin-bottom: 36px; }
+.phase-head { display: flex; gap: 14px; align-items: baseline; margin-bottom: 4px; }
+.phase-num { font: 600 1.5rem/1 var(--f-display); color: var(--accent); font-variant-numeric: tabular-nums; min-width: 1.6em; }
+.phase-head h3 { font: 600 1.35rem/1.2 var(--f-display); margin: 0; text-wrap: balance; }
+.phase-sub { color: var(--muted); margin: 0 0 12px calc(1.6em * 1.5 + 14px); font-size: 0.92rem; max-width: 66ch; }
+.window-band { border-left: 3px solid var(--window); padding-left: 16px; margin-left: -19px; }
+.window-label { font: 600 0.72rem var(--f-body); text-transform: uppercase; letter-spacing: 0.08em; color: var(--window); margin: 0 0 14px -19px; padding-left: 16px; border-left: 3px solid var(--window); }
+
+.steps { display: grid; gap: 6px; }
+details.step { background: var(--surface); border: 1px solid var(--line); border-radius: 7px; }
+details.step[open] { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+details.step > summary { list-style: none; cursor: pointer; padding: 10px 14px 10px 34px; position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; }
+details.step > summary::-webkit-details-marker { display: none; }
+details.step > summary::before { content: ""; position: absolute; left: 14px; top: 17px; width: 7px; height: 7px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform 0.15s; }
+details.step[open] > summary::before { transform: rotate(45deg); top: 14px; }
+.s-title { font-weight: 600; min-width: 0; }
+.s-chips { display: flex; gap: 5px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+.s-gist { grid-column: 1 / -1; color: var(--muted); font-size: 0.9rem; min-width: 0; }
+.s-gist .if { margin-right: 6px; }
+.s-id { font: 0.74rem var(--f-mono); color: var(--muted); margin-left: 8px; font-weight: 400; }
+.s-body { padding: 0 16px 14px 34px; font-size: 0.92rem; min-width: 0; }
+.s-body ul, .s-body ol { margin: 0 0 8px; padding-left: 1.15em; }
+.s-body li { margin-bottom: 4px; max-width: 72ch; }
+.s-body p { margin: 0 0 8px; max-width: 72ch; }
+.check { border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 6px; }
+.check b { font: 600 0.72rem var(--f-body); text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin-right: 6px; }
+
+footer { margin-top: 48px; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 16px; }
+
+@media (max-width: 560px) {
+  header h1 { font-size: 1.6rem; }
+  .phase-sub { margin-left: 0; }
+  details.step > summary { grid-template-columns: minmax(0, 1fr); }
+  .s-chips { justify-content: flex-start; }
+  .window-band, .window-label { margin-left: -12px; padding-left: 9px; }
+}
+@media (prefers-reduced-motion: reduce) { details.step > summary::before { transition: none; } }
+</style>
+
+<div class="wrap">
+<header>
+  <h1>Pressable to WordPress.com Migration Process</h1>
+  <p class="lede">Every step we take to move a Team 51-managed site from Pressable to WordPress.com, from the audit to deleting the Pressable site. It describes what happens and who does it, not how. The full commands are in each site's runbook. Steps marked with an <span class="if">condition</span> run only when the audit finds that case.</p>
+  <ul class="meta">
+    <li>Plugin: pressable-to-wpcom-migration 0.1.0 (PR #15)</li>
+    <li>As of 2026-10-17</li>
+    <li>One real migration so far: kwamebrathwaitearchive.org</li>
+  </ul>
+</header>
+
+<div class="toolbar" role="toolbar" aria-label="Document controls">
+  <button type="button" id="expand-all">Expand all</button>
+  <button type="button" id="collapse-all">Collapse all</button>
+  <nav aria-label="Phases">
+    <a href="#p0">0</a><a href="#p1">1</a><a href="#p2">2</a><a href="#p3">3</a><a href="#p4">4</a><a class="win" href="#p5">5</a><a class="win" href="#p6">6</a><a class="win" href="#p7">7</a><a href="#p8">8</a><a href="#p9">9</a><a href="#p10">10</a><a href="#p11">11</a>
+  </nav>
+</div>
+
+<section class="intro">
+  <div class="panel">
+    <h2>Who does what</h2>
+    <div class="legend">
+      <div><span class="chip agent">Agent</span><span>Claude, through the plugin's scripts, the team51 CLI and MCP tools.</span></div>
+      <div><span class="chip person">Person</span><span>The developer running the migration: dashboards, MC tools, DARC, Slack requests.</span></div>
+      <div><span class="chip both">Both</span><span>The agent prepares or checks, a person acts or decides.</span></div>
+      <div><span class="chip flag">Untested</span><span>The runbook still marks the step untested. Some of these were done on the first migration and can lose the mark.</span></div>
+      <div><span class="chip gate">Gate</span><span>Nothing after it happens until it passes.</span></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Branches the audit decides</h2>
+    <div class="tablebox">
+    <table class="branches">
+      <thead><tr><th>Audit finds</th><th>What changes</th></tr></thead>
+      <tbody>
+        <tr><td>Domain registered at WordPress.com</td><td>Owner's account connected to the new site; domain moved in DARC during the window, which switches name servers at once. Zone exported before, rebuilt straight after.</td></tr>
+        <tr><td>Domain registered elsewhere, DNS at Pressable</td><td>Partner's registrar login needed. Site records repointed in the window; the zone moves to WordPress.com DNS after cutover.</td></tr>
+        <tr><td>Domain and DNS at a third party</td><td>Partner's DNS login needed in the window. Only the site records change.</td></tr>
+        <tr><td>WooCommerce store</td><td>Freeze drains first; gateway, webhook and Subscriptions checks after cutover.</td></tr>
+        <tr><td>WooPayments</td><td>Re-link by the WooPayments team, lined up before, done right after cutover. Nobody onboards on the new site.</td></tr>
+        <tr><td>VideoPress content</td><td>Route agreed with the VideoPress team before; videos moved after. Old site kept until done.</td></tr>
+        <tr><td>Jetpack features beyond the plan</td><td>Extra comp or purchase on the new blog ID before cutover.</td></tr>
+        <tr><td>Atlantis encryption key</td><td>The new site gets the source's key before the copy.</td></tr>
+        <tr><td>Deploy state</td><td>Current: connect WordPress.com deploys after cutover. Drifted: reconcile first. None: leave unconnected.</td></tr>
+        <tr><td>Constants, root files, custom code</td><td>Carried over or rewritten on the new site before the window.</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <details class="panel step" style="padding:0">
+    <summary><span class="s-title">Rules that hold throughout</span><span class="s-gist">The decisions every step assumes. Expand to read.</span></summary>
+    <div class="s-body">
+      <ul class="rules">
+        <li><b>Migration only.</b> The site stays Team 51-managed: Atlantis, SSO, monitoring and Team 51 accounts stay. Handing over to the partner is a separate process.</li>
+        <li><b>One copy.</b> The Migration Assistant runs once, in the cutover window, with the source frozen. It cannot be repeated against the same target, and it replaces the target's database.</li>
+        <li><b>The database diff is the go-live gate.</b> Unexplained gaps mean unfreeze the source and stop; the live site has not changed.</li>
+        <li><b>No SafetyNet on production.</b> The quarantine mu-plugin stands in for it on the target. SafetyNet appears only on the staging copy made at the end.</li>
+        <li><b>Never disconnect or reconnect Jetpack</b> on either site. Restore User Connection in the debug tool is fine.</li>
+        <li><b>The old site stays frozen</b> after cutover and is deleted only in decommission.</li>
+        <li><b>Stats and subscribers move on every site.</b> VideoPress, Jetpack plan gaps and WooPayments are flagged work for a person, not holds.</li>
+        <li><b>Secrets stay out of chat, notes and reports.</b> Keys move from site to site without being printed.</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<!-- 0 -->
+<section class="phase" id="p0">
+  <div class="phase-head"><span class="phase-num">0</span><h3>Audit</h3></div>
+  <p class="phase-sub">Read-only. Produces <code>migrations/&lt;domain&gt;/</code> with the report (HTML and Markdown), the findings and the site's runbook.</p>
+  <div class="steps">
+    <details class="step"><summary><span class="s-title">Resolve the Pressable site</span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist">Site ID, datacenter, PHP version, attached domains.</span></summary>
+      <div class="s-body"><p>From the Pressable API through the team51 CLI and MCP.</p></div></details>
+    <details class="step"><summary><span class="s-title">Inventory the site</span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist">Plugins, themes, mu-plugins, constants, Jetpack, WooCommerce, VideoPress, Team 51 tooling, files, cron.</span></summary>
+      <div class="s-body"><ul><li>A read-only PHP script run through <code>wp eval</code>.</li><li>Constants are listed by name only. The Atlantis key is reported as a short fingerprint.</li><li>Also: database size, REST namespaces, files outside <code>wp-content</code>, Pressable host files.</li></ul></div></details>
+    <details class="step"><summary><span class="s-title">Find related sites</span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist">Development and staging clones, and other sites sharing the zone.</span></summary>
+      <div class="s-body"><p>Clones are not migrated; they are deleted at decommission. Sites sharing the zone need their records carried over.</p></div></details>
+    <details class="step"><summary><span class="s-title">Audit DNS and registrar</span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist">Registrar, name servers, mail provider, common records. Decides the DNS branch.</span></summary>
+      <div class="s-body"><ul><li>Uses <code>dig</code> and <code>whois</code>. The record list is a floor: DNS cannot list a zone.</li><li>Classifies the case: registered at WordPress.com or elsewhere, DNS at Pressable or elsewhere, and whether partner access is needed.</li></ul></div></details>
+    <details class="step"><summary><span class="s-title">Check deploy state</span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist">DeployHQ project and servers, last deployed revision, drift between server and repo.</span></summary>
+      <div class="s-body"><p>Decides whether WordPress.com deploys can be connected after cutover, need reconciling first, or stay unconnected.</p></div></details>
+    <details class="step"><summary><span class="s-title">Gather WordPress.com facts</span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist">Subscribers, stats, Jetpack plan and products, existing WordPress.com sites for the partner.</span></summary>
+      <div class="s-body"><p>Blog ID based. These are the numbers checked again after the stats and subscriber moves.</p></div></details>
+    <details class="step"><summary><span class="s-title">Gather context</span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist">Project P2 posts, Slack, Linear: anything already known about this site.</span></summary>
+      <div class="s-body"><p>Recorded in the report with its source.</p></div></details>
+    <details class="step"><summary><span class="s-title">Build the report and runbook</span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist">Findings by severity and owner, a verdict, and the runbook for this site's branches.</span></summary>
+      <div class="s-body"><ul><li>Severities: blocker, decision, manual, handled, info. Each finding names who answers it (developer, TAM, another team).</li><li>Verdict: on hold, ready after decisions, or ready to plan.</li><li>Decisions recorded later are kept across rebuilds.</li></ul></div></details>
+  </div>
+</section>
+
+<!-- 1 -->
+<section class="phase" id="p1">
+  <div class="phase-head"><span class="phase-num">1</span><h3>Decisions and sign-off</h3></div>
+  <div class="steps">
+    <details class="step"><summary><span class="s-title">Clear every blocker<span class="s-id">decide.blockers</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist">Resolve or explicitly accept each blocker before creating the target.</span></summary>
+      <div class="s-body"><div class="check"><b>Check</b>The rebuilt report shows no open blockers.</div></div></details>
+    <details class="step"><summary><span class="s-title">Record the decisions<span class="s-id">decide.decisions</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist">Answer each "needs an answer" item; the answers go into the site's state file.</span></summary>
+      <div class="s-body"><p>Examples: registrar access confirmed, domain owner, WooPayments re-link, VideoPress route, Jetpack gap.</p></div></details>
+    <details class="step"><summary><span class="s-title">Agree the cutover window<span class="s-id">decide.window</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist">Date and length, in quiet hours. The partner agrees to no edits, and on a store no orders, during it.</span></summary>
+      <div class="s-body"><p>The window covers the freeze, the copy, the checks, the database diff and the domain change. Database size sets its length.</p></div></details>
+  </div>
+</section>
+
+<!-- 2 -->
+<section class="phase" id="p2">
+  <div class="phase-head"><span class="phase-num">2</span><h3>Prepare</h3></div>
+  <div class="steps">
+    <details class="step"><summary><span class="s-title">Confirm registrar or DNS access<span class="s-id">prep.dns-access</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist"><span class="if">the partner's registrar or DNS host is needed</span>Who can log in, and that they are available in the window.</span></summary>
+      <div class="s-body"><p>A blocker until confirmed.</p></div></details>
+    <details class="step"><summary><span class="s-title">Identify the domain's owning account<span class="s-id">prep.domain-owner</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist"><span class="if">registered at WordPress.com</span>The account holding the registration, its user ID and email, and whether it sits on a domain-only site.</span></summary>
+      <div class="s-body"><ul><li>DARC moves a domain only to a site its owner is an administrator on; the new site is owned by <code>a8cteam51</code>.</li><li>A domain-only subscription can also hold the site name at creation.</li><li>Alternative: transfer the domain to <code>a8cteam51</code> first.</li></ul></div></details>
+    <details class="step"><summary><span class="s-title">Line up the WooPayments re-link<span class="s-id">prep.woopayments</span></span><span class="s-chips"><span class="chip person">Person</span><span class="chip flag">Untested</span></span><span class="s-gist"><span class="if">WooPayments</span>Request in #woosupport to switch the Stripe account to the new blog ID at cutover.</span></summary>
+      <div class="s-body"><p>The Stripe account and its history survive; the link to the blog ID does not. Nobody onboards on the new site.</p></div></details>
+    <details class="step"><summary><span class="s-title">Line up the VideoPress move<span class="s-id">prep.videopress</span></span><span class="s-chips"><span class="chip person">Person</span><span class="chip flag">Untested</span></span><span class="s-gist"><span class="if">VideoPress content</span>Agree a route with #videopress: move a few videos, or keep the old blog ID serving.</span></summary>
+      <div class="s-body"><p>Videos are bound to the old blog ID and there is no bulk transfer tool.</p></div></details>
+    <details class="step"><summary><span class="s-title">Cover the Jetpack plan gap<span class="s-id">prep.plan</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist"><span class="if">Jetpack features beyond the plan</span>Extra comp or purchase against the new blog ID, in place at cutover.</span></summary>
+      <div class="s-body"><p>A comp on the old blog ID does not follow the site.</p></div></details>
+    <details class="step"><summary><span class="s-title">Clean up flagged plugins<span class="s-id">prep.plugin-cleanup</span></span><span class="s-chips"><span class="chip both">Both</span></span><span class="s-gist"><span class="if">plugins that do not run on WordPress.com</span>Agreed with the partner; the one change to the live site before the freeze.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Create the WordPress.com site<span class="s-id">prep.create-site</span></span><span class="s-chips"><span class="chip both">Both</span><span class="chip flag">Untested</span></span><span class="s-gist"><code>team51 wpcom:create-site</code>, owned by <code>a8cteam51</code>, at a temporary <code>.wpcomstaging.com</code> address.</span></summary>
+      <div class="s-body"><ul><li>Name without dashes. If refused as <code>site_name_refused</code>, add the TLD (a domain-only subscription may hold the name).</li><li>Answer no to connecting a repo, then yes to creating without one.</li><li>Installs Atlantis, which writes its own encryption key into wp-config.</li><li>Never <code>wpcom:clone-site</code> for this: it scrubs the copy.</li></ul><div class="check"><b>Check</b>Temporary URL loads, no repo connected, no SafetyNet.</div></div></details>
+    <details class="step"><summary><span class="s-title">Match the PHP version<span class="s-id">prep.php</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist">Set the target's PHP to the source's minor version.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Quarantine the target<span class="s-id">prep.quarantine</span></span><span class="s-chips"><span class="chip agent">Agent</span><span class="chip flag">Untested</span></span><span class="s-gist">mu-plugin that stops email, scheduled jobs, payments and webhooks on the copy, and sets noindex.</span></summary>
+      <div class="s-body"><p>Runtime only, nothing written to the database. It stays until the domain is live on WordPress.com.</p></div></details>
+  </div>
+</section>
+
+<!-- 3 -->
+<section class="phase" id="p3">
+  <div class="phase-head"><span class="phase-num">3</span><h3>Platform items</h3></div>
+  <p class="phase-sub">Before the window. File changes on the target survive the copy; database changes do not, so they go into a post-sync script.</p>
+  <div class="steps">
+    <details class="step"><summary><span class="s-title">Start the post-sync script<span class="s-id">platform.script</span></span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist"><code>post-sync.sh</code>: database changes to replay once, straight after the copy. First line removes the copied freeze file.</span></summary>
+      <div class="s-body"><div class="check"><b>Check</b>Safe to run twice.</div></div></details>
+    <details class="step"><summary><span class="s-title">Carry over wp-config constants<span class="s-id">platform.constants</span></span><span class="s-chips"><span class="chip both">Both</span><span class="chip flag">Untested</span></span><span class="s-gist"><span class="if">custom constants</span>Carry over, replace or drop each. Bilmur and bot protection are dropped.</span></summary>
+      <div class="s-body"><p>wp-config is not copied. Values are read from the source when needed and never written into the report.</p></div></details>
+    <details class="step"><summary><span class="s-title">Give the new site the source's Atlantis key<span class="s-id">platform.atlantis-key</span></span><span class="s-chips"><span class="chip both">Both</span></span><span class="s-gist"><span class="if">Atlantis key on the source</span>Otherwise copied Atlantis messages decrypt to empty, with no error.</span></summary>
+      <div class="s-body"><ol><li>Agent: <code>config set</code> the source key on the new site, without printing it. This adds a second, plain define.</li><li>Person, over SFTP on the new site: move that value into Atlantis's guarded line and delete the plain one.</li></ol><div class="check"><b>Check</b>Key fingerprints match on both sites.</div></div></details>
+    <details class="step"><summary><span class="s-title">Carry over files outside wp-content<span class="s-id">platform.root-files</span></span><span class="s-chips"><span class="chip both">Both</span><span class="chip flag">Untested</span></span><span class="s-gist"><span class="if">root files such as redirects</span>Recreate their behaviour on the target.</span></summary>
+      <div class="s-body"><p>Only <code>wp-content</code> is copied. Same file if the platform allows, otherwise a mu-plugin or redirect plugin.</p></div></details>
+    <details class="step"><summary><span class="s-title">Review code for Pressable-specific logic<span class="s-id">platform.custom-code</span></span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist"><span class="if">custom mu-plugins or code stored in the database</span>Search for host checks, cache calls and Pressable addresses.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Reconcile server changes into the repo<span class="s-id">platform.deploy-reconcile</span></span><span class="s-chips"><span class="chip both">Both</span></span><span class="s-gist"><span class="if">server files drifted from the repo</span>Bring changes into git through PRs until the drift check is clean.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Leave deploys unconnected<span class="s-id">platform.deploy-skip</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist"><span class="if">no deploy targets production</span>Migrate files as they are; repo properties are set by hand later.</span></summary>
+      <div class="s-body"></div></details>
+  </div>
+</section>
+
+<!-- 4 -->
+<section class="phase" id="p4">
+  <div class="phase-head"><span class="phase-num">4</span><h3>Get ready for cutover</h3></div>
+  <p class="phase-sub">A day or more before the window.</p>
+  <div class="steps">
+    <details class="step"><summary><span class="s-title">Install the Reprint exporter on the source<span class="s-id">sync.source-exporter</span></span><span class="s-chips"><span class="chip both">Both</span></span><span class="s-gist">Plugin on the live site, the Assistant's public key pasted in, push access off. Assistant taken past step 2, not started.</span></summary>
+      <div class="s-body"><p>A change to the live site, so confirmed first. Removed from the new site after cutover.</p></div></details>
+    <details class="step"><summary><span class="s-title">Prepare Team 51 monitoring<span class="s-id">rehearse.opsoasis</span></span><span class="s-chips"><span class="chip person">Person</span><span class="chip flag">Untested</span></span><span class="s-gist">OpsOasis: known-issue row for the old blog ID, Pressable site excluded from PHP fatals scanning.</span></summary>
+      <div class="s-body"><p>Per-blog-ID rows do not follow the site; copy any that should carry on. Tell whoever watches the connection alerts.</p></div></details>
+    <details class="step"><summary><span class="s-title">Lower DNS TTLs<span class="s-id">rehearse.ttl</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist">Apex and <code>www</code> to 300 seconds, at least 24 hours ahead.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Export the Pressable zone<span class="s-id">dns.export</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist"><span class="if">DNS at Pressable</span>Copied by hand from MyPressable into a BIND file. No tool can fetch it.</span></summary>
+      <div class="s-body"><ul><li>Leave out the old <code>atomic-domain</code> TXT.</li><li>For a WordPress.com-registered domain it cannot wait: the DARC move switches name servers at once.</li></ul><div class="check"><b>Check</b>Every name the audit found, and every DKIM selector, is in it.</div></div></details>
+  </div>
+</section>
+
+<!-- 5-7: window -->
+<div class="window-label">Cutover window: one sitting, source frozen</div>
+<div class="window-band">
+<section class="phase" id="p5">
+  <div class="phase-head"><span class="phase-num">5</span><h3>Freeze and copy</h3></div>
+  <div class="steps">
+    <details class="step"><summary><span class="s-title">Go / no-go<span class="s-id">cut.go</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist">No blockers, TTL lowered, exporter ready, zone exported, access and people available, time left for checks.</span></summary>
+      <div class="s-body"><p>Rollback before the domain change is: unfreeze the source and stop.</p></div></details>
+    <details class="step"><summary><span class="s-title">Snapshot the live front end<span class="s-id">cut.frontend-baseline</span></span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist">Headless Chrome, desktop and mobile, on a sample of pages: markup, styles, assets, console, screenshots.</span></summary>
+      <div class="s-body"><p>The baseline for the copy and for the live site after cutover.</p></div></details>
+    <details class="step"><summary><span class="s-title">Freeze the live site<span class="s-id">cut.freeze</span></span><span class="s-chips"><span class="chip agent">Agent</span><span class="chip flag">Untested</span></span><span class="s-gist">mu-plugin on the source: pages browse, writes refused, cron paused. Stores drain first.</span></summary>
+      <div class="s-body"><ul><li>Lets Jetpack and Reprint through so the export works.</li><li>Acts only on Pressable, so the copy of it that lands on the new site does nothing.</li></ul><div class="check"><b>Check</b>Logged out, a comment or checkout is refused. Freeze time recorded.</div></div></details>
+    <details class="step"><summary><span class="s-title">Run the copy, once<span class="s-id">sync.first</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist">Migration Assistant: preflight, then migrate. Cannot be repeated against this target.</span></summary>
+      <div class="s-body"><p>Duration recorded for future window planning.</p></div></details>
+    <details class="step"><summary><span class="s-title">Confirm the cleanup finished<span class="s-id">sync.cleanup</span></span><span class="s-chips"><span class="chip person">Person</span><span class="chip flag">Untested</span></span><span class="s-gist">Blog RC usually still shows "in progress": re-queue the cleanup job, then Complete Migration.</span></summary>
+      <div class="s-body"><ul><li>Stalled on both migrations so far; expect it.</li><li>Check it did not remove the connection owner or <code>a8cteam51</code>.</li></ul></div></details>
+    <details class="step"><summary><span class="s-title">Run the post-sync script<span class="s-id">cut.post-sync</span></span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist">Removes the copied freeze file from the new site, then replays the platform database changes.</span></summary>
+      <div class="s-body"><div class="check"><b>Check</b>Freeze file gone from the new site, quarantine still there.</div></div></details>
+  </div>
+</section>
+
+<section class="phase" id="p6">
+  <div class="phase-head"><span class="phase-num">6</span><h3>Check the copy</h3></div>
+  <p class="phase-sub">On the temporary address, with the source still frozen.</p>
+  <div class="steps">
+    <details class="step"><summary><span class="s-title">Connect the domain owner's account<span class="s-id">verify.domain-owner</span></span><span class="s-chips"><span class="chip both">Both</span></span><span class="s-gist"><span class="if">registered at WordPress.com under another account</span>Local admin with their email, then Restore User Connection for their user ID in the Jetpack debug tool.</span></summary>
+      <div class="s-body"><p>After the copy, because the copy replaces the users table. No invitation and no partner action. Lets DARC offer the new site for the domain.</p></div></details>
+    <details class="step"><summary><span class="s-title">Compare data counts<span class="s-id">verify.parity</span></span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist">Posts, users, orders, options and more, source against target.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Check the Jetpack connection<span class="s-id">verify.jetpack</span></span><span class="s-chips"><span class="chip both">Both</span><span class="chip flag">Untested</span></span><span class="s-gist">Debug tool healthy, owner connected, no <code>out-of-sync-posts</code> sticker.</span></summary>
+      <div class="s-body"><p>The local <code>jetpack_options</code> ID keeps the source's blog ID. That is expected and not fixed by reconnecting.</p></div></details>
+    <details class="step"><summary><span class="s-title">Check Pressable host files did not land<span class="s-id">verify.host-files</span></span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist"><span class="if">Pressable host files on the source</span>Cache plugins and similar are absent on the target.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Compare plugins, theme and versions<span class="s-id">verify.plugins</span></span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist">Against the audit, including the Atlantis key fingerprint. Shows the platform's leftover default plugins.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Crawl and compare responses<span class="s-id">verify.urls</span></span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist">No URL that works on the source fails on the target; redirects match.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Compare the front end<span class="s-id">verify.frontend</span></span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist">Copy against the baseline: missing assets, console errors, layout and style changes.</span></summary>
+      <div class="s-body"><p>Platform substitutions (Gutenberg-served core scripts, Jetpack packages from wpcomsh, analytics) are notes, not issues.</p></div></details>
+    <details class="step"><summary><span class="s-title">Confirm Subscriptions is in staging mode<span class="s-id">verify.subscriptions-staging</span></span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist"><span class="if">WooCommerce Subscriptions</span>So the copy cannot charge renewals.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Smoke-test custom endpoints<span class="s-id">verify.endpoints</span></span><span class="s-chips"><span class="chip both">Both</span></span><span class="s-gist"><span class="if">custom REST namespaces</span>Each answers on the copy.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Look at the copy<span class="s-id">verify.human</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist">Home, inner pages, wp-admin, editor; on a store, product, cart and checkout.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Diff the databases<span class="s-id">verify.db-diff</span></span><span class="s-chips"><span class="chip agent">Agent</span><span class="chip gate">Gate</span><span class="chip flag">Untested</span></span><span class="s-gist">Row-level, every table, read-only. Gaps are rows on the source missing or different on the target.</span></summary>
+      <div class="s-body"><ul><li>Host names treated as equal; platform tables and options set aside.</li><li>Writes the gap rows as SQL for a developer to review.</li><li>About a minute on a small site.</li></ul><div class="check"><b>Check</b>No gaps, or each one resolved or recorded. Otherwise unfreeze and stop.</div></div></details>
+  </div>
+</section>
+
+<section class="phase" id="p7">
+  <div class="phase-head"><span class="phase-num">7</span><h3>Go live</h3></div>
+  <p class="phase-sub">Moving the domain from one WP Cloud host to another. The first three steps run back to back: from the first, the site is down at its domain until the third.</p>
+  <div class="steps">
+    <details class="step"><summary><span class="s-title">Move the domain to the new site in DARC<span class="s-id">cut.domain-move</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist"><span class="if">registered at WordPress.com</span>Move, with the checkbox unchecked. This is the DNS change: name servers switch at once.</span></summary>
+      <div class="s-body"><p>A domain-only site it came from is deleted, as expected. The partner still owns and pays for the domain.</p></div></details>
+    <details class="step"><summary><span class="s-title">Remove the domain from Pressable<span class="s-id">cut.release-pressable</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist">Domain and <code>www</code> alias removed from the Pressable site, so WordPress.com will accept it.</span></summary>
+      <div class="s-body"><ul><li>Pressable then serves the old site at its staging address; it stays frozen.</li><li>For a third-party DNS host where the partner is not ready yet, the TXT route alone keeps Pressable serving until they are.</li></ul></div></details>
+    <details class="step"><summary><span class="s-title">Make the domain primary<span class="s-id">cut.domain</span></span><span class="s-chips"><span class="chip both">Both</span></span><span class="s-gist">Replace the <code>atomic-domain</code> TXT values (apex and <code>www</code>) from Blog RC, then set primary.</span></summary>
+      <div class="s-body"><ul><li>Connect the domain first if it is registered elsewhere.</li><li>The TXT replacement was needed even after removing the domain from Pressable.</li><li><code>www</code> cannot be primary; it redirects.</li><li>Setting primary rewrites the temporary address in content; a search-replace by blog ID confirms it.</li></ul><div class="check"><b>Check</b>Home and site URL are the domain; no content holds the temporary host.</div></div></details>
+    <details class="step"><summary><span class="s-title">Rebuild the zone in WordPress.com DNS<span class="s-id">cut.zone-records</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist"><span class="if">registered at WordPress.com, DNS was at Pressable</span>From the export: mail records first, then the rest. Add a <code>www</code> CNAME if missing.</span></summary>
+      <div class="s-body"><p>The WordPress.com zone starts with the apex A records and a TXT only.</p></div></details>
+    <details class="step"><summary><span class="s-title">Point the site records at WordPress.com<span class="s-id">cut.dns</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist"><span class="if">registered elsewhere</span>Only apex and <code>www</code>, at the current DNS host. Nothing else changes yet.</span></summary>
+      <div class="s-body"><p>Rollback: old values back, domain back on Pressable.</p></div></details>
+    <details class="step"><summary><span class="s-title">Confirm both addresses are on WordPress.com<span class="s-id">cut.hosting-check</span></span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist">Apex and <code>www</code> report WordPress.com as hosting provider; certificate valid; <code>www</code> redirects.</span></summary>
+      <div class="s-body"><p>Other WP Cloud hosts often map <code>www</code> as an alias, so it can lag behind the apex.</p></div></details>
+    <details class="step"><summary><span class="s-title">Confirm Jetpack reports the domain<span class="s-id">cut.jetpack-host</span></span><span class="s-chips"><span class="chip agent">Agent</span><span class="chip flag">Untested</span></span><span class="s-gist">The new blog ID reports the production domain, so the connection monitor does not raise an alert.</span></summary>
+      <div class="s-body"><p>The old site keeps its Jetpack connection at its staging address until decommission.</p></div></details>
+    <details class="step"><summary><span class="s-title">Lift the quarantine and clear the cache<span class="s-id">cut.unquarantine</span></span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist">Email, cron and payments resume. Edge cache cleared so the quarantine's noindex is gone.</span></summary>
+      <div class="s-body"><div class="check"><b>Check</b>A fresh request has no quarantine noindex; a test email arrives.</div></div></details>
+    <details class="step"><summary><span class="s-title">Leave the old site frozen<span class="s-id">cut.leave-frozen</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist">Visitors with stale DNS cannot create data there.</span></summary>
+      <div class="s-body"></div></details>
+  </div>
+</section>
+</div>
+
+<!-- 8 -->
+<section class="phase" id="p8">
+  <div class="phase-head"><span class="phase-num">8</span><h3>After cutover</h3></div>
+  <div class="steps">
+    <details class="step"><summary><span class="s-title">Connect WordPress.com deploys<span class="s-id">post.deploy-connect</span></span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist"><span class="if">the existing deploy is current</span>GitHub Deployments on the same branch, webhook secret in OpsOasis.</span></summary>
+      <div class="s-body"><p>After cutover, so nothing deploys to an empty site or to both hosts. Lets OpsOasis move the repo's blog ID property.</p><div class="check"><b>Check</b>Drift check clean against the deployed revision.</div></div></details>
+    <details class="step"><summary><span class="s-title">Smoke-test the live site<span class="s-id">post.smoke</span></span><span class="s-chips"><span class="chip both">Both</span></span><span class="s-gist">Pages, search, a form, login, editor, media upload.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Restore the Jetpack connection and full sync<span class="s-id">post.jetpack-resync</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist">Debug tool: Restore User Connection, then Schedule Sync. Before payments, stats and subscribers.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Compare the live front end<span class="s-id">post.frontend</span></span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist">Live WordPress.com site against the pre-freeze baseline.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Store checks<span class="s-id">post.gateways · post.subscriptions · post.webhooks</span></span><span class="s-chips"><span class="chip both">Both</span></span><span class="s-gist"><span class="if">WooCommerce</span>An order through each gateway, Subscriptions back in live mode, webhooks delivering.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Get WooPayments re-linked<span class="s-id">post.woopayments</span></span><span class="s-chips"><span class="chip person">Person</span><span class="chip flag">Untested</span></span><span class="s-gist"><span class="if">WooPayments</span>The WooPayments team switches the account; a small live payment and refund prove it.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Integrations, email and cron<span class="s-id">post.integrations · post.email · post.cron</span></span><span class="s-chips"><span class="chip both">Both</span></span><span class="s-gist"><span class="if">the audit found them</span>API keys and app passwords still work, test emails arrive, scheduled events run.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Deactivate plugins that should not run<span class="s-id">post.plugin-cleanup</span></span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist"><span class="if">flagged plugins, or the Reprint exporter</span>As agreed with the partner.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Confirm Atlantis works<span class="s-id">post.atlantis</span></span><span class="s-chips"><span class="chip agent">Agent</span><span class="chip flag">Untested</span></span><span class="s-gist">Active, settings address set, status tool healthy.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Move VideoPress videos<span class="s-id">post.videopress</span></span><span class="s-chips"><span class="chip both">Both</span><span class="chip flag">Untested</span></span><span class="s-gist"><span class="if">VideoPress content</span>By the agreed route; check playback.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Merge stats<span class="s-id">post.stats</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist">Every site. MC Blog Stats Merger, old blog ID into new.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Migrate subscribers<span class="s-id">post.subscribers</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist">Every site, even with none reported. MC Jetpack tools, Blog Subscription Migration.</span></summary>
+      <div class="s-body"><div class="check"><b>Check</b>Subscriber count matches the audit.</div></div></details>
+    <details class="step"><summary><span class="s-title">Check the old site for late writes<span class="s-id">post.stragglers</span></span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist">Rows written after the freeze time; after propagation and again a day later.</span></summary>
+      <div class="s-body"><p>Anything found is ported with the database diff.</p></div></details>
+  </div>
+</section>
+
+<!-- 9 -->
+<section class="phase" id="p9">
+  <div class="phase-head"><span class="phase-num">9</span><h3>DNS zone move</h3></div>
+  <p class="phase-sub">Only for a zone hosted at Pressable whose domain is registered elsewhere.</p>
+  <div class="steps">
+    <details class="step"><summary><span class="s-title">Rebuild the zone and switch name servers<span class="s-id">dns.zone-move</span></span><span class="s-chips"><span class="chip person">Person</span><span class="chip flag">Untested</span></span><span class="s-gist"><span class="if">DNS at Pressable, registered elsewhere</span>Import the BIND export into WordPress.com DNS, compare the zones, then change name servers at the registrar.</span></summary>
+      <div class="s-body"><div class="check"><b>Check</b>The zone comparison is clean before the switch; the partner confirms email afterwards.</div></div></details>
+  </div>
+</section>
+
+<!-- 10 -->
+<section class="phase" id="p10">
+  <div class="phase-head"><span class="phase-num">10</span><h3>Staging site</h3></div>
+  <div class="steps">
+    <details class="step"><summary><span class="s-title">Create a WordPress.com staging site<span class="s-id">staging.create</span></span><span class="s-chips"><span class="chip both">Both</span><span class="chip flag">Untested</span></span><span class="s-gist"><code>team51 wpcom:clone-site</code> from the new production site, once everything else is finished.</span></summary>
+      <div class="s-body"><p>Installs SafetyNet on the copy (not production) and connects the repo's development branch. Replaces the Pressable development site. Never synced back to production.</p></div></details>
+  </div>
+</section>
+
+<!-- 11 -->
+<section class="phase" id="p11">
+  <div class="phase-head"><span class="phase-num">11</span><h3>Decommission</h3></div>
+  <div class="steps">
+    <details class="step"><summary><span class="s-title">Wait<span class="s-id">decom.wait</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist">At least a week, the late-write check zero twice, any zone move complete.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Confirm the new site is managed<span class="s-id">decom.managed</span></span><span class="s-chips"><span class="chip agent">Agent</span><span class="chip flag">Untested</span></span><span class="s-gist">After a day: Jetpack Monitor on, repo properties on the new blog ID, deploys announced, health check clean.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Record DeployHQ before deleting<span class="s-id">decom.deployhq</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist">Deleting the Pressable site deletes its DeployHQ servers. Note them first; remove the leftover GitHub hook after.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Delete the Pressable sites<span class="s-id">decom.pressable</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist">Production, development and staging clones. Only after stats, subscribers, WooPayments and VideoPress are done.</span></summary>
+      <div class="s-body"><p>The Pressable DNS zone goes only after name servers have moved.</p><div class="check"><b>Check</b>No alert followed.</div></div></details>
+    <details class="step"><summary><span class="s-title">Update records<span class="s-id">decom.records</span></span><span class="s-chips"><span class="chip agent">Agent</span></span><span class="s-gist">Repo properties if OpsOasis did not move them; team lists; old and new blog IDs in the Linear issue.</span></summary>
+      <div class="s-body"></div></details>
+    <details class="step"><summary><span class="s-title">Tidy monitoring settings<span class="s-id">decom.opsoasis</span></span><span class="s-chips"><span class="chip person">Person</span></span><span class="s-gist">Remove the old blog ID and Pressable site rows added before cutover.</span></summary>
+      <div class="s-body"></div></details>
+  </div>
+</section>
+
+<footer>
+  Open questions from the first migration: whether to disconnect Jetpack on the old site at decommission (Fusion's advice, against our current rule), and whether the Jetpack ordering check still matters now that the domain must leave Pressable first.
+</footer>
+</div>
+
+<script>
+(function () {
+  var all = function () { return document.querySelectorAll('details.step'); };
+  document.getElementById('expand-all').addEventListener('click', function () { all().forEach(function (d) { d.open = true; }); });
+  document.getElementById('collapse-all').addEventListener('click', function () { all().forEach(function (d) { d.open = false; }); });
+  // Steps with nothing more to say do not expand.
+  all().forEach(function (d) {
+    var body = d.querySelector('.s-body');
+    if (body && !body.textContent.trim()) {
+      body.remove();
+      d.addEventListener('toggle', function () { if (d.open) d.open = false; });
+      d.querySelector('summary').style.cursor = 'default';
+      d.classList.add('flat');
+    }
+  });
+})();
+</script>
+<style>
+details.step.flat > summary::before { border-color: transparent; }
+</style>

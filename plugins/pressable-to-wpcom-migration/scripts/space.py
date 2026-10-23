@@ -5,6 +5,7 @@
     space.py list                    every migration in the space
     space.py pull <domain> --dir DIR copy the site's state.json (progress, decisions, target) to DIR
     space.py publish --dir DIR [--event "text"] [--no-rebuild]
+    space.py publish-process         publish pages/process.html as /process/
 
 The space holds, per site, `migrations/<domain>/index.html` (the audit report and runbook, REPORT.html) and
 `migrations/<domain>/status.json`, and `migrations/<domain>/state.json` so someone else can pick the migration
@@ -337,6 +338,18 @@ def cmd_publish(d, event, rebuild):
     raise SpaceError("this site is missing from migrations.json after two publishes. Its own page is up to date; publish again later.")
 
 
+def cmd_publish_process():
+    src = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "pages", "process.html")
+    with tempfile.TemporaryDirectory() as stage:
+        os.makedirs(os.path.join(stage, "process"))
+        shutil.copy(src, os.path.join(stage, "process", "index.html"))
+        _, out = sf(["publish", stage, "--space", SPACE, "--team", TEAM, "--publish-mode", "additive",
+                     "-m", "Process page (%s)" % whoami(), "--wait", "-y"])
+    print("published the process page as version %s: %s/process/" % (
+        ((out.get("data") or {}).get("version") or {}).get("ref", "?"), SITE_URL))
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="command", required=True)
@@ -344,6 +357,7 @@ def main():
     c.add_argument("domain")
     c.add_argument("--json", action="store_true", help="the full status: decisions, recent steps, the log")
     sub.add_parser("list")
+    sub.add_parser("publish-process")
     u = sub.add_parser("pull")
     u.add_argument("domain")
     u.add_argument("--dir", required=True)
@@ -357,6 +371,8 @@ def main():
             return cmd_check(bare(a.domain), a.json)
         if a.command == "list":
             return cmd_list()
+        if a.command == "publish-process":
+            return cmd_publish_process()
         if a.command == "pull":
             return cmd_pull(bare(a.domain), a.dir)
         return cmd_publish(a.dir, a.event, not a.no_rebuild)

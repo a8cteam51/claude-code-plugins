@@ -50,6 +50,10 @@ file and its progress. `scripts/space.py` reads and writes it:
   else can pick it up;
 - every publish is a Spacefast version, which is the revision history.
 
+The process page (`/process/`) is `pages/process.html` in this plugin. Change it
+in the same PR as the runbook change it describes, then publish it with
+`python3 scripts/space.py publish-process`.
+
 A publish sends only that site's files and the index, in additive mode, so
 other sites' pages are not touched. Only summaries and progress are published:
 the raw audit data, database diffs and notes stay in the local folder.

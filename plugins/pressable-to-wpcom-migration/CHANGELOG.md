@@ -71,6 +71,9 @@
   `migration-status` skill answers status questions from the space.
   `build_audit.py` now stores step titles, phases, the verdict and counts in
   `state.json`.
+- `pages/process.html`: the migration process as one page (every step, who
+  does it, the branches the audit decides), published to the space's
+  `/process/` with `space.py publish-process`.
 - `REPORT.html`: the audit and the runbook as one self-contained page for a
   browser. Verdict, what the job involves (the cutover window step by step,
   what takes calendar time, the access and tools needed, what makes the site
