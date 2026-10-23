@@ -11,7 +11,7 @@ Work the checks below in order. Skip a check only when it's clearly inapplicable
 
 ## Step 1 — Re-read the *real* change, not your memory of it
 
-Pull the actual diff (`git diff`, `git show <branch>`, working tree, or the PR). List every file and hunk that changed. If you're reasoning about what the code does from your mental model, stop and read the bytes. Most missed bugs hide in the gap between "what I meant to write" and "what is actually there."
+Pull the actual diff against the base, not just the last commit: `git diff <base>...HEAD` for the whole branch, `git diff` and `git diff --staged` for uncommitted work, or `gh pr diff <number>` for a PR. List every file and hunk that changed. If you're reasoning about what the code does from your mental model, stop and read the bytes. Most missed bugs hide in the gap between "what I meant to write" and "what is actually there."
 
 ## Step 2 — Audit callers of everything whose contract changed
 
@@ -61,7 +61,7 @@ Do the tests cover the failure modes and boundaries, or just the happy path? If 
 
 ## Step 9 — Fix, then re-verify
 
-Apply the fixes — don't just report them. Then re-run tests, linter, syntax/type check, and build as applicable, and confirm green. If the work is on a PR, push the fix as a follow-up commit (or amend if the PR is brand-new and unreviewed), honoring the repo's branch conventions and any commit/PR confirmation rules in effect.
+Apply the fixes — don't just report them. Then re-run tests, linter, syntax/type check, and build as applicable, and confirm green. Leave the fixes uncommitted, or commit them locally as a follow-up commit if the user's rules allow it, honoring the repo's branch conventions. **Ask before pushing** — a request to double-check is not permission to push. Never amend or force-push a branch that is already pushed unless the user explicitly approves it, and then only with `--force-with-lease`.
 
 ## Step 10 — Report honestly
 
