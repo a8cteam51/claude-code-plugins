@@ -12,8 +12,9 @@ yet; runbook steps that are unproven are marked UNTESTED.
 
 | Skill | What it does | Changes anything? |
 |---|---|---|
-| `migration-audit` | Inspects a Pressable site and writes `REPORT.md`, `RUNBOOK.md` and `REPORT.html` (both as one page for a browser) | No |
-| `migration-run` | Walks the runbook, does the agent's steps, hands over the rest, records progress | Yes, with confirmation per step |
+| `migration-audit` | Inspects a Pressable site and writes `REPORT.md`, `RUNBOOK.md` and `REPORT.html` (both as one page for a browser), and publishes the report to the migrations space | Not the site; it publishes to the space |
+| `migration-run` | Walks the runbook, does the agent's steps, hands over the rest, records progress here and in the migrations space | Yes, with confirmation per step |
+| `migration-status` | Answers "what's the status of example.org" or "which migrations are in progress" from the migrations space, without a local folder | No |
 | `migration-verify` | Compares source and target: data parity, plugins, URLs, stragglers | No |
 | `migration-dns` | Registrar and zone audit, cutover of site records, zone comparison | No (it tells a person what to change) |
 
@@ -35,11 +36,31 @@ the deploy drift check can use it):
 Output goes to `migrations/<domain>/` in the current directory. Those folders
 hold partner email addresses; keep them out of git.
 
+## The migrations space
+
+Every migration has a page in the Team 51 Spacefast space
+<https://t51-pressable-migrations.space.fast/> (team-only): an index of all
+migrations with their status, and per site its report and runbook, a status
+file and its progress. `scripts/space.py` reads and writes it:
+
+- the audit checks for an existing entry before starting, and publishes the
+  report when it finishes;
+- `state.py ... --publish` updates the site's page after every recorded step;
+- `space.py pull` copies a migration's progress into a new folder, so someone
+  else can pick it up;
+- every publish is a Spacefast version, which is the revision history.
+
+A publish sends only that site's files and the index, in additive mode, so
+other sites' pages are not touched. Only summaries and progress are published:
+the raw audit data, database diffs and notes stay in the local folder.
+
 ## Requirements
 
 - `team51` CLI, authenticated through 1Password
 - `gh`, authenticated, with access to `a8cteam51`
 - `dig`, `whois`, `python3` (3.8+), `php`
+- The Spacefast CLI, signed in to the Team 51 team:
+  `npx -y spacefast@0.5.0 login` (an approval in the browser; lasts 30 days)
 - For the front-end check: Node 20+, Google Chrome, and
   `npm ci --prefix scripts/frontend` once (installs `playwright-core`,
   `pixelmatch` and `pngjs`; no browser download)
@@ -70,6 +91,7 @@ scripts/db_diff.py       row-level database diff, source vs target ─► db-dif
   when it always applies or a finding switches it on.
 - **State** is `state.json`: step progress, decisions, and the target site.
   `scripts/state.py` edits it; `build_audit.py` preserves it across rebuilds.
+  `scripts/space.py` publishes it, with the report, to the migrations space.
 
 ## What the process assumes
 

@@ -59,6 +59,8 @@ it and put the reasoning in the evidence.
 
 - **Read-only.** Nothing in this skill changes the site, DNS, a repo or any
   setting. If a step seems to need a write, record it as a finding instead.
+  The one write is publishing the report to the Team 51 migrations space
+  (step 9), which is internal and team-only.
 - **Never print secrets.** Run only the bundled scripts for site inspection.
   They report constant names without values and never read keys or tokens. Do
   not `option get` whole options or `config get` secrets into the conversation.
@@ -77,7 +79,9 @@ S="$PLUGIN_DIR/scripts"
 ```
 
 Needed on this machine: the `team51` CLI, `gh` (authenticated), `dig`, `whois`,
-`python3`, `php`. The team51 CLI reads credentials from 1Password; if a command
+`python3`, `php`, and the Spacefast CLI signed in to the Team 51 team
+(`npx -y spacefast@0.5.0 login`, valid 30 days; `space.py` uses `sf` if it is
+installed and `npx` otherwise). The team51 CLI reads credentials from 1Password; if a command
 hangs or reports a 1Password prompt error, run
 `op vault list --account a8cteam51.1password.com` and ask the user to approve.
 
@@ -93,6 +97,25 @@ site inspection goes through `$S/wp_eval.sh`, which uses the local CLI.
 
 Set `D=migrations/<domain>` and `mkdir -p "$D"`. Save each tool result as the
 named file. Run independent steps in parallel where you can.
+
+### 0. Check the migrations space
+
+Every migration has an entry in the Team 51 migrations space
+(`https://t51-pressable-migrations.space.fast/`), so check it before anything
+else:
+
+```bash
+python3 "$S/space.py" check <domain>
+```
+
+- **Exit 3, no entry:** a new migration. Carry on.
+- **Exit 0, an entry:** tell the user its status, who started it, who last
+  updated it and when, and the page link, then ask whether to re-audit. Do not
+  continue without a yes; someone else may be part way through. On a yes, and
+  if `$D/state.json` does not exist here, fetch the recorded progress first so
+  the re-audit keeps it: `python3 "$S/space.py" pull <domain> --dir "$D"`.
+- **Exit 2, an error:** usually the Spacefast login (`sf login`). Tell the
+  user, and carry on only if they agree to audit without the check.
 
 ### 1. Resolve the site → `pressable.json`
 
@@ -323,7 +346,19 @@ by hand. If the site showed something no check covers, add it as a note in
 `context.json` and tell the user it is a candidate for a new check in
 `scripts/checks.py`.
 
-### 9. Tell the user
+### 9. Publish to the migrations space
+
+```bash
+python3 "$S/space.py" publish --dir "$D" --event "Audited"
+```
+
+This puts `REPORT.html` at `/migrations/<domain>/` in the Team 51 space, with
+the site's status, and adds or updates its line on the index page. It sends
+only this site's files: other sites' pages are not touched. Every publish is
+kept as a version. If it fails, say so and give the error; the local report
+is unaffected.
+
+### 10. Tell the user
 
 Plain language, short, in this order:
 
@@ -335,9 +370,9 @@ Plain language, short, in this order:
    unlike a standard one, in terms the partner's TAM would recognise ("email
    for the domain runs through this DNS zone", not "MX records present").
 4. **Not checked,** and what that leaves uncertain.
-5. Where the report is: give the path to `REPORT.html` and offer to open it
-   (`open "$D/REPORT.html"` on a Mac). Then say that `migration-run` starts
-   the work.
+5. Where the report is: the page in the migrations space (the link
+   `space.py` printed), which the team can open, and the local `REPORT.html`.
+   Then say that `migration-run` starts the work.
 
 Leave out commands, file names of scripts, check IDs and counts of steps
 unless the user asks. Do not repeat the report.

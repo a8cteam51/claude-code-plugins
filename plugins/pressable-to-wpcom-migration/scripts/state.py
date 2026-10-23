@@ -8,11 +8,14 @@
     state.py --dir DIR target --domain <temp domain> --blog-id <id>
 
 After `decide` or `target`, re-run build_audit.py so the report and runbook pick the change up.
+Add --publish to any write to update the site's page in the Team 51 migrations space (space.py publish,
+which also rebuilds the report).
 """
 import argparse
 import datetime
 import json
 import os
+import subprocess
 import sys
 
 
@@ -23,6 +26,7 @@ def main():
     ap.add_argument("args", nargs="*")
     ap.add_argument("--domain")
     ap.add_argument("--blog-id")
+    ap.add_argument("--publish", action="store_true", help="after recording, update the site's page in the migrations space (space.py)")
     a = ap.parse_args()
     path = os.path.join(a.dir, "state.json")
     if not os.path.exists(path):
@@ -70,7 +74,15 @@ def main():
         if len(a.args) > 1:
             state["steps"][step]["note"] = " ".join(a.args[1:])
     json.dump(state, open(path, "w"), indent=2)
-    print("recorded")
+    print("recorded", flush=True)
+    if a.publish:
+        event = "%s %s" % (a.args[0], status) if a.command in ("done", "skip", "block", "todo") else a.command
+        if a.command in ("done", "skip", "block") and len(a.args) > 1:
+            event += ": " + " ".join(a.args[1:])
+        space = os.path.join(os.path.dirname(os.path.abspath(__file__)), "space.py")
+        code = subprocess.run([sys.executable, space, "publish", "--dir", a.dir, "--event", event[:200]]).returncode
+        if code:
+            print("recorded locally; the migrations space was not updated (see above)", file=sys.stderr)
 
 
 if __name__ == "__main__":

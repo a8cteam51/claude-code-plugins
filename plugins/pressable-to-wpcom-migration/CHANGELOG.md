@@ -61,6 +61,16 @@
   monitoring), then the window: freeze and copy, check the copy, go live.
 
 ### Added
+- The Team 51 migrations space on Spacefast
+  (`https://t51-pressable-migrations.space.fast/`) as the shared record of
+  every migration. `scripts/space.py` checks for a site's entry, lists all
+  migrations, publishes a site's report, status and progress (additive, one
+  site at a time, every publish a version) and pulls a migration's progress
+  into a new folder. The audit checks the space first and publishes at the
+  end; `state.py --publish` updates the page after each step. New
+  `migration-status` skill answers status questions from the space.
+  `build_audit.py` now stores step titles, phases, the verdict and counts in
+  `state.json`.
 - `REPORT.html`: the audit and the runbook as one self-contained page for a
   browser. Verdict, what the job involves (the cutover window step by step,
   what takes calendar time, the access and tools needed, what makes the site

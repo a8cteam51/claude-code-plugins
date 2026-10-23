@@ -23,6 +23,19 @@ If `$D/RUNBOOK.md` does not exist, stop and run the `migration-audit` skill.
 If the audit is more than a few days old, or the site is about to be cut over,
 re-run it first: sites change.
 
+Then check the Team 51 migrations space, which is the shared record:
+
+```bash
+python3 "$S/space.py" check <domain>
+```
+
+If the space's last update is newer than this folder's progress, or was made
+by someone else, tell the user who did what and when, and ask before going
+on. Two people must not run the same migration at once. To take over a
+migration started elsewhere, the folder needs the space's progress:
+`python3 "$S/space.py" pull <domain> --dir "$D"` (into a folder with no
+`state.json`), then re-run the audit into that folder.
+
 ## Starting a run
 
 Nothing has to be supplied up front. The source blog ID is already in the
@@ -44,11 +57,16 @@ happen, whether it touches the live site, and what you need from them.
 2. Say which step you are on and who does it.
 3. Do it, or hand it over (see below).
 4. Run the verification. Only then:
-   `python3 "$S/state.py" --dir "$D" done <step-id> "short note"`.
+   `python3 "$S/state.py" --dir "$D" done <step-id> "short note" --publish`.
    Use `skip` with a reason when a step does not apply, `block` when it cannot
-   proceed.
+   proceed. `--publish` rebuilds the report and updates the site's page and
+   status in the migrations space, so the team sees where the migration is.
+   Always pass it. If the publish fails, the step is still recorded locally:
+   say so, and publish later with `python3 "$S/space.py" publish --dir "$D"`.
+   Keep notes free of secrets and partner credentials: they are published.
 5. After any `decide` or `target` command, rebuild so the runbook picks up the
-   new values: `python3 "$S/build_audit.py" --dir "$D"`.
+   new values. `--publish` on those commands does the rebuild and the publish;
+   without it, run `python3 "$S/build_audit.py" --dir "$D"`.
 
 Work in order. The order encodes dependencies: for example the WooPayments
 request goes in before the target exists because of its lead time, and the
@@ -182,4 +200,6 @@ name servers use `migration-dns`.
 ## Finishing a session
 
 Run `state.py status` and tell the user: what was done, the next open step and
-who it is waiting on, and anything blocked. The state file is the hand-off.
+who it is waiting on, and anything blocked. The migrations space is the
+hand-off: confirm its page is current (`space.py check <domain>`), and if a
+publish failed during the session, run `space.py publish --dir "$D"` now.

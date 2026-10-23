@@ -244,6 +244,9 @@ def main():
     for step in steps:
         state["steps"].setdefault(step["id"], {"status": "todo"})
     state["step_order"] = [s["id"] for s in steps]
+    state["step_meta"] = {s["id"]: {"title": s["title"], "phase": s["phase"], "actor": s["actor"]} for s in steps}
+    state["verdict"] = verdict
+    state["counts"] = counts
     state["domain"] = domain
     state["built"] = today
     for name, payload in (("manifest.json", manifest), ("findings.json", findings), ("state.json", state)):
