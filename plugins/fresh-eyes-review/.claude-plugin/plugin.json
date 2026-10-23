@@ -1,0 +1,19 @@
+{
+  "name": "fresh-eyes-review",
+  "version": "1.0.0",
+  "description": "Re-examine a change Claude just made, catch the bugs, missed callers, unverified assumptions and regressions that survived the first pass, and fix them. Works from the real diff and ground truth rather than memory, re-checks security boundaries and test coverage, and reports what was fixed, what needs a decision, and what was checked and held.",
+  "author": {
+    "name": "Automattic Special Projects"
+  },
+  "repository": "https://github.com/a8cteam51/claude-code-plugins",
+  "license": "MIT",
+  "keywords": [
+    "code-review",
+    "self-review",
+    "double-check",
+    "regression",
+    "bugs",
+    "verification",
+    "pull-request"
+  ]
+}

@@ -231,6 +231,23 @@
         "./skills/publish-design-options",
         "./skills/iterate"
       ]
+    },
+    {
+      "name": "fresh-eyes-review",
+      "source": "./plugins/fresh-eyes-review",
+      "description": "Re-examine a change Claude just made, catch the bugs, missed callers, unverified assumptions and regressions that survived the first pass, and fix them.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Automattic Special Projects"
+      },
+      "repository": "https://github.com/a8cteam51/claude-code-plugins",
+      "license": "MIT",
+      "keywords": ["code-review", "self-review", "double-check", "regression", "bugs", "verification", "pull-request"],
+      "category": "development-tools",
+      "strict": true,
+      "skills": [
+        "./skills/fresh-eyes-review"
+      ]
     }
   ]
 }
