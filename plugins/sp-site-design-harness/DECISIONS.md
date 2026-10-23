@@ -166,3 +166,114 @@ favor of the CSS alone; kept it because dev-handoff reads it and the prose
 roles are useful. Instead the CSS is authoritative, `/iterate` updates both
 in the same edit, and dev-handoff reconciles them with the CSS winning.
 
+
+## 2026-10-08 — Integrate with html-to-block-theme through a versioned design package
+
+The harness's handoff and h2bt's input never met: dev-handoff writes
+DESIGN.md + decisions.md for a "TBD" builder, and h2bt reads only a folder of
+HTML and re-infers everything. Chose a versioned "design package" contract
+that h2bt specifies and owns (the consumer defines its input) and the harness
+conforms to, kept generic so other upstreams can emit it. Considered having
+the harness own the spec; rejected because it would couple h2bt to this
+harness specifically. Plan and milestones: `docs/plans/h2bt-integration.md`.
+Baseline is GitHub trunk of both plugins; experiment branches are out of
+scope until merged.
+
+## 2026-10-08 — Palette slugs follow the team project template
+
+Three vocabularies were in play: `contrast/base/accent` (design-standards.md,
+from beautyinbloom), the design's own CSS variable names (h2bt), and
+`canvas/surface/ink/accent` (`a8cteam51/a8csp-project-template`). Chose the
+template's, because that's what new team sites start from and its CI
+enforces. design-standards.md gets aligned in M1.
+
+## 2026-10-08 — Bring h2bt's maintainer in after the M0 baseline
+
+h2bt is maintained by TommusRhodus. Engage after M0 so the conversation
+starts from a measured gap list rather than a proposal, and before M2 so the
+contract is agreed before either side builds to it.
+
+## 2026-10-08 — Simplify the handoff contract to the files we already make
+
+Revises the "versioned design package" entry above. After M0 the planned
+`manifest.json` and `tokens.json` looked like duplication: DESIGN.md
+frontmatter already carries the tokens, and a second copy would drift (the
+same bug class as `:root` vs `.tokens.md`). The contract is now DESIGN.md
+(defined frontmatter keys, team slugs as color keys), decisions.md (fixed
+sections incl. required fixes, real IA, content status), and `handoff/source/`
+(the chosen HTML plus assets). h2bt's side is one rule: read those docs in the
+blueprint when present, and they outrank inference. Motion tiers, a package
+validator, and a separate build ledger moved to BACKLOG.
+
+## 2026-10-08 — Plans live outside the repo
+
+This repo is published into `a8cteam51/claude-code-plugins`, and plans aren't
+plugin content. The integration plan and M0 report moved to
+`../sp-site-design-harness-plans/` (local git, no remote), the same pattern as
+the talks folder. The h2bt maintainer is briefed through GitHub issues rather
+than these docs.
+
+## 2026-10-13 — Design the rest of the site in the harness, as HTML, before the build
+
+The harness stopped at homepage options, so html-to-block-theme shipped
+starter templates for every other view (M0). Considered having h2bt derive
+those views from the homepage; chose to design them here instead, because
+deciding how a design language carries over to a post or a 404 is design
+work the harness's critique and craft checks are built for, and h2bt already
+accepts a multi-file HTML set and classifies each file. v1 views: home, page,
+single (with comments), index (also serving archives and taxonomies),
+search, 404, plus state files for the comment and no-results states. Plan:
+`../sp-site-design-harness-plans/site-templates-plan.md`.
+
+## 2026-10-13 — A portable skill plus a harness command
+
+`design-site-templates` does the design work and needs only a homepage file,
+so it's usable outside the harness. `/prep-handoff` does the
+harness-specific orchestration: confirm the choice, DESIGN.md, the
+templates, partner review, packaging. dev-handoff stays a skill that
+`/prep-handoff` calls in two parts, rather than being merged into it, so
+nothing is duplicated and it still runs on its own.
+
+## 2026-10-13 — The freeze point moves; templates are authored in `handoff/source/`
+
+Revises 2026-09-25's cutover. `directions/` freezes when a direction is
+confirmed (`.chosen-direction`), `/iterate` then works on
+`handoff/source/` through partner review, and that freezes once a theme
+exists. The views are written straight into `handoff/source/` rather than a
+working folder that gets copied, for the same reason tokens are authored
+into their destination file: one copy can't drift.
+
+## 2026-10-13 — One shared stylesheet, byte-identical chrome
+
+`design-site-templates` moves the homepage's `<style>` into
+`assets/site.css`, linked by every view, so the set has one `:root` and a
+token change is one edit. It verifies the homepage renders the same
+afterward. Header and footer stay byte-identical across views so h2bt
+extracts each as one template part; a homepage header that overlays its hero
+gets a second, solid header for inner views.
+
+## 2026-10-13 — State variants are separate `<view>--<state>.html` files
+
+A static file shows one state. Showing "no comments yet" or "no results"
+inside the main file would put demo labels into the build. Separate state
+files keep each file realistic; the notes say they fold into the parent
+template. Whether h2bt handles them without help is checked in S4.
+
+## 2026-10-13 — Site preview uses the same Spacefast space and house template
+
+Partners review the site before the build. `/publish-design-options` gets a
+site-preview mode: the views go under `site/` (the set's own `index.html` is
+the blog index), with the house template as the overview at the root, and
+it publishes a new version to the project's existing space so the partner's
+link doesn't change. The template gained `{{TITLE}}`, `{{TITLE_LOWER}}`,
+`{{HEADLINE}}` and `{{NOUN}}` tokens so it can say "Site preview" and
+"views".
+
+## 2026-10-16 — Critic findings that contradict DESIGN.md go to the user
+
+In the S3 test run the critic asked for colour beds behind reading-page
+titles, which DESIGN.md rules out ("keep reading pages quiet"). Acting on it
+would let an isolated critic overrule the written design system. Now the
+critic is told which DESIGN.md rules are fixed, and any finding that
+contradicts DESIGN.md or the approved homepage is recorded as a decision for
+the user rather than applied.

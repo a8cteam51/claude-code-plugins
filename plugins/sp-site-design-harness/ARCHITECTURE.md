@@ -4,10 +4,11 @@ A three-phase pipeline that takes a client engagement from raw brand material to
 developer-ready design system for a WordPress block theme. Each phase is an
 independently usable skill; together they're packaged as one Claude Code plugin.
 
-**Phases:** Research → Design → Dev Handoff
-**Out of scope:** actually building the WordPress block theme. That happens in a
-separate, TBD system this harness hands off to. This harness produces design
-decisions, not code. One narrow exception: `/iterate` applies feedback to
+**Phases:** Research → Design → (partner picks a direction, `/iterate`) →
+Prep for Handoff (DESIGN.md, the rest of the site, partner review, package)
+**Out of scope:** actually building the WordPress block theme. html-to-block-theme
+does that from the handoff package. This harness produces designs (HTML) and
+design decisions, not theme code. One narrow exception: `/iterate` applies feedback to
 an already-built theme after handoff (see §4b). It edits the theme but never
 builds it.
 
@@ -145,7 +146,34 @@ forward — the harness doesn't auto-select.
 
 ---
 
-## 4. Phase 3 — Dev Handoff (new skill)
+## 4. Phase 3 — Prep for Handoff (`prep-handoff` + `design-site-templates`)
+
+Added 2026-10-13 (DECISIONS). The homepage options get a direction chosen;
+the build needs a whole site. `/prep-handoff` is the harness command that
+takes the chosen direction to a complete handoff, in resumable stages:
+
+1. **Confirm** the direction with the user; write `.chosen-direction`.
+   `directions/` freezes.
+2. **DESIGN.md**: `dev-handoff` Steps 1–3 (below).
+3. **The rest of the site**: `design-site-templates` designs the blog index
+   (also serving archives and taxonomies), single post with comments, page,
+   search and 404, plus state files, straight into `handoff/source/`. It
+   designs from DESIGN.md's rules, reuses the homepage's components before
+   inventing any, moves the homepage CSS into one shared
+   `assets/site.css`, and keeps header and footer byte-identical so
+   html-to-block-theme extracts them as template parts. Filenames follow the
+   WordPress template hierarchy for the same reason. Notes go to
+   `handoff/views.md`.
+4. **Partner review**: `/publish-design-options` site-preview mode, then
+   `/iterate` on `handoff/source/`.
+5. **Package**: `dev-handoff` Step 4 writes `decisions.md`; a package check
+   confirms every view loads and nothing points outside `source/`.
+
+`design-site-templates` is deliberately portable: its only required input is
+a homepage file, and everything harness-specific is passed in by
+`/prep-handoff`. Plan: `../sp-site-design-harness-plans/site-templates-plan.md`.
+
+### `dev-handoff` (called by `/prep-handoff`, also usable on its own)
 
 **Goal:** distill the *chosen* direction plus the full research context into
 structured design decisions an AI agent can use to build a matching WordPress
@@ -193,15 +221,16 @@ re-deriving decisions already made.
 
 **Goal:** apply feedback fast, without re-running the design engine.
 
-**Cutover rule:** iterate on the HTML directions until the partner signs off on
-one, then run Dev Handoff, then iterate only in the built theme. After handoff,
-`directions/*.html` is frozen as a reference, so there are never two live
-sources to keep in sync.
+**Cutover rule:** iterate on the HTML directions until the partner picks
+one, then on the site views in `handoff/source/` until the theme is built,
+then only in the built theme. Each stage freezes when the next begins, so
+there are never two live sources to keep in sync.
 
 | Phase | Edits | Authoritative | Kept in sync | Change log |
 |---|---|---|---|---|
-| Before handoff | `directions/NN-<slug>.html` | its `:root` block | `NN-<slug>.tokens.md` | `NN-<slug>.changes.md` |
-| After handoff | the block theme (path in `.theme-path`) | `theme.json` | `handoff/DESIGN.md` | `handoff/changes.md` |
+| Before a direction is chosen | `directions/NN-<slug>.html` | its `:root` block | `NN-<slug>.tokens.md` | `NN-<slug>.changes.md` |
+| Chosen, before the build | `handoff/source/*.html` | `:root` in `handoff/source/assets/site.css` | `handoff/DESIGN.md` | `handoff/changes.md` |
+| After the build | the block theme (path in `.theme-path`) | `theme.json` | `handoff/DESIGN.md` | `handoff/changes.md` |
 
 **Levels:** each request is classified and the level stated in one line.
 - **L0 direct edit** (token, copy, one property): minimal reads, edit, contrast
@@ -231,7 +260,10 @@ projects/<slug>/
   handoff/
     DESIGN.md
     decisions.md
-    changes.md            /iterate change log, post-handoff
+    views.md              designed views, shared chrome, content status (design-site-templates)
+    source/               the site as HTML: home, views, state files, assets/ (site.css, images)
+    changes.md            /iterate change log, after a direction is chosen
+  .chosen-direction       the confirmed direction, written by /prep-handoff
   .theme-path             path to the built block theme, recorded by /iterate
   .design-template        template id chosen from skills/publish-design-options/templates/MANIFEST.md, so create-design and /publish-design-options agree without re-asking
   .spacefast/             created by publish-to-spacefast when directions are shared
@@ -269,7 +301,13 @@ sp-site-design-harness/
       references/
         intake.md   gates.md   critique.md   typography.md
         polish.md   generated-media.md
-    dev-handoff/               Phase 3 (new)
+    prep-handoff/              Phase 3 orchestrator
+      SKILL.md
+    design-site-templates/     Phase 3: the rest of the site (portable)
+      SKILL.md
+      references/
+        view-specs.md
+    dev-handoff/               Phase 3: DESIGN.md + decisions.md
       SKILL.md
       references/
         design-standards.md          forked from sp-design-system
@@ -288,7 +326,7 @@ sp-site-design-harness/
       templates/
         design-options-index.html  the `deck` template, shared by create-design and publish-design-options
         MANIFEST.md                 template registry + token contract
-    iterate/                    fast revisions, pre- and post-handoff
+    iterate/                    fast revisions: directions, site views, theme
       SKILL.md
       references/
         levels.md
