@@ -1,6 +1,6 @@
 ---
 name: prep-handoff
-description: Take the partner's chosen homepage direction through to a complete handoff — confirm the choice, write DESIGN.md, design the rest of the site (blog index, single post with comments, page, search, 404), publish a site preview for partner review, then package everything for html-to-block-theme. The step after create-design and partner review in sp-site-design-harness. Use when a direction has been chosen ("they picked option 2", "go with Terraced Garden", "prep the handoff", "/prep-handoff"). Resumable: re-run it after partner review to continue where it left off.
+description: Take the partner's chosen homepage direction through to a complete handoff — confirm the choice, write DESIGN.md, design the rest of the site (blog index, single post with comments, page, search, 404, and a file for every page in the sitemap), publish a site preview for partner review, then package everything for html-to-block-theme. The step after create-design and partner review in sp-site-design-harness. Use when a direction has been chosen ("they picked option 2", "go with Terraced Garden", "prep the handoff", "/prep-handoff"). Resumable: re-run it after partner review to continue where it left off.
 argument-hint: "[chosen direction file or name]"
 ---
 
@@ -107,6 +107,14 @@ republish. When the user says the partner has signed off, continue to Step 5
    - No path in `handoff/source/` reaches outside it (`grep` for `../` and
      absolute `file://` or `/Users/` paths in `href`, `src` and `url()`).
    - Every file `views.md` lists exists, and every view file is listed.
+   - **The sitemap is complete.** Every Page row in `views.md`'s Sitemap has
+     its own file. Every internal link in every view (header, footer, body,
+     calls to action) resolves to a file of its own; any link to `page.html`
+     from another view counts as a missing page. Every page in the brief's
+     IA or content inventory has a row in the sitemap, and every external
+     destination (booking, portals) is a row marked External. A failure here
+     sends the set back to Stage 3 for the missing pages: don't package
+     around it.
    - `DESIGN.md`'s color values match `:root` in `handoff/source/assets/site.css`.
      If they differ, `site.css` wins; update DESIGN.md and say so.
 3. Report what's in the package and the next step:
@@ -116,7 +124,7 @@ handoff/
   DESIGN.md     rules, tokens, reasoning
   decisions.md  what the build must do that the HTML doesn't show
   views.md      the views, shared chrome, content status
-  source/       the site as HTML (home + views + states + assets)
+  source/       the site as HTML (home + views + states + sitemap pages + assets)
 ```
 
 Next: run html-to-block-theme on `handoff/source/`.

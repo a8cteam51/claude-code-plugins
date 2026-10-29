@@ -1,6 +1,6 @@
 ---
 name: design-site-templates
-description: Design the rest of a website from one approved homepage — blog index, single post with comments, page, search results and 404 — as static HTML in the homepage's exact design language, ready for review and for html-to-block-theme to build into a WordPress block theme. Use when a homepage design is settled and the site's other views need designing ("design the other templates", "extend this homepage to a full site", "make the blog and post pages"). Works on any homepage HTML; DESIGN.md, a tokens file and a brief sharpen it when present. Inside sp-site-design-harness, /prep-handoff runs this for you.
+description: Design the rest of a website from one approved homepage — blog index, single post with comments, page, search results, 404, and one file for every real page in the sitemap (About, FAQ, Contact…) — as static HTML in the homepage's exact design language, ready for review and for html-to-block-theme to build into a WordPress block theme. Use when a homepage design is settled and the site's other views need designing ("design the other templates", "extend this homepage to a full site", "make the blog and post pages"). Works on any homepage HTML; DESIGN.md, a tokens file and a brief sharpen it when present. Inside sp-site-design-harness, /prep-handoff runs this for you.
 argument-hint: "<homepage.html> [output folder]"
 ---
 
@@ -45,12 +45,32 @@ facts you can't find and whose default would be wrong to assume:
 |---|---|
 | Site name | The homepage's wordmark/`<title>` |
 | Real main nav: labels and what each is | The homepage's nav labels, if they're real pages and not `#anchors`. Anchor-only nav has no default: ask. |
+| Sitemap: every destination on the site | Built from the nav, the footer, every call to action, and the brief's IA and content inventory (see below). Never just the nav. |
 | Blog name (what the index is called) | "Journal" or the homepage's posts section heading |
 | Comments on posts | On |
 | Search | On |
 
 If the user doesn't answer, go with the defaults and list them in the notes
 as assumptions.
+
+**The sitemap.** List every destination a visitor can reach, from all of
+these sources together: the homepage's nav, footer and calls to action
+(buttons, "book", "contact us"), and the brief's IA, page list and content
+inventory. Give each one a row in the notes' Sitemap table, of one of three kinds:
+
+- **Template view.** Covered by the fixed set in view-specs (blog index,
+  single, search, 404).
+- **Page.** A real page on this site (About, FAQ, Contact & Locations,
+  Services). It gets **its own HTML file**, named by its slug
+  (`faq.html`, `contact.html`), even when it reuses the generic page layout.
+  A page that exists only as a link to `page.html` is never built: the
+  builder only builds what the HTML shows.
+- **External.** It leaves the site (a booking system, a patient portal,
+  social profiles). It stays a link with the real URL, or `#` with the URL
+  recorded as client-supplied. It gets no file.
+
+A destination you can't classify from the inputs goes into the Step 0
+question. Don't drop it.
 
 ## Step 1 — Read the system
 
@@ -107,7 +127,9 @@ and redo it when the rules arrive.
    something: find out why before going on.
 5. **Real nav.** Replace anchor-only nav items with the real IA from Step 0,
    linking per `references/view-specs.md` § Everywhere. If the homepage's
-   nav was already real, leave it alone.
+   nav was already real, leave it alone. Either way, point every internal
+   link in the header, footer and homepage body at its sitemap file
+   (`faq.html`, not `page.html`), and every external one at its real URL.
 6. **Shared chrome is byte-identical.** The header and footer markup must be
    identical in every view so a builder extracts each one as a single
    template part. The one allowed exception: if the homepage header sits
@@ -118,7 +140,8 @@ and redo it when the rules arrive.
 ## Step 4 — Design the views
 
 Read `references/view-specs.md` and build each view in the order it gives,
-writing into `<out>`. For each view:
+writing into `<out>`, then one file for every page in the sitemap
+(view-specs § Site pages). For each view:
 
 - Start from `home.html`'s skeleton (head, header, footer), so chrome stays
   identical. Change only `<title>`, the `<meta name="description">`, and
@@ -162,6 +185,12 @@ breakpoint between them):
 - The accessibility pass in `../create-design/references/polish.md` § 3,
   with contrast checked numerically for any new color pairing.
 - Headings, landmarks and form labels per view-specs § Everywhere.
+
+**Across the set**, before the critic:
+- Every Page row in the sitemap has its file, and every internal link in
+  any view resolves to a file of its own. A link to `page.html` from
+  anywhere except `page.html` itself means a sitemap page is missing: add
+  the page.
 
 **Then one critic pass across the set.** Spawn one subagent with no
 knowledge of how the views were made (same isolation rule as
@@ -211,6 +240,7 @@ edits; the pane caches stylesheets.
 <out>/
   home.html  page.html  single.html  index.html  search.html  404.html
   single--no-comments.html  single--comments-closed.html  search--no-results.html
+  <slug>.html …                    one per sitemap page (about, faq, contact, …)
   assets/site.css  assets/…        images and any local fonts or scripts
 <notes>  (default <out>/views.md)
 ```
@@ -218,20 +248,24 @@ edits; the pane caches stylesheets.
 The notes file has these sections, in order:
 
 1. **Concept**: the two sentences from Step 1.
-2. **Views**: a table with file, purpose, how it builds (from view-specs),
-   and the one-line concept note.
-3. **Shared chrome**: the header(s) and footer, and which views use which.
-4. **Inventory** and **New components** (Step 2).
-5. **Content status**: every piece of sample content is placeholder; list
-   what the client needs to supply (post content, author names, images).
-6. **Assumptions**: defaults used in Step 0 without confirmation.
-7. **Fixes to the homepage**: anything changed in `home.html` beyond the
+2. **Sitemap**: one row per destination, giving the label, kind (template
+   view, page, external), file or URL, slug, and where it came from (nav,
+   footer, CTA, brief).
+3. **Views**: a table with file, purpose, how it builds (from view-specs),
+   and the one-line concept note. Every sitemap page is listed.
+4. **Shared chrome**: the header(s) and footer, and which views use which.
+5. **Inventory** and **New components** (Step 2).
+6. **Content status**: every piece of sample content is placeholder; list
+   what the client needs to supply (post content, author names, images,
+   external URLs).
+7. **Assumptions**: defaults used in Step 0 without confirmation.
+8. **Fixes to the homepage**: anything changed in `home.html` beyond the
    stylesheet move and asset paths (real nav, a skip link), and why.
-8. **Open items**: critic findings not resolved, anything that needs a
+9. **Open items**: critic findings not resolved, anything that needs a
    decision.
 
 ## Report
 
-A few lines: the views written, the critic's final score and any open
+A few lines: the views and sitemap pages written, the critic's final score and any open
 items, assumptions made, and the serve command to look at the set. Don't
 publish anything. Sharing is the caller's decision.

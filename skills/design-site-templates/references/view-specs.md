@@ -18,6 +18,7 @@ SKILL.md Step 3) and uses the same breakpoints.
 | `index.html` | Blog index; the same layout serves archives, categories and tags | `templates/index.html` with `core/query` + `core/post-template` |
 | `search.html` | Search results | `templates/search.html` |
 | `404.html` | Not found | `templates/404.html` |
+| `<slug>.html` | One per page in the sitemap (`about.html`, `faq.html`, `contact.html`) | A WordPress page with that slug, on `templates/page.html` unless its layout needs its own template |
 
 **State files** show a second state of a view. They're named
 `<view>--<state>.html`, differ from the parent only in the region named, and
@@ -31,8 +32,9 @@ their own):
 | `search--no-results.html` | No results: message, the search form again, a way onward | `core/query-no-results` inside the parent's query |
 
 Design the order: `page` → `single` → `index` → `search` → `404`, then the
-state files. Page builds the prose system that single reuses; single builds
-the post meta and card language that index and search reuse.
+state files, then the site pages. Page builds the prose system that single
+and the site pages reuse; single builds the post meta and card language that
+index and search reuse.
 
 ## Prose system (page and single)
 
@@ -131,6 +133,28 @@ Link styling in prose must be distinguishable without color alone.
   (a display treatment, an illustration already in the asset set), because
   it's short and seldom seen. Keep it inside the design language.
 
+## Site pages
+
+One file per Page row in the sitemap (SKILL.md Step 0), named by its slug.
+`page.html` shows the generic layout and the full prose system; a site page
+shows **that page's real content** in the same layout, so the builder can
+make it as a page and the partner can review it:
+
+- Same chrome and content column as `page.html`, page title as the only
+  `h1`. Don't repeat the full prose sampler; use only what this page's
+  content needs.
+- Content shaped like the page's purpose, taken from the brief: an FAQ is
+  real questions and answers (as `details`/`summary` if the design suits a
+  disclosure, with that noted); Contact & Locations shows each location with
+  address, hours, phone and a map or directions link; About shows the people
+  or story the brief describes; a services page lists the services.
+- Calls to action point where the sitemap says: another page's file, or an
+  external URL (booking, portal) with `#` and a note when it isn't supplied.
+- If a page needs a layout `page.html` doesn't have (a two-column
+  locations grid, say), build it from the inventory, record it under New
+  components, and say in the Views table whether it needs its own template
+  or is page content inside `templates/page.html`.
+
 ## Everywhere
 
 - One `h1` per view; heading levels never skip.
@@ -148,5 +172,8 @@ Link styling in prose must be distinguishable without color alone.
   ones get `alt=""`.
 - Links between views are relative and work: nav → views, post titles →
   `single.html`, search forms → `search.html` (`action="search.html"`),
-  pagination → `index.html`, footer links where they apply. Nav items for
-  pages that aren't designed (About, FAQ, Contact) point at `page.html`.
+  pagination → `index.html`, footer links where they apply. Every nav,
+  footer and call-to-action link to a site page points at that page's own
+  file (`faq.html`, `contact.html`). Nothing links to `page.html` except as
+  a sample of the generic layout. External destinations keep their real URL
+  (or `#`, recorded as client-supplied in the notes).
