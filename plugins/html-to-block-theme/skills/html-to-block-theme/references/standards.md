@@ -18,6 +18,11 @@ If a section needs a note for the user, it goes in the **report**, not as a comm
 - Never reproduce a value in CSS that already exists as a token — reference `var(--wp--preset--…)`.
 - Do not enqueue the design's original stylesheets or JS. They are intent to translate, not assets to ship.
 
+## Text wrapping
+
+- **No widows.** The team sets `text-wrap-style: pretty` on headings, paragraphs, list items, quotes and captions, and `text-wrap-style: balance` on headings in a browser that has no `pretty` (`@supports not (text-wrap-style: pretty)`). It is a root rule the foundation writes (`SKILL.md` Phase 2, step 1). This is the team's convention, not an observation.
+- **Write the longhand.** The `text-wrap` shorthand also sets `text-wrap-mode`, so a root `text-wrap: pretty` on paragraphs reset the `nowrap` a marquee's text inherited, and the marquee wrapped. `text-wrap-style: pretty` leaves the mode alone. Seen in the browser.
+
 ## Block markup conventions
 
 - Use documented attributes only (`className`, `anchor`, `style`, `backgroundColor`, `textColor`, `fontSize`, `fontFamily`, `align`, `layout`, plus per-block attributes). Never invent attribute names.
@@ -86,6 +91,13 @@ The theme must **not** ship `templates/front-page.html` — the standards audit 
 - Preserve semantic landmarks: header/nav/main/footer map to the right blocks and template parts. A part is a `<header>` or a `<footer>` only when `theme.json` declares its area (`theme-json-guide.md` § Template parts; the audit fails on an undeclared part, `template_parts`), and each template wraps its content in a group with `"tagName":"main"`.
 - **No skip link in the theme.** Core prints one before every block template that has a `main` element. A design's own skip link is not rebuilt: the page would have two.
 - Maintain heading order from the design (don't skip levels for styling — style with `theme.json`/supports instead).
+  - **Where the design itself skips a level** (an H1, then cards with H3s), add the missing level as a heading that only a screen reader gets: a `core/heading` with core's `screen-reader-text` class, such as an H2 over the grid. Checked by reading the outline before and after.
+  - **Search results have an H1.** A design with no search view leaves search results to `templates/index.html`, which in one build gave them no H1. The chrome row then adds `templates/search.html` with one (`SKILL.md` Phase 1, step 5).
+- **What the design shows only visually is also said in words.** A star rating drawn with icons gets visually hidden text, such as "Rated 5 out of 5", in an element with core's `screen-reader-text` class. Found in an accessibility review.
 - Images carry `alt`; decorative images use empty `alt` (the image block's `isDecorative` also prints `role="none"`).
 - A control's accessible name survives the rebuild. Where the original names a link differently from its visible text, the blueprint says how that is kept (`mapping-guide.md` § Buttons).
 - Interactive blocks expose state via ARIA (`aria-expanded`, `aria-pressed`, `hidden`) as shown in `custom-blocks-guide.md`.
+- **Focus is visible on every surface.** One focus colour for the whole theme measured about 1.5:1 on a dark band. Take the ring's colour from a custom property of the theme's (`--<theme-slug>-focus-color`) that the background preset classes, and covers without `is-light`, set to a colour that contrasts with them. Contrast was measured in an accessibility review.
+  - Over photos and video, a light outline with a dark halo (a `box-shadow` outside the outline) holds on any frame.
+  - Inside a bar of fixed height, such as a header, draw the ring inside the control with a negative `outline-offset`, so that it does not spill onto what is under the bar.
+- **Motion has an off switch.** Every transition and animation the theme adds, a view transition included, is written under `@media (prefers-reduced-motion: no-preference)`, and smooth scrolling is undone under `reduce`. The project template's example motion partial pairs them this way.

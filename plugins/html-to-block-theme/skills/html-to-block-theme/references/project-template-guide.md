@@ -141,6 +141,7 @@ Detection lists what generation left behind. **The examples are there to show ho
 ## Checks (Phase 4 in template mode)
 
 - **Standards audit:** `standards-audit.sh --theme-dir <theme-dir> --content-dir <site-path>/.h2bt/pages` detects the template layout by itself. It checks one Sass source per block type, each built and enqueued, and counts the SCSS sources as the CSS footprint.
+- **CI does not run the standards audit.** Only a run does, so a change made after the run is not audited unless someone runs it. A fix made weeks after one run shipped three fractions of a pixel: the audit passed on the run's last commit and failed on the later `trunk`. Run it on every later change before it is pushed.
 - **CI gates:** `template-checks.sh --repo <repo> [--tests] [--e2e]` runs CI's gates in order: build integrity, blocks allowlist, `composer lint:php`, `npm run lint`, then the wp-env suites.
   - **`--mirror-dir` names a directory the script owns.** The mirror is synced with `rsync --delete`, so the script refuses a directory that is the repository, inside it or around it, one that is not empty and that it did not make, and the mirror of another repository. Leave the flag out unless there is a reason to move the mirror.
   - **It works from a mirror.** The Studio site's `wp-content` also holds Studio's SQLite integration and loader. The lint scripts scan all of `mu-plugins/`, and wp-env mounts it, so checking in place reports hundreds of errors CI never sees. The mirror holds only tracked and unignored files, synced in place so wp-env's bind mounts survive.
@@ -173,6 +174,14 @@ bash "<plugin-root>/scripts/parity-check.sh" --repo <repo> --base-url <site-url>
 
 - **Content isn't in the repository.** Page content, media and menus live in the Studio database. Deploying ships code only, and moving content to the host is the user's step. Never write to production; the repository's `AGENTS.md` treats production as read-only.
   - **Stored content names its environment.** Image blocks hold attachment ids and the local site's URLs. A full push to a fresh environment keeps them; merging pages into an existing database needs an id and URL remap. Say in the report which the project needs, and keep each page's source (`.h2bt/pages/*.html`) and the media manifest as the record a migration starts from.
+- **A later change to a page's content** is a WP-CLI `eval-file` script that changes only what it must. `write-page.sh` writes the whole page, so it overwrites whatever an editor changed since. The script:
+  - replaces exact strings, each with the number of matches it expects;
+  - refuses a page whose counts differ, and changes nothing on it;
+  - does nothing on a second run;
+  - saves a revision and calls `kses_remove_filters()` before it writes;
+  - has a dry-run mode, run on the dev site first. It never runs on production.
+
+  A dry run on a dev site matched every expected replacement before the change was applied.
 - **Renaming a block namespace** (for example when porting): update stored content directly, then validate the pages.
   - Replace `<!-- wp:old/` and `<!-- /wp:old/` with a `$wpdb` string replace across *all* posts, revisions included, in a sentinel-echoing `studio wp eval-file` script. Going through `wp_update_post` runs kses under WP-CLI.
   - Apply the same rewrite to `.h2bt/pages/*.html`.

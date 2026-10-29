@@ -167,6 +167,7 @@ Each was checked by box measurements against an original.
 - **An image that must not shrink in a row:** the child layout value `selfStretch: "fixedNoShrink"` prints `flex-shrink: 0` with the flex basis. The older value `fixed` still shrinks.
 - **A gradient border:** two nested groups. The outer has the gradient background, padding of the ring's width, the radius and the shadow; the inner has the fill and a radius smaller by the ring's width. When the original draws its ring outside the box, take the ring's width off the surrounding padding, add twice the width to the content size, and give the shadow a negative spread of that width.
 - **A decoration layer** needs rules on the container and the layer only: `isolation: isolate` on the container and `z-index: -1` on an absolutely positioned first child put the layer over the container's background and under its content. Give the layer group a block gap of 0, because the flow layout's top margin shifts absolutely positioned children.
+- **A decoration placed for one design frame** is anchored to the frame's edge, not the viewport's: `max(0px, (100% - <frame>px) / 2)` from its side, and `clamp()` between the values the design's two frames give it. Drawings anchored to the viewport's edge were cut off at the widths between two frames; anchored to the frame, they held at every width measured across that range.
 - **A decorative marker hung outside a row** is an image with a negative left margin and a right margin that cancels the row's gap. No positioning CSS.
 
 ### Layout traps (defaults that fight the design)
@@ -245,6 +246,7 @@ Checked on WordPress 7.1.3.
 - **A link colour on a block removes the theme's link hover** for every link inside it. The block's rule (`style.elements.link.color.text`) is printed as `.wp-elements-N a:where(…)` and outranks the theme's hover rule, which WordPress prints inside `:where()`. Give the block its own `:hover` colour if hover matters.
 - **Taking the underline off the link inside one block** has no editor control: "None" as a heading's or paragraph's decoration applies to the block, and the link keeps the theme's link style. The attribute route exists: with a link colour set on the block, `style.elements.link.typography.textDecoration` beside it (and under `:hover`) is printed in the same rule.
 - **`core/list` cannot drop its markers by attribute.** Its save function prints `list-style-type` for ordered lists only. A list without markers is a registered style.
+- **`core/breadcrumbs` takes its trail from a filter.** `block_core_breadcrumbs_items` reshapes it, to follow the header menu's sections instead of the page tree, say. Pick items by their `url`: WooCommerce adds a category crumb on a product, and core can change the keys an item carries, so a choice by position or by key picks the wrong item. The filter was used on 7.1.3; that a choice by position or key breaks is derived. Its separator is styled from the block's stylesheet (`block-styles-guide.md` § Selectors that surprise).
 
 ### core/navigation notes
 
@@ -267,6 +269,11 @@ Checked on WordPress 7.1.3.
 
   The leading class makes each selector outrank core's in either stylesheet order, and the open overlay is untouched. Checked against core's stylesheet on WordPress 7.1.3, one pixel either side of both bounds. A breakpoint below 600px needs core's two rules repeated for the band instead; that direction was not checked.
 - **`hasIcon: false` prints words.** The buttons then read "Menu" and "Close" as text. Keep the icon unless the design shows the words: `icon` chooses between the two glyphs core has, and a bespoke glyph is a rule on the button.
+- **Content `core/navigation` cannot hold,** such as a product collection in the overlay, is a template part appended by a `render_block_core/navigation` filter: printed with `block_template_part()` after the links, inside the overlay's container. Rendered in the overlay at phone and tablet widths.
+  - Gate the filter on a registered style of the navigation, so that the editor shows it and an editor can switch it off. The part is declared in `theme.json` like any other (`theme-json-guide.md` § Template parts).
+  - The appended blocks inherit the navigation's typography: set their font weight on them. Seen in the browser.
+  - Their images count towards the lazy-loading threshold on every page (§ Images).
+- **A cover in the overlay drops its content under its background.** While any modal is open, and the overlay is one, core's cover stylesheet sets `z-index: auto` on the inner container of a cover whose background is not directly followed by that container. A cover with a featured image is one. A cover shown in the overlay needs `z-index: 1 !important` on `.wp-block-cover__inner-container`, from the navigation's stylesheet. Read in core's cover stylesheet on 7.1.4, and seen on product tiles in the overlay.
 
 ## Query loops, archives and pagination
 
@@ -315,12 +322,23 @@ Checked with WooCommerce 11.2.1 and WooCommerce Subscriptions 9.3.0 on WordPress
   - `wcsatt_single_product_one_time_option_has_price` to show the one-time price.
 
   For a simple product the block form prints the options; whether its add-to-cart submits the chosen plan was not checked.
+- **The variation area is a polite live region.** WooCommerce prints it as `<div class="woocommerce-variation single_variation" role="alert">`, and Subscriptions draws its plan options inside it, so every change of variation announced the whole list of options. Make it `role="status"`, with a `render_block_woocommerce/add-to-cart-form` filter and `WP_HTML_Tag_Processor`. Found in an accessibility review; not checked with a screen reader.
+- **A script that reads the variation form can read the previous variation.** WooCommerce shows a chosen variation's options about 300ms after the choice, and Subscriptions then redraws the options and the button's label, so for that moment the form still holds the previous variation's price. Take the price from the `found_variation` event's data, and check that its `variation_id` still matches the form's. Seen in the browser, with quick changes of variation.
 - **A product collection lays itself out.** `woocommerce/product-collection` takes a grid layout of its own, with per-viewport `columnCount` and `blockGap`, so a card grid that changes its columns at a breakpoint needs no CSS.
+- **A product collection in a template or a part picks its products by a property, never by hand.** A hand-picked collection stores product ids, and ids differ per environment. One by a property editors control, such as Featured (`woocommerce/product-collection/featured`) ordered by `menu_order`, needs no ids. It shows the first N products that match. Rendered with 0, 1, 2, 3 and 4 Featured products:
+  - with fewer than N, a fixed grid shows empty columns;
+  - with none, the block prints nothing;
+  - with more than N, the product order decides which show.
+
+  Out-of-stock products stay in it unless `woocommerceStockStatus` leaves out `outofstock`. The Featured flags are data: each environment needs them set, and the pull request says which.
 - **One block without interactivity support in a product collection turns client-side navigation off for the whole page** (`ProductCollection\Controller::is_block_compatible()`): a block counts when its `block.json` has `supports.interactivity` set to `true`, or `clientNavigation: true`. Check each block type you put in a collection; filters and pagination then reload the page instead.
 - **Product images are lazy, the first row included.** `woocommerce/product-image` prints `loading="lazy"` unless `woocommerce_product_image_loading_attr` returns `eager` or `auto` (WooCommerce 10.6 and later). A shop's first screen is then lazy whatever WordPress's threshold says: report it (`standards.md`).
 - **A product image tile with text over it needs no custom block.** Inside `woocommerce/product-template`, a `core/cover` with `useFeaturedImage` renders each product's own featured image as its background.
 - **`woocommerce_price_trim_zeros` reaches only prices WooCommerce formats in PHP.** The block cart and checkout format prices in the browser, so a product card's "$90" is "$90.00" there.
 - **Sample products are looked up by post type.** `get_page_by_path( $slug, OBJECT, 'product' )` also searches attachments (core adds them when the post type is a string), and a product named like its image ("Lavender Oil", `lavender-oil.png`) resolves to the image. Pass `array( 'product' )`, or use `get_posts( array( 'post_type' => 'product', 'name' => $slug ) )`.
+- **The closed Mini-Cart drawer leaves Tab stops.** WooCommerce prints the drawer in `wp_footer`, hidden with `aria-hidden` only, so its buttons stay in the Tab order. Bind `inert` to its open state with `data-wp-bind--inert="!state.isOpen"` on `.wc-block-mini-cart__drawer`, and print `inert` on the closed drawer so that it holds before the page hydrates. Add both to the footer's output with `WP_HTML_Tag_Processor`. Checked with the keyboard.
+- **The Mini-Cart's store has no state on the cart and checkout pages.** There `MiniCart::render()` returns a hidden, disabled button, or nothing, before it loads the cart state. Markup that reads `woocommerce/mini-cart` elsewhere, such as a cart count in the header, needs a static fallback on those two pages (`custom-blocks-guide.md` § What a block can know). Read in WooCommerce 11.2.1's source.
+- **WooCommerce 11.2.1 requests `undefinedwc/store/v1/cart` on the cart and checkout pages, and retries without end.** The Mini-Cart's script module still loads there, without the cart state it reads. In an A/B test in the browser, the requests stopped when that module was removed and went on with the theme's own blocks removed. WooCommerce fixed it in 11.3.0 (woocommerce/woocommerce#66951); the fix was not tried.
 
 ## File classification: template vs part vs page
 
@@ -398,6 +416,7 @@ Static JS in the design (sliders, accordions, mobile menus, scroll effects) has 
 - **Needs custom behaviour** → follow `custom-blocks-guide.md`. Try the Interactivity API on an existing block, a variation or a filter first; then a block reused from the blocks monorepo; and only then a new block built in the monorepo. This is the home the user wants for "functionality beyond core."
 - **Purely decorative scroll/animation** → reproduce with CSS where cheap; otherwise drop it and note it in the report. Do not enqueue the original JS file wholesale.
 - **Behaviour the blueprint puts out of scope** is built in its default, script-free state. An element a later script reveals is kept as a hidden block (`metadata.blockVisibility: false`, or a hidden style on an older core) so its design is not lost.
+- **Cross-document view transitions** (`@view-transition { navigation: auto; }`) are a root rule, under `prefers-reduced-motion: no-preference` (`standards.md` § Accessibility). Do not give the header a `view-transition-name`: a named header slid in on every navigation, while a part that is the same on both pages stays still under the default crossfade. Checked in Chrome.
 
 ## core/html policy (enforced by the validator)
 
