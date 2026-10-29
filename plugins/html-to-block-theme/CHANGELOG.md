@@ -4,8 +4,7 @@
 
 From fixes made to a theme this skill built, after its run: accessibility fixes, alignment with the design file, and product menus, in a project-template repository on WordPress 7.1.3 and 7.1.4 with WooCommerce 11.2.1 and WooCommerce Subscriptions 9.3.0. Each new passage in the guides says how it was checked, and the ones that are derived or a team convention say so. Not checked:
 - any of it with a screen reader, or in Safari or Firefox;
-- forced-colors mode beyond one control;
-- WooCommerce 11.3.0's fix for the cart requests.
+- forced-colors mode beyond one control.
 
 ### Added
 - **A second skill, `change-built-theme`, for changes after a run.** The standards audit ran only in a run, and the project template's CI does not run it: a fix made weeks after one run shipped three fractions of a pixel that the audit fails on at once. The skill sends each change to the guide that governs it, lists the rules the audit does not check that later changes broke, says how page content is changed, and ends with the audit. It defers to the guides wherever they say more, and the conversion skill points a finished run's changes to it.
@@ -23,8 +22,7 @@ From fixes made to a theme this skill built, after its run: accessibility fixes,
 - **WooCommerce** (`mapping-guide.md` § WooCommerce):
   - a product collection in a template or part picks by a property such as Featured, never by id, and what it then shows with too few or too many;
   - the variation area's `role="alert"`, and reading a variation's price from `found_variation`;
-  - the closed Mini-Cart drawer's Tab stops, and the Mini-Cart's missing state on the cart and checkout pages;
-  - 11.2.1's endless `undefinedwc/store/v1/cart` requests.
+  - the closed Mini-Cart drawer's Tab stops, and the Mini-Cart's missing state on the cart and checkout pages.
 - **Smaller facts:** decorations anchored to the design frame, not the viewport; no `view-transition-name` on the header; `block_core_breadcrumbs_items`, picking items by `url` (`mapping-guide.md`); another block's Interactivity state seeded with `wp_interactivity_state()` (`custom-blocks-guide.md`).
 - **Project repositories** (`project-template-guide.md`): CI does not run the standards audit, so a later change runs it; a later change to page content is a counted, all-or-nothing replacement with a dry run, not a rewrite of the page.
 
