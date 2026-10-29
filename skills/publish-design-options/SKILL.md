@@ -353,7 +353,8 @@ with these differences:
 - **Options become views.** Name them from the Views table in the notes file
   (`handoff/views.md`, or `views.md` in the folder) in its order: Home, Page,
   Blog post, Blog index, Search, 404, then the state files ("Blog post — no
-  comments yet", …). Name source: the notes file. The confirmation gate (step 4)
+  comments yet", …), then the sitemap pages (FAQ, Contact, …) in the notes'
+  Sitemap order. Name source: the notes file. The confirmation gate (step 4)
   still applies.
 - **Staging.** Copy the folder whole into `stage/site/` (excluding `*.md`
   files), keeping its layout so the views' relative links between each other
@@ -366,8 +367,9 @@ with these differences:
   not each file.
 - **Link audit.** In addition to step 8, every relative link between views
   must resolve inside `stage/site/`.
-- **Verify (step 10).** Assert the overview links every view; check network
-  and console errors on every view, including the state files.
+- **Verify (step 10).** Assert the overview links every view, including each
+  Page row in the notes' Sitemap; check network and console errors on every
+  view, including the state files and the sitemap pages.
 - **Same space.** A site preview goes to the project's existing space (the
   one the options went to) as a new version, so the partner's link doesn't
   change. The publish message says `Site preview: <project> — <date>`.
