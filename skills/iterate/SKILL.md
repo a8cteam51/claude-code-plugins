@@ -24,7 +24,8 @@ Scope root: an explicit path in the arguments, else `git rev-parse
 |---|---|
 | No `.chosen-direction` and no `handoff/DESIGN.md` | **HTML phase.** `directions/NN-<slug>.html`. Ask which one only if the request doesn't make it clear. |
 | A theme path is known (arguments, or a `.theme-path` file at the scope root, absolute or relative to it) | **Theme phase.** The block theme. |
-| `handoff/source/home.html` exists, no theme path | **Site phase.** The views in `handoff/source/` (written by `/prep-handoff`). Ask which view only if the request doesn't make it clear; a token change is one edit in `assets/site.css`, and a header or footer change is made identically in every view so the chrome stays byte-identical. |
+| `handoff/source/` exists but the set is not complete (`/prep-handoff` Step 0's test), no theme path | Stage 3 of `/prep-handoff` stopped partway. Say so and offer to finish it there; don't edit a half-designed set. |
+| The set in `handoff/source/` is complete (`/prep-handoff` Step 0's test), no theme path | **Site phase.** The views in `handoff/source/` (written by `/prep-handoff`). Ask which view only if the request doesn't make it clear; a token change is one edit in `assets/site.css`, and a header or footer change is made identically in every view so the chrome stays byte-identical. |
 | `.chosen-direction` or `handoff/DESIGN.md` exists, no `handoff/source/`, no theme path | The direction is chosen but the site isn't designed yet. Say so and offer `/prep-handoff`. If the user says a theme already exists (an older project), ask once for its folder and write it to `.theme-path`. |
 
 **Once a direction is chosen, `directions/*.html` is frozen**, and **once a

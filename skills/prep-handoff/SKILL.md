@@ -33,10 +33,18 @@ from there. Don't redo a finished stage unless asked.
 |---|---|
 | No `.chosen-direction` | 1 |
 | `.chosen-direction`, no `handoff/DESIGN.md` | 2 |
-| `DESIGN.md`, no `handoff/source/home.html` | 3 |
-| `handoff/source/` with views, no `handoff/decisions.md` | 4 (or 5 if the user says the partner signed off) |
+| `DESIGN.md`, and the set is not complete (below) | 3: resume it, keeping the views already written |
+| The set is complete, no `handoff/decisions.md` | 4 (or 5 if the user says the partner signed off) |
 | `decisions.md` newer than every file in `handoff/source/` | Done: report the package and stop |
 | `decisions.md` older than something in `handoff/source/` | 5 again: the set changed after packaging |
+
+**The set is complete** only when `handoff/source/` holds every file in
+`design-site-templates`' view-specs § The set and its three state files,
+`handoff/views.md` exists with a Sitemap whose every Page row has its file
+in `handoff/source/`, and `views.md` has its Open items section (the last
+thing Stage 3 writes). `home.html` alone proves nothing: it is the first
+file Stage 3 writes, and the foundation can start while DESIGN.md is still
+being drafted.
 
 ## Step 1 — Confirm the chosen direction
 
