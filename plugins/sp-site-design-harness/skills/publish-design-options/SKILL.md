@@ -209,7 +209,7 @@ Tokens to substitute, all of them required:
 | `{{NOUN}}` | `options` (`views`) |
 | `{{VERSION}}` | `Version 1.0`, or the round of review this is |
 | `{{DATE}}` | Long-form date, e.g. `January 1, 2026` |
-| `{{COUNT}}` | Number of options |
+| `{{COUNT}}` | Number of options, or of views in a site preview |
 | `{{OPTIONS}}` | One `<li>` per option, in the shape below |
 | `{{PROVENANCE}}` | `<dt>`/`<dd>` pairs: a `Published` timestamp, then one per option naming its absolute source path |
 
@@ -341,6 +341,15 @@ For partner review of a whole site designed by `design-site-templates`
 (usually `handoff/source/`, via `/prep-handoff`). The steps above all apply,
 with these differences:
 
+- **The scope root is the project, not the source folder.** The folder given
+  is what gets published; the project's state lives above it. When it is
+  `handoff/source/`, the scope root is the folder that holds `handoff/` (the
+  project folder, `projects/<slug>/` inside the harness). Steps 6 and 9 read
+  `.spacefast/space.json` and `.design-template` from there, and anything
+  this skill records is written there. **Nothing is ever written into the
+  source folder:** html-to-block-theme builds from it, and a new file there
+  also makes `decisions.md` look older than the set, which sends
+  `/prep-handoff` back to packaging.
 - **Options become views.** Name them from the Views table in the notes file
   (`handoff/views.md`, or `views.md` in the folder) in its order: Home, Page,
   Blog post, Blog index, Search, 404, then the state files ("Blog post — no

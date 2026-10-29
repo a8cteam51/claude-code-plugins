@@ -277,3 +277,20 @@ would let an isolated critic overrule the written design system. Now the
 critic is told which DESIGN.md rules are fixed, and any finding that
 contradicts DESIGN.md or the approved homepage is recorded as a decision for
 the user rather than applied.
+
+## 2026-10-29 — Every real page in the sitemap gets its own HTML file
+
+The S4 build showed html-to-block-theme builds only what the HTML shows.
+`design-site-templates` designed a fixed set of templates and sent the nav's
+other pages (FAQ, Contact & Locations) to `page.html`, so the IA existed only
+as prose in `decisions.md` and those pages were never built. Now Step 0 lists
+every destination (nav, footer, calls to action, the brief's IA and content
+inventory) as a sitemap row of one of three kinds: a template view, a page
+(its own `<slug>.html` with real content, even when it reuses the page
+layout), or external (booking, social; a link, no file). Destinations the
+inputs defer (here, "referrals to friendly organizations") are recorded, not
+dropped. `prep-handoff` Stage 5 fails a package where a sitemap page has no
+file or any view links to `page.html`, and `dev-handoff` no longer files
+named inner pages away as deferrals. Considered: letting html-to-block-theme
+read the IA from `decisions.md`; rejected for now, because the HTML is the
+one input every builder reads and the partner reviews.

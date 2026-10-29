@@ -67,8 +67,18 @@ reduce this class of issue. This is the immediate next step.
   - The run's 13 lessons are folded into the skills.
 
   Merged to `main` as 0.3.0 on 2026-10-16. Known gaps are in the README.
-  Next: sync to `a8cteam51/claude-code-plugins` (PR), then S4 (h2bt on the
-  full set, including how it handles the state files).
+  Synced to `a8cteam51/claude-code-plugins` as PR #19 (open).
+
+  **S4 done (2026-10-27 to 10-29): html-to-block-theme 0.8.2 on the full
+  set.** It built every view, folded the three state files into their parent
+  templates, built `home.html` as a page (not `front-page.html`), and passed
+  its standards audit. The run found one harness gap: `design-site-templates`
+  pointed FAQ and Contact at `page.html`, so they were never built. Fixed
+  (every sitemap page now gets its own file, and Stage 5 fails a set that is
+  missing one); the missing pages were then designed and built on top of the
+  theme with no failures. #19's review fixes (Stage 3 completion test,
+  site-preview state kept out of `source/`) are in too. Results live outside
+  the repo in `../sp-site-design-harness-plans/`.
 
 - **html-to-block-theme integration (started 2026-10-08)**, on branch
   `h2bt-integration` (worktree `../sp-site-design-harness-h2bt`). Plan and

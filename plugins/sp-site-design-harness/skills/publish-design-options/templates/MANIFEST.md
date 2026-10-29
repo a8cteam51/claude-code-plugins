@@ -30,7 +30,10 @@ Once chosen for a project, record the template id as plain text in
 the project lives inside this harness's own working area, or the project's
 own top-level folder (sibling to `.spacefast/`) when it doesn't. Resolve the
 scope root the same way `/publish-design-options` step 1 does: an explicit
-path if given, else `git rev-parse --show-toplevel`, else `$PWD`. Reuse the
+path if given, else `git rev-parse --show-toplevel`, else `$PWD`. In
+site-preview mode the path given is `handoff/source/`, but the scope root is
+the project folder above `handoff/`: never write `.design-template` into the
+source folder html-to-block-theme builds from. Reuse the
 recorded choice for later runs against that same root without re-asking,
 unless the user brings it up — consistency across runs in one project still
 matters more than re-litigating the pick every time.

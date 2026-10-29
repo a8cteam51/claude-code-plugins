@@ -128,7 +128,10 @@ system will consume:
   state files fold into their parent templates.
 - **Implied pages/templates/patterns not designed** — anything the brief
   or the chosen direction implies that no file in `handoff/source/` shows
-  (named inner pages like About or Contact, extra archives). If there's no
+  (extra archives, patterns). Named inner pages (About, FAQ, Contact) are
+  not deferrals: `design-site-templates` gives each its own file. If one is
+  missing, report it to the caller as a gap in the set instead of recording
+  it here as a page that "uses page.html". If there's no
   `handoff/views.md` at all, use `design-standards.md`'s Process Rules view
   set as the checklist (blog index, single post, archive/taxonomy, search
   results, 404).
