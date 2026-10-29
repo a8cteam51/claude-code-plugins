@@ -7,7 +7,7 @@
   covers:
     - { file: mapping-guide.md, match: "Never create `templates/front-page.html`." }
     - { file: mapping-guide.md, match: "Homepage has its own chrome" }
-    - { file: SKILL.md, match: "The homepage is always a page, never" }
+    - { file: skills/html-to-block-theme/SKILL.md, match: "The homepage is always a page, never" }
   consumer: orchestrator
   task: |
     The design set has three files. `index.html` is the homepage: a full-viewport hero and no site header. `about.html` and `services.html` share one header and one footer.
@@ -91,7 +91,7 @@
 
 - id: block-style-css-per-block
   covers:
-    - { file: SKILL.md, match: "Register block styles per `block-styles-guide.md`" }
+    - { file: skills/html-to-block-theme/SKILL.md, match: "Register block styles per `block-styles-guide.md`" }
     - { file: block-styles-guide.md, match: "All custom CSS for a block type lives in **one file**" }
   consumer: orchestrator
   guides: [block-styles-guide.md]
