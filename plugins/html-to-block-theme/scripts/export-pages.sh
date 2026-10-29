@@ -7,10 +7,11 @@ usage() {
 Usage:
   export-pages.sh --site-path <site>
 
-Writes the block markup of every page and synced pattern (wp_block) on the Studio site,
-published or not, to <site>/.h2bt/export/<post-type>-<id>.html, after removing the files
-an earlier export left there. Content with no block delimiters is counted as skipped and
-not written. Nothing is written to the database. Then audit the theme with it:
+Writes the block markup of every page and user pattern (wp_block, synced or not) on the
+Studio site, published or not, to <site>/.h2bt/export/<post-type>-<id>.html, after
+removing the files an earlier export left there. Content with no block delimiters is
+counted as skipped and not written. Nothing is written to the database. Then audit the
+theme with it:
 
   standards-audit.sh --theme-dir <theme-dir> --content-dir <site>/.h2bt/export
 

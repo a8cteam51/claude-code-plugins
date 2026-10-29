@@ -62,7 +62,7 @@ Page content, media and menus live in the database and reach other environments 
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/standards-audit.sh" --theme-dir "<theme-dir>" --content-dir "<site-path>/.h2bt/export"
    ```
 
-   The export writes the block markup of every page and synced pattern to `<site-path>/.h2bt/export/`, and must end `H2BT_EXPORT_OK`. A run's `.h2bt/pages` holds what the run wrote, not what changed since. The audit must end `H2BT_AUDIT_OK`, or fail only on what it failed on before the change. `standards.md` says what each rule is for. With no Studio site, audit the theme alone and say that the page content was not audited.
+   The export writes the block markup of every page and user pattern (`wp_block`, synced or not) to `<site-path>/.h2bt/export/`, and must end `H2BT_EXPORT_OK`. A run's `.h2bt/pages` holds what the run wrote, not what changed since. The audit must end `H2BT_AUDIT_OK`, or fail only on what it failed on before the change. `standards.md` says what each rule is for. With no Studio site, audit the theme alone and say that the page content was not audited.
 3. **The repository's gates,** in template mode: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/template-checks.sh" --repo <repo>` must end `H2BT_TEMPLATE_CHECKS_OK` (`project-template-guide.md` § Checks).
 4. **Validate** each changed template, part and page with the Studio validator, and open each once in the editor: nothing missing, collapsed or unstyled (`visual-refinement.md` § The editor canvas).
 5. **Look at it in a browser** at desktop width, one pixel either side of each breakpoint, the narrowest width and 1900px (`run.json` `widths`, where there is one):
