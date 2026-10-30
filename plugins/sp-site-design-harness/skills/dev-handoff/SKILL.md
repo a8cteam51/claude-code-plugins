@@ -37,6 +37,11 @@ what any lower-priority source prefers.
 - `research/brief.md` (produced by Phase 1's `research-intake` skill, if it
   ran)
 
+Inside the harness, `/prep-handoff` runs this skill in two parts: Steps 1–3
+right after the direction is confirmed, and Step 4 once the rest of the site
+has been designed into `handoff/source/` and the partner has signed off.
+Run on its own, all four steps run in order as before.
+
 ## Forked references — read, don't fetch live
 
 This skill's `design-standards.md` and `accessibility-standards.md` are
@@ -63,6 +68,16 @@ behind each token, not just restate the value.
 Read the chosen HTML file's `:root` block alongside `.tokens.md`. The `:root`
 block is authoritative. If the two disagree (e.g. a later `/iterate` edit
 missed the tokens file), use the CSS value and say so in `decisions.md`.
+
+Two rules the draft must carry, because the first test run got them wrong:
+
+- **Placeholder content is recorded, never labelled on the page.** In Do's
+  and Don'ts, say placeholder copy, links and images are listed in the
+  content status (`handoff/views.md`, `decisions.md`), not shown as visible
+  "placeholder" labels in the HTML. Labels in the mock ship into the build.
+- **Form states never change a field's size.** Hover, focus and error change
+  colour or add an outline or inset ring; they never change border width,
+  or the layout jumps. Write error and focus states that way.
 
 ### Step 2 — Gap-fill against team standards
 
@@ -105,20 +120,30 @@ deliberate, explained exception.
 Write the structured, agent-readable notes the separate downstream build
 system will consume:
 
-- **Implied pages/templates/patterns beyond the homepage** — anything the
-  brief or the chosen direction implies but the static mock couldn't show
-  (blog index, single post, archive/taxonomy, search results, 404, etc. —
-  see `design-standards.md`'s Process Rules for the standard WordPress view
-  set as a checklist of what to consider, not a mandate to design them here).
+- **Designed views** — if `handoff/views.md` exists (written by
+  `design-site-templates`), the views are already designed in
+  `handoff/source/`. Summarize its Views and Shared chrome tables, point at
+  it for the rest, and carry its Content status, Assumptions, Fixes to the
+  homepage and Open items into this file so the build sees them. Add how the
+  state files fold into their parent templates.
+- **Implied pages/templates/patterns not designed** — anything the brief
+  or the chosen direction implies that no file in `handoff/source/` shows
+  (extra archives, patterns). Named inner pages (About, FAQ, Contact) are
+  not deferrals: `design-site-templates` gives each its own file. If one is
+  missing, report it to the caller as a gap in the set instead of recording
+  it here as a page that "uses page.html". If there's no
+  `handoff/views.md` at all, use `design-standards.md`'s Process Rules view
+  set as the checklist (blog index, single post, archive/taxonomy, search
+  results, 404).
 - **Interactions described in the brief that the static mock couldn't
   show** — anything from `research/brief.md` or conversation about behavior
   (menus, form flows, animation, state changes) that a single static HTML
   file cannot demonstrate.
 - **Explicit deferrals** — anything intentionally left for the build phase
   to decide, named plainly rather than left implicit.
-- **Partner feedback applied** — if `directions/NN-<slug>.changes.md` exists,
-  summarize it here so the build agent knows which choices came from partner
-  review and shouldn't be "corrected" back.
+- **Partner feedback applied** — if `directions/NN-<slug>.changes.md` or
+  `handoff/changes.md` exists, summarize it here so the build agent knows
+  which choices came from partner review and shouldn't be "corrected" back.
 
 ## Output (`handoff/`)
 
@@ -131,9 +156,11 @@ responsible for.
 
 ## After handoff
 
-Once `handoff/DESIGN.md` exists, the chosen `directions/*.html` is frozen as
-a reference. Later feedback is applied to the built theme with `/iterate`,
-which keeps `DESIGN.md` in sync. It never goes back into the HTML.
+Once a direction is confirmed (`.chosen-direction`) or `handoff/DESIGN.md`
+exists, `directions/*.html` is frozen as a reference. Feedback before the
+build goes into `handoff/source/` with `/iterate`; after the build, into the
+theme. Either way `/iterate` keeps `DESIGN.md` in sync, and nothing goes back
+into `directions/`.
 
 ## Exit condition
 

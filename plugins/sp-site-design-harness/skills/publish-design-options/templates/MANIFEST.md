@@ -1,6 +1,7 @@
 # Index page templates
 
-Shared house templates for the design-options index/nav page. Both
+Shared house templates for the design-options index/nav page, also used as
+the overview page of a site preview. Both
 `create-design` (`directions/index.html`, written after every design run) and
 `/publish-design-options` (the packaged `index.html` sent to partners) fill
 one of these — never improvise a nav page ad hoc. Using the same template in
@@ -29,7 +30,10 @@ Once chosen for a project, record the template id as plain text in
 the project lives inside this harness's own working area, or the project's
 own top-level folder (sibling to `.spacefast/`) when it doesn't. Resolve the
 scope root the same way `/publish-design-options` step 1 does: an explicit
-path if given, else `git rev-parse --show-toplevel`, else `$PWD`. Reuse the
+path if given, else `git rev-parse --show-toplevel`, else `$PWD`. In
+site-preview mode the path given is `handoff/source/`, but the scope root is
+the project folder above `handoff/`: never write `.design-template` into the
+source folder html-to-block-theme builds from. Reuse the
 recorded choice for later runs against that same root without re-asking,
 unless the user brings it up — consistency across runs in one project still
 matters more than re-litigating the pick every time.
@@ -43,11 +47,15 @@ call site can fill any of them without special-casing:
 | Token | Value |
 |---|---|
 | `{{PROJECT}}` | Project or client name |
+| `{{TITLE}}` | `Design options`, or `Site preview` for a site preview |
+| `{{TITLE_LOWER}}` | `{{TITLE}}` in lowercase, for the `<title>` |
+| `{{HEADLINE}}` | `{{TITLE}}` with `&nbsp;` between the words, inserted unescaped (`Design&nbsp;options`, `Site&nbsp;preview`) |
+| `{{NOUN}}` | `options`, or `views` for a site preview |
 | `{{VERSION}}` | `Version 1.0`, or the round of review this is |
 | `{{DATE}}` | Long-form date, e.g. `January 1, 2026` |
-| `{{COUNT}}` | Number of options/directions |
+| `{{COUNT}}` | Number of options/directions, or of views in a site preview |
 | `{{OPTIONS}}` | One `<li>` per option (see `design-options-index.html` for the expected markup shape) |
 | `{{PROVENANCE}}` | `<dt>`/`<dd>` pairs: a timestamp, then one per option naming its source |
 
-HTML-escape every substituted value, and assert no `{{` remains in the output
+HTML-escape every substituted value except `{{HEADLINE}}`, and assert no `{{` remains in the output
 before writing it.

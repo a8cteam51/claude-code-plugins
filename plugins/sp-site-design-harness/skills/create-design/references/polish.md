@@ -78,6 +78,14 @@ centered column on mobile.
 
 Also check: reflow at 320px, long content, short content, and orientation change.
 
+Check small mobile with a real 375px render, and measure it: no horizontal
+scroll (`scrollWidth` equals `clientWidth`), and the header's controls stay
+on one line. Headless Chrome won't make a window narrower than about 500px,
+so a headless "375" screenshot is a wider layout cropped. Use the browser at
+375 or a 375px iframe. In the first site-templates run, an approved
+homepage shipped with a 20px horizontal scroll at 375 that a cropped
+capture hid.
+
 ## 3. Accessibility
 
 Decided throughout the design process, not added afterward. Verify:

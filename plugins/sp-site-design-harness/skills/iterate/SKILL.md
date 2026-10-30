@@ -1,6 +1,6 @@
 ---
 name: iterate
-description: Apply feedback to an existing design direction or built block theme fast — swap a token, fix copy, adjust a property, rework one section, or work through a pasted list of partner notes. Use whenever the user asks to change, fix, tweak, or revise something in an existing `directions/NN-<slug>.html` or a block theme built from this harness's handoff. Does not run the create-design engine (no critic, no gates, no re-exploration); requests that need a new direction or a new concept are routed back to `create-design`.
+description: Apply feedback to an existing design direction or built block theme fast — swap a token, fix copy, adjust a property, rework one section, or work through a pasted list of partner notes. Use whenever the user asks to change, fix, tweak, or revise something in an existing `directions/NN-<slug>.html`, the site views in `handoff/source/`, or a block theme built from this harness's handoff. Does not run the create-design engine (no critic, no gates, no re-exploration); requests that need a new direction or a new concept are routed back to `create-design`.
 argument-hint: "[direction file or theme path] <change request or pasted feedback>"
 ---
 
@@ -22,15 +22,18 @@ Scope root: an explicit path in the arguments, else `git rev-parse
 
 | State | Target |
 |---|---|
-| No `handoff/DESIGN.md` | **HTML phase.** `directions/NN-<slug>.html`. Ask which one only if the request doesn't make it clear. |
-| `handoff/DESIGN.md` exists and a theme path is known (arguments, or a `.theme-path` file at the scope root, absolute or relative to it) | **Theme phase.** The block theme. |
-| `handoff/DESIGN.md` exists, no theme path | Ask once for the theme folder, then write it to `.theme-path` so nobody has to ask again. |
+| No `.chosen-direction` and no `handoff/DESIGN.md` | **HTML phase.** `directions/NN-<slug>.html`. Ask which one only if the request doesn't make it clear. |
+| A theme path is known (arguments, or a `.theme-path` file at the scope root, absolute or relative to it) | **Theme phase.** The block theme. |
+| `handoff/source/` exists but the set is not complete (`/prep-handoff` Step 0's test), no theme path | Stage 3 of `/prep-handoff` stopped partway. Say so and offer to finish it there; don't edit a half-designed set. |
+| The set in `handoff/source/` is complete (`/prep-handoff` Step 0's test), no theme path | **Site phase.** The views in `handoff/source/` (written by `/prep-handoff`). Ask which view only if the request doesn't make it clear; a token change is one edit in `assets/site.css`, and a header or footer change is made identically in every view so the chrome stays byte-identical. |
+| `.chosen-direction` or `handoff/DESIGN.md` exists, no `handoff/source/`, no theme path | The direction is chosen but the site isn't designed yet. Say so and offer `/prep-handoff`. If the user says a theme already exists (an older project), ask once for its folder and write it to `.theme-path`. |
 
-**After handoff, `directions/*.html` is frozen.** Never edit it. If asked to,
-say it's frozen and make the change in the theme instead. Two live sources
-drift apart. See `../../DECISIONS.md` (2026-09-25). If the request names a
-direction other than the one `DESIGN.md` describes, say so and ask before doing
-anything.
+**Once a direction is chosen, `directions/*.html` is frozen**, and **once a
+theme exists, `handoff/source/` is frozen** too. Never edit a frozen file. If
+asked to, say it's frozen and make the change in the current phase's target
+instead. Two live sources drift apart. See `../../DECISIONS.md` (2026-09-25,
+2026-10-13). If the request names a direction other than the one in
+`.chosen-direction`, say so and ask before doing anything.
 
 ## Step 1 — Classify, say so in one line, then act
 
@@ -43,7 +46,7 @@ do it", "treat this as L1"). If the level isn't obvious, read
 
 Token or variable swap, copy change, one property.
 
-- HTML: read only the `:root` block and grep for the selector or variable. Theme:
+- HTML or site: read only the `:root` block and grep for the selector or variable. Theme:
   read only the relevant `theme.json` settings/styles key, or grep the
   pattern/template.
 - A color named in words ("plum", "the terracotta") means the palette token of
@@ -96,14 +99,16 @@ line. Don't attempt it here.
 2. Do all the L0s in one pass, then the L1s one at a time, each with its own
    before/after screenshots.
 3. Route any L2s to `create-design` together, after the rest are done.
-4. HTML phase: offer `/publish-design-options` to update the same Spacefast
-   link so the partner can just refresh. Don't publish unless asked.
+4. HTML or site phase: offer `/publish-design-options` (on `handoff/source/`
+   in the site phase) to update the same Spacefast link so the partner can
+   just refresh. Don't publish unless asked.
 
 ## Keep the token files in sync — same edit, every time
 
 | Phase | Authoritative | Also update |
 |---|---|---|
 | HTML | the `:root` block in `NN-<slug>.html` | the matching line in `NN-<slug>.tokens.md` |
+| Site | the `:root` block in `handoff/source/assets/site.css` | the matching token in `handoff/DESIGN.md` (frontmatter, and prose if it names the value) |
 | Theme | `theme.json` | the matching token in `handoff/DESIGN.md` (frontmatter, and prose if it names the value) |
 
 Update every line that names the changed value or role, including prose; if
@@ -124,14 +129,14 @@ the theme phase, use WordPress Studio's screenshot tool if it's available.
 ## Change log
 
 Append one line per change to `directions/NN-<slug>.changes.md` (HTML phase) or
-`handoff/changes.md` (theme phase), creating it if needed:
+`handoff/changes.md` (site and theme phases), creating it if needed:
 
 ```
 - 2026-09-25 · L0 · "borders feel too heavy" (partner) · --color-border → var(--stone) · 02-conditions.html:31, 02-conditions.tokens.md
 ```
 
 Date · level · feedback (quoted, with the source if known) · what changed ·
-files, with lines comma-separated per file (`02-x.html:94,225,298`). `dev-handoff` pulls the HTML-phase log into `decisions.md`.
+files, with lines comma-separated per file (`02-x.html:94,225,298`). `dev-handoff` pulls the HTML- and site-phase logs into `decisions.md`.
 
 ## Reporting
 
