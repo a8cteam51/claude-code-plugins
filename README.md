@@ -19,7 +19,6 @@ Add the marketplace once, then install whichever plugins you need:
 | [wpbakery-to-gutenberg](#wpbakery-to-gutenberg) | Convert WPBakery pages on a Studio site to Gutenberg block markup in place | `/wpbakery-to-gutenberg:wpbakery-batch`, natural language |
 | [html-to-block-theme](#html-to-block-theme) | Turn static HTML/CSS/JS designs into a standards-driven WordPress block theme | Natural language |
 | [figma-extract](#figma-extract) | Pull images and design context out of the current Figma selection | `/figma-extract:extract` |
-| [page-annotator](#page-annotator) | Annotate a page in Chrome and file each note as a GitHub issue with a screenshot | `/page-annotator:annotate` |
 | [poseidon-local](#poseidon-local) | Run the Poseidon plan/implement agents locally instead of via GitHub Actions | `/poseidon-plan`, `/poseidon-implement` |
 | [ai-canvas](#ai-canvas) | Design a WordPress page locally as a full-width Custom HTML block, then move it to the site through your logged-in Chrome with no connection setup | Natural language |
 | [site-launch-comparison](#site-launch-comparison) | Screenshot two versions of a site and build a side-by-side before/after report | Natural language |
@@ -249,45 +248,6 @@ It opens an MCP session to `http://127.0.0.1:3845/mcp`, calls `get_design_contex
 
 # A specific node, into a chosen directory
 /figma-extract:extract 1:23 --out ./design
-```
-
-## page-annotator
-
-Annotate the web page you're viewing in Chrome and file each note as a GitHub issue — with a screenshot. Click elements, leave notes ("this button wraps", "wrong colour on hover"), hit **Create GitHub issues**, and each annotation becomes its own issue carrying a screenshot of the element ringed in context plus the selector, markup, and browser details. A front-end QA companion: point at the problem instead of describing it. **One annotation → one issue.** The plugin does not read or change your code.
-
-**What's included:**
-
-- **annotate skill** - `/page-annotator:annotate`, plus natural-language triggers like "QA this page and raise tickets"
-- **page-annotator.user.js** - The dependency-free vanilla-JS overlay, installed as a Tampermonkey userscript; makes no network requests and talks to Claude through a hidden DOM node
-- **scripts/** - `file-issues.mjs` and `serve-userscript.js`
-
-**What it does:**
-
-- Probes for the userscript, arms the overlay, and polls a hidden JSON node until you click **Create GitHub issues**
-- Screenshots each annotated element in capture mode — scrolled into view, Claude's own toolbar and pins hidden, the element ringed
-- Previews the issues and **waits for your approval** before filing anything, then writes issue numbers back so filed pins turn green and are skipped by later batches
-- Remembers the target `owner/repo` per site, prefilling from the working directory's git remote when it can
-
-Because it drives your real browser session, logged-in states, feature flags, and real data all work. One GitHub tab opens per batch to attach screenshots — GitHub has no API for issue attachments, and the plugin will not read your session cookie out of your keychain to fake one.
-
-**Requirements:**
-
-- The [Claude in Chrome](https://claude.com/chrome) extension, connected to Claude Code, with permission for the site you're annotating **and for `github.com`**
-- [Tampermonkey](https://www.tampermonkey.net/) (or Violentmonkey) — Claude walks you through installing the userscript the first time, and re-prompts when the plugin ships a newer version
-- The [`gh` CLI](https://cli.github.com) authenticated, with write access to the target repository
-
-**Note:** annotation data is published to an issue tracker — element text, markup, page URL, and browser details all land in the issue, publicly if the repo is public. The overlay scrubs form values, URL query strings, and token-like strings from captured markup, but visible text is kept verbatim.
-
-```bash
-# Install page-annotator
-/plugin install page-annotator@a8cteam51-claude-code-plugins
-
-# Annotate the active tab
-/page-annotator:annotate
-
-# Target a specific tab, or prefill the repository
-/page-annotator:annotate staging.example.com
-/page-annotator:annotate a8cteam51/example
 ```
 
 ## poseidon-local
