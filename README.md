@@ -182,6 +182,7 @@ Convert a set of static **Claude Design** HTML/CSS/JS files into a standards-dri
 **What's included:**
 
 - **html-to-block-theme skill** - Natural-language trigger for phrases like "build a block theme from the designs in ./design"
+- **change-built-theme skill** - For changes to a theme after its run: sends each change to the guide that governs it and ends with the standards audit, run on the page content `export-pages.sh` exports from the site
 - **blueprint-analyzer / section-builder agents** - Subagents for the planning pass and per-section build, keeping design HTML out of the main context
 - **scripts/** - `scaffold-custom-block.sh`, `serve-html.sh`, `standards-audit.sh`, and a sentinel-verified `write-page-content.php.tmpl`
 - **Bundled Playwright MCP** - Shipped via the plugin's `.mcp.json`; no separate install step

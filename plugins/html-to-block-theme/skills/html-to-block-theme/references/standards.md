@@ -1,12 +1,17 @@
 # Standards
 
-Non-negotiable rules for the delivered theme. The standards audit (`scripts/standards-audit.sh`) enforces the comment and custom-CSS rules, the reserved preset slugs, the dropped-colour rule, whole-pixel values, the layout of post content, group names, settings written as classes and the areas of template parts; the rest are review criteria. Pass it `--content-dir <site-path>/.h2bt/pages` so the page content, which is not in the theme, is checked too. It also fails on a `theme.json` that does not parse (`theme_json`), which WordPress ignores, and on a directory that is not a theme. Its last line is `H2BT_AUDIT_OK` or `H2BT_AUDIT_FAIL`.
+Non-negotiable rules for the delivered theme. The standards audit (`scripts/standards-audit.sh`) enforces the comment rule in block markup (and, in a standalone theme, in its stylesheets), the custom-CSS rules, the reserved preset slugs, the dropped-colour rule, whole-pixel values, the layout of post content, group names, settings written as classes and the areas of template parts; the rest are review criteria. Pass it `--content-dir <site-path>/.h2bt/pages` so the page content, which is not in the theme, is checked too. It also fails on a `theme.json` that does not parse (`theme_json`), which WordPress ignores, and on a directory that is not a theme. Its last line is `H2BT_AUDIT_OK` or `H2BT_AUDIT_FAIL`.
 
 ## Comments
 
 - **Block markup** (templates, parts, patterns, page content) contains **only `<!-- wp ... -->` block delimiters.** No other HTML comments — no `<!-- hero section -->`, no `<!-- TODO -->` left in shipped markup. The Gutenberg delimiter is the single permitted comment form.
 - **PHP files** (`functions.php`, `render.php`, `patterns/*.php`) follow WordPress coding standards: a file docblock and function docblocks where they add meaning are fine; avoid line-by-line inline narration. No commented-out code.
-- **CSS / JS**: no explanatory inline comments beyond a short file header where one genuinely helps. Keep it clean, not annotated. A scaffold's explanatory comments go, also above a rule that is kept. In a standalone theme the audit fails on a comment in `style.css` or a block stylesheet after the file's header (`css_comments`); in a project repository stylelint is the gate, and its `stylelint-disable` comments stay.
+- **CSS / JS**: no explanatory inline comments beyond a short file header where one genuinely helps. Keep it clean, not annotated. A scaffold's explanatory comments go, also above a rule that is kept. A `stylelint-disable` comment in a project repository's Sass stays, with the description stylelint requires, and so do an `eslint-disable` comment and the `translators:` comment ESLint asks for on a string with placeholders. Read the Sass and JS that a run or a change wrote for comments before calling it done, because only part of the rule is checked:
+  - In a standalone theme the audit fails on a comment in `style.css` or a block stylesheet after the file's header (`css_comments`).
+  - In a project repository nothing checks it: the audit reads the Sass for other rules but not for comments, Sass leaves `//` comments out of the CSS it builds, and the repository's stylelint and ESLint have no rule against a comment (`@wordpress/stylelint-config` 26.1.0 and `@wordpress/eslint-plugin` 27.1.0, through `@a8csp/configs` 1.1.0).
+  - In either layout the audit reads no JS.
+
+  Later changes to one built theme added eleven explanatory comments to its Sass and JS; CI's lint passed each pull request, and the audit of the theme with all eleven in it ended `H2BT_AUDIT_OK`.
 
 If a section needs a note for the user, it goes in the **report**, not as a comment in the theme.
 
@@ -17,6 +22,11 @@ If a section needs a note for the user, it goes in the **report**, not as a comm
 - Hand-written CSS is rung 4 — only when rungs 1–3 cannot achieve the detail. Every rule must be: tightly scoped (to a block wrapper or `is-style-<slug>` class), minimal, and listed in the report with the reason a lower rung could not do it.
 - Never reproduce a value in CSS that already exists as a token — reference `var(--wp--preset--…)`.
 - Do not enqueue the design's original stylesheets or JS. They are intent to translate, not assets to ship.
+
+## Text wrapping
+
+- **No widows.** The team sets `text-wrap-style: pretty` on headings, paragraphs, list items, quotes and captions, and `text-wrap-style: balance` on headings in a browser that has no `pretty` (`@supports not (text-wrap-style: pretty)`). It is a root rule the foundation writes (`SKILL.md` Phase 2, step 1). This is the team's convention, not an observation.
+- **Write the longhand.** The `text-wrap` shorthand also sets `text-wrap-mode`, so a root `text-wrap: pretty` on paragraphs reset the `nowrap` a marquee's text inherited, and the marquee wrapped. `text-wrap-style: pretty` leaves the mode alone. Seen in the browser.
 
 ## Block markup conventions
 
@@ -86,6 +96,13 @@ The theme must **not** ship `templates/front-page.html` — the standards audit 
 - Preserve semantic landmarks: header/nav/main/footer map to the right blocks and template parts. A part is a `<header>` or a `<footer>` only when `theme.json` declares its area (`theme-json-guide.md` § Template parts; the audit fails on an undeclared part, `template_parts`), and each template wraps its content in a group with `"tagName":"main"`.
 - **No skip link in the theme.** Core prints one before every block template that has a `main` element. A design's own skip link is not rebuilt: the page would have two.
 - Maintain heading order from the design (don't skip levels for styling — style with `theme.json`/supports instead).
+  - **Where the design itself skips a level** (an H1, then cards with H3s), add the missing level as a heading that only a screen reader gets: a `core/heading` with core's `screen-reader-text` class, such as an H2 over the grid. Checked by reading the outline before and after.
+  - **Search results have an H1.** A design with no search view leaves search results to `templates/index.html`, which in one build gave them no H1. The chrome row then adds `templates/search.html` with one (`SKILL.md` Phase 1, step 5).
+- **What the design shows only visually is also said in words.** A star rating drawn with icons gets visually hidden text, such as "Rated 5 out of 5", in an element with core's `screen-reader-text` class. Found in an accessibility review.
 - Images carry `alt`; decorative images use empty `alt` (the image block's `isDecorative` also prints `role="none"`).
 - A control's accessible name survives the rebuild. Where the original names a link differently from its visible text, the blueprint says how that is kept (`mapping-guide.md` § Buttons).
 - Interactive blocks expose state via ARIA (`aria-expanded`, `aria-pressed`, `hidden`) as shown in `custom-blocks-guide.md`.
+- **Focus is visible on every surface.** One focus colour for the whole theme measured about 1.5:1 on a dark band. Take the ring's colour from a custom property of the theme's (`--<theme-slug>-focus-color`) that the background preset classes, and covers without `is-light`, set to a colour that contrasts with them. Contrast was measured in an accessibility review.
+  - Over photos and video, a light outline with a dark halo (a `box-shadow` outside the outline) holds on any frame.
+  - Inside a bar of fixed height, such as a header, draw the ring inside the control with a negative `outline-offset`, so that it does not spill onto what is under the bar.
+- **Motion has an off switch.** Every transition and animation the theme adds, a view transition included, is written under `@media (prefers-reduced-motion: no-preference)`, and smooth scrolling is undone under `reduce`. The project template's example motion partial pairs them this way.

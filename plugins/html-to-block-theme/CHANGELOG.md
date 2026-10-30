@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.9.0] - 2026-10-29
+
+From fixes made to a theme this skill built, after its run: accessibility fixes, alignment with the design file, product menus, the standards audit's findings and starter patterns, in a project-template repository on WordPress 7.1.3 and 7.1.4 with WooCommerce 11.2.1 and WooCommerce Subscriptions 9.3.0. Each new passage in the guides says how it was checked, and the ones that are derived or a team convention say so. Not checked:
+- any of it with a screen reader, or in Safari or Firefox beyond one icon at default settings;
+- text-only zoom, and the theme pattern cache on a host;
+- forced-colors mode beyond one control.
+
+### Added
+- **A second skill, `change-built-theme`, for changes after a run.** The standards audit ran only in a run, and the project template's CI does not run it: a fix made weeks after one run shipped three fractions of a pixel that the audit fails on at once. The skill sends each change to the guide that governs it, lists the rules the audit does not check that later changes broke, says how page content is changed, and ends with the audit. It defers to the guides wherever they say more, and the conversion skill points a finished run's changes to it.
+- **`export-pages.sh`** writes the block markup of every page and user pattern (`wp_block`, synced or not), as the database holds it now, to `<site-path>/.h2bt/export/` for the audit's `--content-dir`: a run's `.h2bt/pages` holds what the run wrote, not what changed since. Tried on a site with 13 block pages and one classic page, then with the audit; on a directory that is not a Studio site; and with a file an earlier export left.
+
+### Changed
+- **Text wrapping** (`standards.md`, a new section; `SKILL.md` Phase 2, step 1): the team's rule against widows, `text-wrap-style: pretty` with `balance` for headings where `pretty` is missing, is a root rule the foundation writes. In the longhand: the `text-wrap` shorthand reset a marquee's inherited `nowrap`.
+- **Accessibility** (`standards.md`):
+  - focus is visible on every surface, from a custom property the background presets and dark covers set, with a halo over media and an inset ring in a bar of fixed height;
+  - motion sits under `prefers-reduced-motion`;
+  - a visually hidden heading where the design skips a level, and a search template with an H1 when the design has no search view (`SKILL.md` Phase 1, step 5);
+  - visually hidden text for what is shown only visually.
+- **Block styles** (`block-styles-guide.md`): a hover moves an icon, never the box; a control drawn only by a masked icon needs a forced-colors rule; Sass arithmetic in pixels is read in its output, since the audit does not read the root `style.css` the partials build; an icon shaped by lengths from its viewBox is drawn in `em`, off a font size of its own, so that it holds together under text-only zoom.
+- **Comments in Sass and JS** (`standards.md` § Comments; `SKILL.md` Phase 4, step 3; `change-built-theme`): in a project repository nothing checks them, where the guide had said stylelint was the gate. The audit does not look for comments in the Sass, the repository's stylelint and ESLint have no rule against one, and the audit reads no JS in either layout. Later changes added eleven explanatory comments, and CI's lint and the audit both passed them.
+- **Starter patterns** (`mapping-guide.md` § Where content lives): copied from a built section, without its media ids, attachment URLs or root-relative links, and with its strings translated; the theme registers the category the headers name, under its literal slug (`project-template-guide.md` § Permanent identifiers now gives the category its own row); WordPress caches a theme's pattern list for 30 minutes unless development mode is `theme` or `all`, so a new pattern needs a `Version` bump or a note in the pull request.
+- **Navigation** (`mapping-guide.md` § core/navigation notes): content `core/navigation` cannot hold is a template part appended by a render filter gated on a block style; a cover in the overlay drops its content under its background while a modal is open, from a rule in core's cover stylesheet.
+- **WooCommerce** (`mapping-guide.md` § WooCommerce):
+  - a product collection in a template or part picks by a property such as Featured, never by id, and what it then shows with too few or too many; ties in its `menu_order` are broken by title;
+  - the variation area's `role="alert"`, and reading a variation's price from `found_variation`;
+  - the closed Mini-Cart drawer's Tab stops, and the Mini-Cart's missing state on the cart and checkout pages.
+- **Smaller facts:** decorations anchored to the design frame, not the viewport; no `view-transition-name` on the header; `block_core_breadcrumbs_items`, picking items by `url` (`mapping-guide.md`); another block's Interactivity state seeded with `wp_interactivity_state()` (`custom-blocks-guide.md`).
+- **Project repositories** (`project-template-guide.md`): CI does not run the standards audit, so a later change runs it; a later change to page content is a counted, all-or-nothing replacement with a dry run, not a rewrite of the page.
+
 ## [0.8.2] - 2026-10-20
 
 From a run that built a WooCommerce store with WooCommerce Subscriptions as a block theme in a project-template repository, on WordPress 7.1.3 with WooCommerce 11.2.1, Subscriptions 9.3.0 and Jetpack 16.3.1. Facts the builders reported were checked again afterwards, on that site, by render probe, the block validator or in source; where a check refuted part of one, the guide says what held. Not checked:

@@ -93,6 +93,12 @@ The build then follows `references/project-template-guide.md`.
 
 The skill works on a feature branch and never commits to `trunk` or `develop`, which deploy. It pushes and opens a draft PR only when you allow it.
 
+## After the run
+
+A second skill, `change-built-theme`, is for what follows a run: a fix, a design change, a new block style, new page content. The project template's CI does not run the standards audit, so nothing else holds such a change to the guides. The skill sends each change to the guide that governs it and ends with the audit, which it runs on the page content `scripts/export-pages.sh` exports from the site: the run's own page sources do not hold what changed since.
+
+> Make the focus ring visible on the dark band, in the theme we built.
+
 ## Notes
 
 - All WP-CLI runs go through `studio wp ... --path=<site>` (Studio sites use SQLite); never bare `wp`.
