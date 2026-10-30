@@ -22,7 +22,7 @@ The guides are in `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/`
 
 | Changing | Read |
 |---|---|
-| block markup, or any styling | `mapping-guide.md`: the escalation ladder, attribute forms, per-viewport values, layout traps, navigation, WooCommerce |
+| block markup, or any styling | `mapping-guide.md`: the escalation ladder, attribute forms, per-viewport values, layout traps, navigation, WooCommerce, starter patterns |
 | a registered style or a block stylesheet | `block-styles-guide.md` |
 | `theme.json` | `theme-json-guide.md` |
 | behaviour: a script, a filter, a block | `custom-blocks-guide.md` |
@@ -40,6 +40,7 @@ Before writing a block you have not written on this core, read its `block.json` 
   - a hover or focus state changes no box (`block-styles-guide.md` § Icons in buttons);
   - motion has an off switch, focus is visible on every surface, and headings keep their order (`standards.md` § Accessibility);
   - text wrapping is written in the longhand (`standards.md` § Text wrapping);
+  - no explanatory comment in the theme's JS, or in the Sass of a project repository, which its linters do not check either (`standards.md` § Comments);
   - Sass arithmetic in pixels is read in its output (`block-styles-guide.md`, template mode);
   - no database id in a theme file: a product collection picks its products by a property, and the pull request says what each environment must hold (`mapping-guide.md` § WooCommerce);
   - classes, custom properties and handles carry the theme slug (`project-template-guide.md` § Permanent identifiers).

@@ -2,8 +2,9 @@
 
 ## [0.9.0] - 2026-10-29
 
-From fixes made to a theme this skill built, after its run: accessibility fixes, alignment with the design file, and product menus, in a project-template repository on WordPress 7.1.3 and 7.1.4 with WooCommerce 11.2.1 and WooCommerce Subscriptions 9.3.0. Each new passage in the guides says how it was checked, and the ones that are derived or a team convention say so. Not checked:
-- any of it with a screen reader, or in Safari or Firefox;
+From fixes made to a theme this skill built, after its run: accessibility fixes, alignment with the design file, product menus, the standards audit's findings and starter patterns, in a project-template repository on WordPress 7.1.3 and 7.1.4 with WooCommerce 11.2.1 and WooCommerce Subscriptions 9.3.0. Each new passage in the guides says how it was checked, and the ones that are derived or a team convention say so. Not checked:
+- any of it with a screen reader, or in Safari or Firefox beyond one icon at default settings;
+- text-only zoom, and the theme pattern cache on a host;
 - forced-colors mode beyond one control.
 
 ### Added
@@ -17,10 +18,12 @@ From fixes made to a theme this skill built, after its run: accessibility fixes,
   - motion sits under `prefers-reduced-motion`;
   - a visually hidden heading where the design skips a level, and a search template with an H1 when the design has no search view (`SKILL.md` Phase 1, step 5);
   - visually hidden text for what is shown only visually.
-- **Block styles** (`block-styles-guide.md`): a hover moves an icon, never the box; a control drawn only by a masked icon needs a forced-colors rule; Sass arithmetic in pixels is read in its output, since the audit does not read the root `style.css` the partials build.
+- **Block styles** (`block-styles-guide.md`): a hover moves an icon, never the box; a control drawn only by a masked icon needs a forced-colors rule; Sass arithmetic in pixels is read in its output, since the audit does not read the root `style.css` the partials build; an icon shaped by lengths from its viewBox is drawn in `em`, off a font size of its own, so that it holds together under text-only zoom.
+- **Comments in Sass and JS** (`standards.md` § Comments; `SKILL.md` Phase 4, step 3; `change-built-theme`): in a project repository nothing checks them, where the guide had said stylelint was the gate. The audit does not look for comments in the Sass, the repository's stylelint and ESLint have no rule against one, and the audit reads no JS in either layout. Later changes added eleven explanatory comments, and CI's lint and the audit both passed them.
+- **Starter patterns** (`mapping-guide.md` § Where content lives): copied from a built section, without its media ids, attachment URLs or root-relative links, and with its strings translated; the theme registers the category the headers name, under its literal slug (`project-template-guide.md` § Permanent identifiers now gives the category its own row); WordPress caches a theme's pattern list for 30 minutes unless development mode is `theme` or `all`, so a new pattern needs a `Version` bump or a note in the pull request.
 - **Navigation** (`mapping-guide.md` § core/navigation notes): content `core/navigation` cannot hold is a template part appended by a render filter gated on a block style; a cover in the overlay drops its content under its background while a modal is open, from a rule in core's cover stylesheet.
 - **WooCommerce** (`mapping-guide.md` § WooCommerce):
-  - a product collection in a template or part picks by a property such as Featured, never by id, and what it then shows with too few or too many;
+  - a product collection in a template or part picks by a property such as Featured, never by id, and what it then shows with too few or too many; ties in its `menu_order` are broken by title;
   - the variation area's `role="alert"`, and reading a variation's price from `found_variation`;
   - the closed Mini-Cart drawer's Tab stops, and the Mini-Cart's missing state on the cart and checkout pages.
 - **Smaller facts:** decorations anchored to the design frame, not the viewport; no `view-transition-name` on the header; `block_core_breadcrumbs_items`, picking items by `url` (`mapping-guide.md`); another block's Interactivity state seeded with `wp_interactivity_state()` (`custom-blocks-guide.md`).

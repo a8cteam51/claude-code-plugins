@@ -1,12 +1,17 @@
 # Standards
 
-Non-negotiable rules for the delivered theme. The standards audit (`scripts/standards-audit.sh`) enforces the comment and custom-CSS rules, the reserved preset slugs, the dropped-colour rule, whole-pixel values, the layout of post content, group names, settings written as classes and the areas of template parts; the rest are review criteria. Pass it `--content-dir <site-path>/.h2bt/pages` so the page content, which is not in the theme, is checked too. It also fails on a `theme.json` that does not parse (`theme_json`), which WordPress ignores, and on a directory that is not a theme. Its last line is `H2BT_AUDIT_OK` or `H2BT_AUDIT_FAIL`.
+Non-negotiable rules for the delivered theme. The standards audit (`scripts/standards-audit.sh`) enforces the comment rule in block markup (and, in a standalone theme, in its stylesheets), the custom-CSS rules, the reserved preset slugs, the dropped-colour rule, whole-pixel values, the layout of post content, group names, settings written as classes and the areas of template parts; the rest are review criteria. Pass it `--content-dir <site-path>/.h2bt/pages` so the page content, which is not in the theme, is checked too. It also fails on a `theme.json` that does not parse (`theme_json`), which WordPress ignores, and on a directory that is not a theme. Its last line is `H2BT_AUDIT_OK` or `H2BT_AUDIT_FAIL`.
 
 ## Comments
 
 - **Block markup** (templates, parts, patterns, page content) contains **only `<!-- wp ... -->` block delimiters.** No other HTML comments — no `<!-- hero section -->`, no `<!-- TODO -->` left in shipped markup. The Gutenberg delimiter is the single permitted comment form.
 - **PHP files** (`functions.php`, `render.php`, `patterns/*.php`) follow WordPress coding standards: a file docblock and function docblocks where they add meaning are fine; avoid line-by-line inline narration. No commented-out code.
-- **CSS / JS**: no explanatory inline comments beyond a short file header where one genuinely helps. Keep it clean, not annotated. A scaffold's explanatory comments go, also above a rule that is kept. In a standalone theme the audit fails on a comment in `style.css` or a block stylesheet after the file's header (`css_comments`); in a project repository stylelint is the gate, and its `stylelint-disable` comments stay.
+- **CSS / JS**: no explanatory inline comments beyond a short file header where one genuinely helps. Keep it clean, not annotated. A scaffold's explanatory comments go, also above a rule that is kept. A `stylelint-disable` comment in a project repository's Sass stays, with the description stylelint requires, and so do an `eslint-disable` comment and the `translators:` comment ESLint asks for on a string with placeholders. Read the Sass and JS that a run or a change wrote for comments before calling it done, because only part of the rule is checked:
+  - In a standalone theme the audit fails on a comment in `style.css` or a block stylesheet after the file's header (`css_comments`).
+  - In a project repository nothing checks it: the audit reads the Sass for other rules but not for comments, Sass leaves `//` comments out of the CSS it builds, and the repository's stylelint and ESLint have no rule against a comment (`@wordpress/stylelint-config` 26.1.0 and `@wordpress/eslint-plugin` 27.1.0, through `@a8csp/configs` 1.1.0).
+  - In either layout the audit reads no JS.
+
+  Later changes to one built theme added eleven explanatory comments to its Sass and JS; CI's lint passed each pull request, and the audit of the theme with all eleven in it ended `H2BT_AUDIT_OK`.
 
 If a section needs a note for the user, it goes in the **report**, not as a comment in the theme.
 
