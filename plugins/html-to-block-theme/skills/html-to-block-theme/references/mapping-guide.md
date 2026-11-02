@@ -387,6 +387,14 @@ Never create `templates/front-page.html`. The homepage is **content, not a view*
 
 This keeps the homepage editable in WordPress like every other page instead of hardcoding its content in a template that shadows the page.
 
+### The posts index beside a static homepage
+
+Checked over HTTP on WordPress 7.1.3, on a category archive for the archive facts.
+
+- **With a page as the front page, the blog has an address only when `page_for_posts` names a page.** Without it each post has its own address and nothing lists them: the page a menu links to as the blog renders as an ordinary page. Create the page and set the option (`section-builder.md`).
+- **The listing stays in the template.** WordPress serves that page with `templates/home.html` or, without one, `templates/index.html`, not with `page.html`, and does not print the page's content, so a query placed in its content never shows.
+- **One index design usually serves archives too.** Without `templates/archive.html`, an archive is served by `templates/index.html`, so a heading written there as text names every category after the blog. `core/query-title` with `"type":"archive"` cannot replace it there, because it prints nothing on the posts page. When the heading is text, add `templates/archive.html`: the same layout, from one generator (§ Long-form and repeated content), with `core/query-title` in that slot. `"showPrefix":false` drops its "Category:". It has no design file of its own, so compare it at a category's address against the index's design, apart from the heading.
+
 ## Long-form and repeated content: generate it
 
 - **Convert a text-heavy page with a script, not by hand.** Where the source is a flat run of paragraphs, headings and lists, a short script re-wraps each element in its block delimiters. It must refuse any element, class, attribute or inline style it does not recognise, and refuse to write unless the visible text of the result equals the visible text of the source. That guarantee matters for legal text, and it keeps tens of kilobytes of prose out of a builder's context.

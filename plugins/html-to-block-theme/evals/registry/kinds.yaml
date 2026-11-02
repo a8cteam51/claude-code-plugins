@@ -85,6 +85,7 @@ files:
       "File classification: template vs part vs page": decision
       "Where content lives (a blueprint decision, with a default)": decision
       "The homepage rule: no front-page.html": decision
+      "The posts index beside a static homepage": platform
       "Long-form and repeated content: generate it": process
       "Asset routing": decision
       "JS / interactivity": decision

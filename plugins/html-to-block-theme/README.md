@@ -66,6 +66,7 @@ The skill then:
 ## Inputs
 
 - **Design directory** (required) — a folder of static `.html` files plus their linked `.css` / `.js` / image / font assets. Or the address of a live site to rebuild, which is mirrored into one.
+- **Design documents** (optional) — `DESIGN.md`, `decisions.md` and `views.md` in the design directory or its parent. The blueprint reads them, and the report says what they asked for and which content is still placeholder.
 - **Studio site** — path or name. If omitted, the skill lists your sites and asks, unless there is exactly one. It does not pick a site by its name.
 - **Project repository** (optional) — an `a8csp-project-template` repository to build into. If the site's `wp-content` isn't a clone of it yet, the skill sets that up with the [`studio-repo-clone`](../studio-repo-clone) plugin first.
 
