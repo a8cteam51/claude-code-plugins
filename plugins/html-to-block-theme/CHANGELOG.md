@@ -8,6 +8,11 @@ So that a run can take a full-site handoff from `sp-site-design-harness` (a8ctea
 - **Design documents.** `DESIGN.md`, `decisions.md` and `views.md`, in the design directory or its parent, are read at blueprint time. They outrank what is inferred from the HTML, but not a measurement or a rule of this skill. What applies is carried into the blueprint, because builders do not read them, and the report says what they asked for and which copy, images and links are still placeholder. A run with no such files is unchanged.
 - **State files.** `<view>--<state>.html` is a second state of `<view>.html`: one more design file in its row, compared in that state on the site, whatever group `group-designs.py` gives it.
 - **The posts index beside a static homepage** (`mapping-guide.md`): `page_for_posts` is what gives the blog an address, the listing stays in the template, and an index whose heading is plain text gets a `templates/archive.html`.
+- **The current year in standalone themes** (`custom-blocks-guide.md`, `mapping-guide.md`): a bound paragraph with a real year as its saved text. Only template mode had this rule. Tried with `do_blocks()` on 7.1.3.
+- **Queries that inherit** (`mapping-guide.md` § Query loops): only `{"inherit":true}`, with the number of posts from Settings > Reading. Read in core's source, not run.
+
+### Changed
+- **Hooks name a prefixed function** (`standards.md`; the `functions.php` example in `block-styles-guide.md`, which was a closure), and a theme's own function has no `function_exists()` guard.
 
 ## [0.9.0] - 2026-10-29
 

@@ -25,6 +25,7 @@ A custom block is justified only when none of these produce the behaviour:
 - **Block Bindings** connect a core block's attribute to post meta with no custom block at all. For *formatted* meta, such as a composed "year • publisher" line or a bespoke date form, register a custom source with `register_block_bindings_source()` and format the value in its callback.
 - A paragraph bound to empty meta still renders an empty `<p>`. Pair each bound optional field with a scoped `:empty { display: none; }` rule in the relevant block CSS file.
 - Sitewide date formatting belongs in a `render_block_core/post-date` filter, not in per-instance markup.
+- **The current year is a binding too.** Register a source named `<theme-slug>/current-year` on `init`, whose callback returns the paragraph's whole text (`'© ' . wp_date( 'Y' )`), because the value replaces everything in the paragraph. The holder's name is a paragraph of its own beside it, so that it stays editable. Save a real year in the bound paragraph (`© 2026`), not a placeholder: WordPress prints the saved text when the source is not registered. Tried with `do_blocks()` on WordPress 7.1.3, both ways. In template mode the source goes where `project-template-guide.md` § Where each piece goes says.
 
 ### The dynamic pieces of a post type's templates, without a custom block
 

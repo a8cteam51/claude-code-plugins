@@ -90,6 +90,7 @@ The theme must **not** ship `templates/front-page.html` — the standards audit 
 - Escape output (`esc_html`, `esc_attr`, `esc_url`, `wp_kses_post`); use `get_block_wrapper_attributes()` in render callbacks.
 - One text domain, matching the theme slug, used consistently in i18n calls. (Template mode: the theme uses the theme slug and the features mu-plugin its own text domain; each component sticks to its own.) Plain `.html` parts and templates carry no translation functions; strings in PHP, such as block style labels, still do.
 - Bundle fonts locally (declared in `theme.json` `fontFace`); no CDN `@import`.
+- A hook names a function with the theme's prefix, never a closure: `remove_action()` and `remove_filter()` cannot reach a closure. No `function_exists()` guard around a theme's own function: a theme built for one site has no child theme to override it.
 
 ## Accessibility
 
