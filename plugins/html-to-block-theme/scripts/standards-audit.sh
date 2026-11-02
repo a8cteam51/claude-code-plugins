@@ -570,7 +570,7 @@ for full in stylesheet_sources():
     except OSError:
         continue
 
-# Template layout: its Sass partials are the repository's, and stylelint is their gate.
+# Template layout: its CSS is built, ending in a source-map comment and without the Sass's // comments.
 if layout == 'standalone':
     sheets = [os.path.join(theme_dir, 'style.css')]
     blocks_dir = os.path.join(theme_dir, 'assets', 'css', 'blocks')
