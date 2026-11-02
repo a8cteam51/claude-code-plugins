@@ -133,7 +133,7 @@ republish. When the user says the partner has signed off, continue to Step 5
      Page row in `views.md`'s Sitemap has its entry in Content status,
      listing its placeholder strings, images and `#` links, or saying it has
      none. Spot-check it: every `href="#"` in a view's HTML is in that view's
-     entry. And `decisions.md` carries the list in full, not summarised.
+     entry or in the shared "On every page" list. And `decisions.md` carries the list in full, not summarised.
    - `DESIGN.md`'s color values match `:root` in `handoff/source/assets/site.css`.
      If they differ, `site.css` wins; update DESIGN.md and say so.
 3. Report what's in the package and the next step:
