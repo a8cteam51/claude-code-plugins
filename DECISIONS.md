@@ -294,3 +294,42 @@ file or any view links to `page.html`, and `dev-handoff` no longer files
 named inner pages away as deferrals. Considered: letting html-to-block-theme
 read the IA from `decisions.md`; rejected for now, because the HTML is the
 one input every builder reads and the partner reviews.
+
+## 2026-11-02 — The handoff matches what html-to-block-theme 0.10.0 builds
+
+html-to-block-theme 0.10.0 (claude-code-plugins#24) reads `DESIGN.md`,
+`decisions.md` and `views.md` from the folder above `source/`, folds
+`<view>--<state>.html` into its parent, sets the posts page, and copies the
+content status into its report. The harness changes what that exposed, and
+leaves those to h2bt rather than repeating them:
+
+- **No comment form error state.** `single--no-comments.html` asked for an
+  error summary and `aria-invalid` fields after an empty submit. Core's
+  fields are `required`, so the browser stops that submit, and a rejected
+  one ends in `wp_die` (`wp-comments-post.php`). The state could never
+  appear on the site. The file is now only "no comments yet". The rule that
+  form states don't change a field's size stays.
+- **Facts a visitor acts on are never invented.** Hours, phones, addresses,
+  prices, staff names and credentials, and FAQ claims come from the brief,
+  are asked for in Step 0, and are otherwise left out or obviously fake
+  (555 numbers). Realistic sample copy stays for everything else. The
+  content status lists every placeholder string, image and `#` link per
+  page, because h2bt's report is only as complete as that list, and Stage 5
+  fails a page without an entry.
+- **Fonts ship as files.** h2bt requires local fonts and has no step to
+  fetch them, so `design-site-templates` Step 3 copies them into
+  `assets/fonts/` with their licences and drops the CDN links, under
+  create-design's licence gate. Stage 5 fails a view that loads a remote
+  font.
+- **`/iterate` after the build goes through `change-built-theme`.** After a
+  build, page copy and images live in the database and media library, so
+  editing patterns and `theme.json` misses them, and nothing ran h2bt's
+  audit afterward. Theme-only L0 edits stay direct, with the audit once per
+  batch.
+- **Repeating content is flagged, not modelled.** Events, team members or a
+  shop have no sitemap kind. Rather than add a view type, Step 0 flags them
+  and asks, and `views.md`'s Open items says the page is a static sample
+  and the build decides the listing. The larger work stays in BACKLOG.
+- `home.html` keeps its name. view-specs no longer claims every filename
+  follows the hierarchy: `home.html` is the front page's content and builds
+  as a page.

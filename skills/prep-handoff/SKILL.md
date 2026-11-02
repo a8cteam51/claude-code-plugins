@@ -123,6 +123,17 @@ republish. When the user says the partner has signed off, continue to Step 5
      destination (booking, portals) is a row marked External. A failure here
      sends the set back to Stage 3 for the missing pages: don't package
      around it.
+   - **No view loads a remote font.** No `fonts.googleapis.com`,
+     `use.typekit.net` or other font host in any `href`, `src`, `@import` or
+     `url()`, and no font request leaves loopback when each view loads.
+     Every `@font-face` file exists in `handoff/source/assets/fonts/` with
+     its licence beside it. A failure goes back to Stage 3
+     (`design-site-templates` Step 3).
+   - **Every sitemap page has a content status entry.** Each view and each
+     Page row in `views.md`'s Sitemap has its entry in Content status,
+     listing its placeholder strings, images and `#` links, or saying it has
+     none. Spot-check it: every `href="#"` in a view's HTML is in that view's
+     entry. And `decisions.md` carries the list in full, not summarised.
    - `DESIGN.md`'s color values match `:root` in `handoff/source/assets/site.css`.
      If they differ, `site.css` wins; update DESIGN.md and say so.
 3. Report what's in the package and the next step:
@@ -131,11 +142,14 @@ republish. When the user says the partner has signed off, continue to Step 5
 handoff/
   DESIGN.md     rules, tokens, reasoning
   decisions.md  what the build must do that the HTML doesn't show
-  views.md      the views, shared chrome, content status
+  views.md      the views, shared chrome, content status per page
   source/       the site as HTML (home + views + states + sitemap pages + assets)
 ```
 
-Next: run html-to-block-theme on `handoff/source/`.
+Next: run html-to-block-theme 0.10.0 or later on `handoff/source/`. It
+reads `DESIGN.md`, `decisions.md` and `views.md` from `handoff/`, the folder
+above `source/`, and carries the content status into its report. An older
+version builds from the HTML alone.
 
 ## Reporting
 

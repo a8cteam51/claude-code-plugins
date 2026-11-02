@@ -36,13 +36,13 @@ Deferred ideas and future-phase features deliberately not built yet.
   applied.
 - More views in `design-site-templates`, added as rows in `view-specs.md`
   rather than restructuring: a separate `archive.html`/`category.html` when a
-  site's archives differ from the blog index, author archives, named inner
-  pages (About, Contact) as page content, custom post types.
+  site's archives differ from the blog index, author archives, custom post
+  types. Repeating content (events, team members, a shop) is designed as a
+  static sample page and flagged in `views.md`'s Open items for now
+  (DECISIONS 2026-11-02); producing those listings for real is this work.
 - `data-wp` hints in the view HTML (e.g. `data-wp="query"`) so h2bt doesn't
   have to infer dynamic regions. Needs agreement with h2bt's maintainer in
   claude-code-plugins#13.
 - Fold `dev-handoff` fully into `/prep-handoff` (or keep it as an alias).
   Kept separate for now so it still runs on its own; revisit once the new
   flow has been used on a real project.
-- Fonts in `handoff/source/assets/` with licenses instead of CDN links
-  (integration plan M2; the site set makes it more pressing).

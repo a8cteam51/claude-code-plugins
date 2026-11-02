@@ -161,13 +161,16 @@ takes the chosen direction to a complete handoff, in resumable stages:
    designs from DESIGN.md's rules, reuses the homepage's components before
    inventing any, moves the homepage CSS into one shared
    `assets/site.css`, and keeps header and footer byte-identical so
-   html-to-block-theme extracts them as template parts. Filenames follow the
-   WordPress template hierarchy for the same reason. Notes go to
-   `handoff/views.md`.
+   html-to-block-theme extracts them as template parts. The view filenames
+   follow the WordPress template hierarchy for the same reason, except
+   `home.html`, which is the front page's content and builds as a page.
+   Fonts are copied into `assets/fonts/`, never loaded from a CDN. Notes go
+   to `handoff/views.md`.
 4. **Partner review**: `/publish-design-options` site-preview mode, then
    `/iterate` on `handoff/source/`.
 5. **Package**: `dev-handoff` Step 4 writes `decisions.md`; a package check
-   confirms every view loads and nothing points outside `source/`.
+   confirms every view loads, nothing points outside `source/`, no view
+   loads a remote font, and every page has a content status entry.
 
 `design-site-templates` is deliberately portable: its only required input is
 a homepage file, and everything harness-specific is passed in by

@@ -72,6 +72,17 @@ inventory. Give each one a row in the notes' Sitemap table, of one of three kind
 A destination you can't classify from the inputs goes into the Step 0
 question. Don't drop it.
 
+**Repeating content.** A destination that lists repeating items (events,
+team members, a shop, a menu of services that changes) has no kind of its
+own. Flag it, ask in the Step 0 question how its items are managed, and
+record it under Open items: the page is designed as a static sample, and the
+build must decide how the listing is produced.
+
+**Facts the pages need.** List every fact a visitor would act on that the
+pages will show (view-specs § Everywhere): hours, phones, addresses,
+prices, staff names and credentials, claims in FAQ answers. Any the brief
+doesn't give goes into the Step 0 question.
+
 ## Step 1 — Read the system
 
 1. Read the homepage completely: `:root`, every CSS rule, the markup.
@@ -110,9 +121,8 @@ and redo it when the rules arrive.
 1. **Copy, don't edit.** Copy the homepage to `<out>/home.html`.
 2. **Assets.** Copy every local image, font and script the homepage uses into
    `<out>/assets/` and rewrite the paths **in the copy** so everything
-   resolves inside `<out>` (no `../` escaping it). Remote font CDN links stay
-   as they are for now. Give images descriptive, space-free names, but
-   **look at each image before naming it or writing its alt text**: source
+   resolves inside `<out>` (no `../` escaping it). Give images descriptive,
+   space-free names, but **look at each image before naming it or writing its alt text**: source
    filenames lie (an "Office-Pic" can be a statue).
 3. **One stylesheet.** Move the homepage's `<style>` content into
    `<out>/assets/site.css`, unchanged and in order, and link it from
@@ -120,17 +130,35 @@ and redo it when the rules arrive.
    added to the end of `site.css` under a comment per view
    (`/* view: single */`). This gives the set one `:root`, so a token change
    is one edit, never six.
-4. **Verify the move changed nothing.** Serve `<out>` and the original
+4. **Local fonts.** The builder needs the font files in the theme and has
+   no step to fetch them, so the set loads no remote font:
+   - Copy each font file the design uses, every weight and style it
+     actually loads, into `<out>/assets/fonts/`, with the family's licence
+     file beside it (`OFL.txt`). For a CDN family, fetch the files the CDN's
+     stylesheet serves, so the faces are the same ones the homepage
+     rendered with.
+   - Add an `@font-face` rule per file at the top of `site.css`, with the
+     same `font-family`, `font-weight`, `font-style` and `font-display` the
+     CDN stylesheet declared.
+   - Remove the CDN `<link>`s, `preconnect`s and `@import`s from
+     `home.html`.
+
+   A licensed family follows the licence gate in
+   `../create-design/references/typography.md` § Embedding: one without a
+   confirmed licence doesn't go into `<out>`. Stop and ask instead.
+5. **Verify the move changed nothing.** Serve `<out>` and the original
    homepage's folder over loopback HTTP (see "Browser checks"), load both at
    1440 and 375, and compare page height and the bounding boxes of each
    top-level section. Any difference over 1px means the move broke
-   something: find out why before going on.
-5. **Real nav.** Replace anchor-only nav items with the real IA from Step 0,
+   something: find out why before going on. After the font change, a
+   difference is usually a missing weight or style, or a different version
+   of the family.
+6. **Real nav.** Replace anchor-only nav items with the real IA from Step 0,
    linking per `references/view-specs.md` § Everywhere. If the homepage's
    nav was already real, leave it alone. Either way, point every internal
    link in the header, footer and homepage body at its sitemap file
    (`faq.html`, not `page.html`), and every external one at its real URL.
-6. **Shared chrome is byte-identical.** The header and footer markup must be
+7. **Shared chrome is byte-identical.** The header and footer markup must be
    identical in every view so a builder extracts each one as a single
    template part. The one allowed exception: if the homepage header sits
    over a hero (transparent, inverted, absolutely positioned), inner views
@@ -181,6 +209,7 @@ breakpoint between them):
 - No console errors, no same-origin request that fails (check network
   requests; a missing stylesheet renders a plain page that a screenshot can
   mistake for a design choice).
+- No request for a font leaves loopback (Step 3's local fonts).
 - Every relative link in the view resolves to a file in `<out>`.
 - The accessibility pass in `../create-design/references/polish.md` § 3,
   with contrast checked numerically for any new color pairing.
@@ -241,7 +270,7 @@ edits; the pane caches stylesheets.
   home.html  page.html  single.html  index.html  search.html  404.html
   single--no-comments.html  single--comments-closed.html  search--no-results.html
   <slug>.html …                    one per sitemap page (about, faq, contact, …)
-  assets/site.css  assets/…        images and any local fonts or scripts
+  assets/site.css  assets/fonts/…  assets/…   stylesheet, font files with licences, images, scripts
 <notes>  (default <out>/views.md)
 ```
 
@@ -255,14 +284,20 @@ The notes file has these sections, in order:
    and the one-line concept note. Every sitemap page is listed.
 4. **Shared chrome**: the header(s) and footer, and which views use which.
 5. **Inventory** and **New components** (Step 2).
-6. **Content status**: every piece of sample content is placeholder; list
+6. **Content status**: one entry per view and sitemap page, each listing
+   the exact placeholder strings on it, each placeholder image, and every
+   `#` link with what it should point to. A page with none says so. Then
    what the client needs to supply (post content, author names, images,
-   external URLs).
+   external URLs, facts left out per view-specs § Everywhere).
+   html-to-block-theme copies this list into its report, so a string missing here looks
+   finished on the built site.
 7. **Assumptions**: defaults used in Step 0 without confirmation.
 8. **Fixes to the homepage**: anything changed in `home.html` beyond the
-   stylesheet move and asset paths (real nav, a skip link), and why.
+   stylesheet move, asset paths and local fonts (real nav, a skip link),
+   and why.
 9. **Open items**: critic findings not resolved, anything that needs a
-   decision.
+   decision, and each page of repeating content (Step 0) with how its
+   listing should be produced, if known.
 
 ## Report
 

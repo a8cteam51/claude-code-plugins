@@ -80,6 +80,12 @@ reduce this class of issue. This is the immediate next step.
   site-preview state kept out of `source/`) are in too. Results live outside
   the repo in `../sp-site-design-harness-plans/`.
 
+  **h2bt 0.10.0 fit (2026-11-02)**, for #19 alongside #24: comment error
+  state removed, no invented facts and a per-page placeholder list, local
+  fonts, `/iterate`'s theme phase through `change-built-theme`, repeating
+  content flagged (DECISIONS 2026-11-02). Still 0.3.0, since #19 hasn't
+  merged. End-to-end test through #24: see below.
+
 - **html-to-block-theme integration (started 2026-10-08)**, on branch
   `h2bt-integration` (worktree `../sp-site-design-harness-h2bt`). Plan and
   milestones live outside the repo in `../sp-site-design-harness-plans/`

@@ -75,15 +75,13 @@ you, then works in stages and can be re-run to resume:
 `design-site-templates` also works on its own, outside this harness: give
 it any homepage HTML file and an output folder.
 
-**Known gaps (as of 0.3.0).** Tested end to end once, on one project.
-- html-to-block-theme builds from the HTML in `handoff/source/`, but it
-  doesn't read `DESIGN.md` or `decisions.md` yet. That's milestone M2 of
-  the integration plan. Until then, anything that lives only in those docs
-  (required build fixes, real IA, content status) has to be applied by
-  hand.
-- State files (`single--no-comments.html` and the like) are meant to fold
-  into their parent templates. Whether h2bt does that without help hasn't
-  been tested.
+**Known gaps (as of 0.3.0).**
+- html-to-block-theme reads `DESIGN.md`, `decisions.md` and `views.md`
+  from 0.10.0. An older version builds from the HTML in `handoff/source/`
+  alone, so anything only in those docs (build fixes, content status) has
+  to be applied by hand.
+- Pages that list repeating content (events, team, a shop) are designed as
+  static samples; the build decides how the listing is produced.
 - The site-preview publish (`/publish-design-options handoff/source/`)
   hasn't been run yet.
 

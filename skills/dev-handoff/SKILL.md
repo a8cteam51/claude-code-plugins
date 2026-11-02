@@ -124,8 +124,10 @@ system will consume:
   `design-site-templates`), the views are already designed in
   `handoff/source/`. Summarize its Views and Shared chrome tables, point at
   it for the rest, and carry its Content status, Assumptions, Fixes to the
-  homepage and Open items into this file so the build sees them. Add how the
-  state files fold into their parent templates.
+  homepage and Open items into this file so the build sees them. Copy the
+  Content status in full, per page, with its exact strings, images and `#`
+  links; a summary ("sample posts are placeholder") loses what the build's
+  report needs. Add how the state files fold into their parent templates.
 - **Implied pages/templates/patterns not designed** — anything the brief
   or the chosen direction implies that no file in `handoff/source/` shows
   (extra archives, patterns). Named inner pages (About, FAQ, Contact) are
