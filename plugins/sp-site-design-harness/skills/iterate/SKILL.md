@@ -23,7 +23,7 @@ Scope root: an explicit path in the arguments, else `git rev-parse
 | State | Target |
 |---|---|
 | No `.chosen-direction` and no `handoff/DESIGN.md` | **HTML phase.** `directions/NN-<slug>.html`. Ask which one only if the request doesn't make it clear. |
-| A theme path is known (arguments, or a `.theme-path` file at the scope root, absolute or relative to it) | **Theme phase.** The block theme. |
+| A theme path is known (arguments, or a `.theme-path` file at the scope root, absolute or relative to it) | **Theme phase.** The block theme and the site it was built on. See "Theme phase" below before the first edit. |
 | `handoff/source/` exists but the set is not complete (`/prep-handoff` Step 0's test), no theme path | Stage 3 of `/prep-handoff` stopped partway. Say so and offer to finish it there; don't edit a half-designed set. |
 | The set in `handoff/source/` is complete (`/prep-handoff` Step 0's test), no theme path | **Site phase.** The views in `handoff/source/` (written by `/prep-handoff`). Ask which view only if the request doesn't make it clear; a token change is one edit in `assets/site.css`, and a header or footer change is made identically in every view so the chrome stays byte-identical. |
 | `.chosen-direction` or `handoff/DESIGN.md` exists, no `handoff/source/`, no theme path | The direction is chosen but the site isn't designed yet. Say so and offer `/prep-handoff`. If the user says a theme already exists (an older project), ask once for its folder and write it to `.theme-path`. |
@@ -48,7 +48,8 @@ Token or variable swap, copy change, one property.
 
 - HTML or site: read only the `:root` block and grep for the selector or variable. Theme:
   read only the relevant `theme.json` settings/styles key, or grep the
-  pattern/template.
+  template or part. Page copy and images aren't theme files (see "Theme
+  phase").
 - A color named in words ("plum", "the terracotta") means the palette token of
   that name if one exists. Otherwise pick a value that fits the palette and
   report it.
@@ -90,6 +91,25 @@ that changes the visual thesis. Stop and hand it to `create-design`: DISCOVER
 if the concept or mood is wrong, DEFINE if the concept holds but the design
 language (type, color, surface, shape) is wrong. Say which, and why, in one
 line. Don't attempt it here.
+
+## Theme phase
+
+html-to-block-theme puts page copy, menus and design images in the site's
+database and media library, not in the theme, and its own
+`change-built-theme` skill holds later changes to the standards the build
+was held to. So in the theme phase:
+
+- **Theme-only L0** (a `theme.json` value, a string in a template or part)
+  stays a direct edit, as above. Run html-to-block-theme's standards audit
+  (`change-built-theme` § Before calling it done, step 2) once at the end of
+  the batch, not per change.
+- **Everything else** (page copy, images, menus, any L1) follows
+  `change-built-theme` from html-to-block-theme: its guide for the change,
+  page content changed by script rather than by rewriting a page, and its
+  checks before it's done. Classify and log here as usual; the edit itself
+  is that skill's.
+- If html-to-block-theme isn't installed, say so and stop; don't edit the
+  site's content by hand.
 
 ## Batch mode — pasted partner feedback
 

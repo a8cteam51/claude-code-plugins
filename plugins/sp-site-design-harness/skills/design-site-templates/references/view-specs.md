@@ -1,9 +1,11 @@
 # View specs
 
-What each view must show. Filenames follow the WordPress template hierarchy
-so html-to-block-theme (or any builder) classifies them without guessing.
-The "Builds as" column is a hint for the builder, not markup to write: the
-HTML stays plain, semantic HTML.
+What each view must show. `home.html` is the front page's content and
+builds as a page, even though `home.html` is the blog index in the WordPress
+template hierarchy. The other view files follow the hierarchy, so
+html-to-block-theme (or any builder) can classify them. The "Builds as"
+column is a hint for the builder, not markup to write: the HTML stays plain,
+semantic HTML.
 
 Every view shares the homepage's `assets/site.css`, header and footer (see
 SKILL.md Step 3) and uses the same breakpoints.
@@ -27,7 +29,7 @@ their own):
 
 | File | State | Builds as |
 |---|---|---|
-| `single--no-comments.html` | No comments yet; the form shows a validation error after an empty submit | The parent's comments region with zero comments |
+| `single--no-comments.html` | No comments yet, with the form ready for the first one | The parent's comments region with zero comments |
 | `single--comments-closed.html` | Existing comments, no form, a closed notice | The parent's comments region with comments closed |
 | `search--no-results.html` | No results: message, the search form again, a way onward | `core/query-no-results` inside the parent's query |
 
@@ -85,12 +87,15 @@ Link styling in prose must be distinguishable without color alone.
     button. Every field has a visible `label`. Hover and focus states that
     don't shift layout (no border-width change on focus; use outline or
     box-shadow, or a border that's already there).
-  - Required fields are marked in text, not by color alone.
+  - Required fields are marked in text, not by color alone, and carry
+    `required`.
+  - No error state. WordPress core's fields are `required`, so the browser
+    stops an empty submit, and a submission the server rejects ends on a
+    `wp_die` screen, not on this page. An inline error the design showed
+    would never appear on the built site.
 - State files:
   - `single--no-comments.html`: no list; a heading that invites the first
-    comment; the form after an empty submit, showing an error summary at the
-    top of the form and an inline message on each failed field, linked by
-    `aria-describedby`, and `aria-invalid="true"` on the field.
+    comment; the empty form.
   - `single--comments-closed.html`: the list as in `single.html`, then a
     short closed notice in place of the form.
 
@@ -148,6 +153,10 @@ make it as a page and the partner can review it:
   disclosure, with that noted); Contact & Locations shows each location with
   address, hours, phone and a map or directions link; About shows the people
   or story the brief describes; a services page lists the services.
+- Facts a visitor would act on come from the brief, never from you (§
+  Everywhere): an address, hours or a phone number on Contact, staff names
+  and credentials on About, prices on Services, an FAQ answer that makes a
+  claim.
 - Calls to action point where the sitemap says: another page's file, or an
   external URL (booking, portal) with `#` and a note when it isn't supplied.
 - If a page needs a layout `page.html` doesn't have (a two-column
@@ -163,10 +172,19 @@ make it as a page and the partner can review it:
   forms.
 - Skip link if the homepage has one (and add one if it doesn't; it's an
   accessibility fix, log it in the notes).
-- Sample content is realistic for this client: real-sounding post titles,
-  plausible dates, excerpts in the brand's voice. No lorem ipsum. No visible
-  "placeholder" labels. All sample content is recorded as placeholder in the
-  notes' content status, never marked in the HTML.
+- Ordinary sample copy is realistic for this client: real-sounding post
+  titles, plausible dates, excerpts in the brand's voice. No lorem ipsum. No
+  visible "placeholder" labels.
+- **Facts a visitor would act on are never invented.** Hours, phone
+  numbers, addresses, prices, staff names and credentials, and FAQ answers
+  that make a claim come from the brief. One the brief doesn't give goes
+  into the Step 0 question (SKILL.md). If it's still unknown, leave it out
+  where the layout survives without it; otherwise use a value that is
+  obviously not real (a 555 phone number, "Name Surname"), so it can't ship
+  by mistake.
+- Every placeholder is recorded in the notes' Content status, never marked
+  in the HTML: per page, the exact placeholder strings, each placeholder
+  image, and every `#` link.
 - Images: reuse the homepage's images or the project's supplied images
   before generating anything. Informative images get real `alt`; decorative
   ones get `alt=""`.

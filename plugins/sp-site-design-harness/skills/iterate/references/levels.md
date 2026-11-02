@@ -39,10 +39,10 @@ weight"), then apply the principle at the lowest level that satisfies it.
 
 - L0 in a theme: `theme.json` `settings.color.palette`, `settings.typography`,
   `settings.spacing`, or a `styles.elements` / `styles.blocks` value; or a
-  literal string in a pattern.
-- L1 in a theme: edit one pattern or template part (`patterns/*.php`,
-  `parts/*.html`, `templates/*.html`). If WordPress Studio tools are available,
-  use them to screenshot the affected page and to validate block markup after
-  editing.
+  literal string in a template or part. Page copy is in the database, not a
+  pattern: it goes through `change-built-theme` (SKILL.md § Theme phase).
+- L1 in a theme: one template, part or block style, or one page's content,
+  made through html-to-block-theme's `change-built-theme`. If WordPress
+  Studio tools are available, use them to screenshot the affected page.
 - Never hand-write hex values into block markup when a preset exists. Use the
   preset slug (`var:preset|color|border` / `has-border-color`).
