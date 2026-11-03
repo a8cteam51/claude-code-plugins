@@ -1,5 +1,26 @@
 # Changelog
 
+## [3.0.0] - 2026-10-12
+
+### Changed
+
+- **Redesigned around designing locally and publishing through the browser.** A page is a folder on the user's computer (`ai-canvas/<slug>/block.html`) in a place the user picks: the design skill asks where to save it in its one round of questions (the Desktop, say) and never defaults to the folder the session happens to run in. The user and Claude iterate on it in a local preview, and it moves to the site only when the user asks. There is no Application Password, connection user, saved credential, or REST client: publishing works in the user's own logged-in Chrome through Claude in Chrome.
+- Skills are now `design` (local, never touches a site) and `publish` (the only skill that does).
+- Two page templates, and the publish skill asks the user which a page gets: **AI Canvas** (`ai-canvas`: the site header, the page content at full width, the site footer) and **AI Canvas (blank)** (`ai-canvas-blank`: only the page content). Both wrap the content in `<main>` and print no page title, so one block works under either: it always carries the page's single `<h1>` and never a `<main>`. The publish skill creates whichever is missing, building the first from the theme's own header and footer parts.
+
+### Added
+
+- `scripts/canvas.sh`, local only: `lint` (the block's shape, a `<` inside style or script, document-level tags, external references, heading and image checks, unprefixed selectors), `preview`, `serve`, `keep` and `undo` (local snapshots), `hash`, `copy` and `paste` (system clipboard, with read-back confirmation), `record` and `status` (where the page lives on the site and whether the local copy has changed since), and `contrast`.
+- Five generated preview pages per canvas: the page between a stand-in header and footer, the page with nothing around it, the page with its script never run (what wp-admin's editor shows), the page under a deliberately hostile theme stylesheet, and the page in a 390px frame.
+- `scripts/report.js`, copied beside every preview: `aiCanvasReport()` returns one line of JSON covering script errors, heading structure, a second `<main>`, horizontal overflow, images without alt or dimensions, targets under 44px, unnamed controls, text at 12px or under, duplicate ids, and, on the hostile-theme page, each element and property the theme reached.
+- `publish` skill: the page travels by clipboard into the post editor's Code editor, and a hash check refuses to save unless the editor holds exactly the local page, so content arrives byte for byte without passing through the model. First publish is a draft; going live is a separate, explicit step. Sending changes compares the site's stored hash with the one recorded at the last publish and stops if the page was edited on the site; "Bring a page down" copies the site's version back through the Code editor.
+- Rules for working in wp-admin learned from failures: screenshot a tab before sending it keys; never touch the visual canvas of a canvas page (the visual HTML editor rewrites the block from the live document and the editor then autosaves it); keep script results to plain JSON (results that look like addresses with a query string or `key=value` text are blocked); leave the editor clean before navigating so no "Leave site?" dialog freezes the browser tools.
+- `design` skill rule: never depend on how the source is written, since the site's editor re-serialises the block when the owner edits it (`<path/>` to `<path></path>`, `data-x` to `data-x=""`, empty `style=""`).
+
+### Removed
+
+- `scripts/wp.sh`, the `setup` and `vibe` skills, per-site credential files under `~/.claude/ai-canvas/sites/`, and building posts.
+
 ## [2.1.0] - 2026-09-17
 
 ### Added

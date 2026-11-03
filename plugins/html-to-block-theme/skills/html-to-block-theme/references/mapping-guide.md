@@ -13,43 +13,109 @@ Resolve every visual detail at the **lowest** rung that achieves it. Record the 
 
 Never invent block attribute names. Use documented globals (`className`, `anchor`, `style`, `backgroundColor`, `textColor`, `fontSize`, `fontFamily`, `align`, `layout`) plus the per-block attributes this guide spells out. The Studio validator catches drift after the fact, but every wrong name costs a fix round — get them right up front. Colour classes are `has-{slug}-background-color` / `has-{slug}-color`, **not** `has-background-color-{slug}`.
 
+### Read the installed core, then probe
+
+Attribute forms move between WordPress versions. Markup written from memory of an older core fails validation or is silently rewritten. Two checks cost one call each:
+
+- **Read the block's `block.json`** in the site's core (`wp-includes/blocks/<block>/block.json`) for its attributes and supports before writing a block you have not written on this core. On WordPress 7.1, for example, text alignment on a paragraph, heading or button is `style.typography.textAlign`, not an `align` or `textAlign` attribute.
+- **Render a probe** to see what an attribute prints, with no page or database write (`<plugin-root>` is the plugin's directory, which the skill and the builder's instructions give):
+
+  ```bash
+  bash "<plugin-root>/scripts/render-probe.sh" --site-path <site-path> --markup <markup-file> [--post-id <id>]
+  ```
+
+  It prints the HTML and the block-supports CSS the markup produced, with the PHP and WordPress versions. Use it wherever this guide says a form depends on the core version, and before building a section on an attribute form you have not confirmed. The probe runs `do_blocks()`, so it does not texturise text as a real page does.
+
 ## Element → core block
 
 | Design markup | Core block | Notes |
 |---|---|---|
-| `<section>` / outer `<div>` wrapper | `core/group` | `align:full` for full-bleed; constrained layout for centered content. The structural workhorse. |
+| `<section>` / outer `<div>` wrapper | `core/group` | `align:full` for full-bleed; constrained layout for centered content. The structural workhorse. Every group carries a name (§ Name every group). |
 | Horizontal flex row of items | `core/group` with `layout:{"type":"flex"}` or `core/columns` | Use `columns` when items are proportional content columns; flex group for nav/button rows/inline clusters. |
-| Vertical stack with consistent gap | `core/group` with `layout:{"type":"flex","orientation":"vertical"}` | `blockGap` carries the gap. |
+| Vertical stack with consistent gap | `core/group` with `layout:{"type":"flex","orientation":"vertical"}` | `blockGap` carries the gap. A vertical flex group wraps by default (§ Layout recipes). |
 | CSS grid of cards | `core/columns` (fixed) or `core/group` `layout:{"type":"grid"}` | Grid layout for auto-fit/min-width card grids; `columns` for a fixed N-up. |
 | `<h1>`–`<h6>` | `core/heading` | `level` attribute. |
 | `<p>` / inline text | `core/paragraph` | |
-| `<a class="button">` / CTA | `core/button` inside `core/buttons` | Style via button supports or a block style variation, not bespoke CSS. |
-| `<img>` | `core/image` | Content images → media library; decorative → theme asset. |
-| `<ul>`/`<ol>` | `core/list` + `core/list-item` | |
+| `<a class="button">` / CTA | `core/button` inside `core/buttons` | Style via button supports or a block style variation, not bespoke CSS. See § Buttons. |
+| `<img>` | `core/image` | Design images go to the media library (§ Asset routing). See § Images. |
+| `<ul>`/`<ol>` | `core/list` + `core/list-item` | A list without markers is a registered style (§ Links, headings and lists). |
 | Site nav | `core/navigation` | Lives in `parts/header.html`. |
-| Logo | `core/site-logo` or `core/image` | |
-| Icon / inline SVG | `core/html` (bare inline SVG only), or custom behaviour (`custom-blocks-guide.md`) if interactive | An SVG wrapped in an `<a>`/`<div>` fails the core/html policy — icon *links* are `core/social-links` (restyled by a block style variation when the glyph is bespoke). Do not invent an "icon block." |
+| `<main>` | `core/group` with `"tagName":"main"` | In the template, around the page's content. Core's skip link targets it. |
+| Skip link (`<a href="#main">Skip to content</a>`) | nothing | Core prints one before every block template that has a `main` element, and uses that element's `id` when it has one. Rebuilding the design's own gives the page two. |
+| Logo | `core/site-logo` | No part then carries an environment URL. Its duotone setting recolours a single-colour logo (§ Images). |
+| Icon / inline SVG / icon-font glyph | `core/icon` on WordPress 7.1 and later: one of core's icons, or a glyph the theme registers (§ Icons). A decorative icon inside a button or link is painted from the block's stylesheet (§ Buttons); custom behaviour (`custom-blocks-guide.md`) if interactive | An SVG wrapped in an `<a>`/`<div>` fails the core/html policy — icon *links* are `core/social-links` (restyled by a block style variation when the glyph is bespoke). On an older core, an icon is a `core/image` from the media library, or `core/html` (bare inline SVG only) when it must inherit colour. |
 | Background media + overlay + content | `core/cover` | Maps cleanly to hero sections with a background image/colour and overlay. |
-| Separator / `<hr>` | `core/separator` | |
+| Separator / `<hr>` | `core/separator` | It has no thickness setting. A hairline between two sections is the next group's top border, with an eight-digit hex colour where the original used opacity. |
 | Spacer gap (no semantic content) | spacing supports first; `core/spacer` only if unavoidable | Prefer `blockGap`/padding over spacer blocks. |
-| Repeating posts/cards from data | `core/query` + `core/post-template` | For anything that should be driven by WordPress content rather than hardcoded. |
+| Accordion; tabs | `core/accordion` or `core/details`; `core/tabs` | WordPress 7.1 ships the accordion and tabs blocks. See § JS / interactivity. |
+| Repeating posts/cards from data | `core/query` + `core/post-template` | For anything that should be driven by WordPress content rather than hardcoded. See § Query loops, archives and pagination. |
 
 ## CSS → block supports
 
 Translate computed CSS to attributes, pulling values from `theme.json` presets wherever a preset exists (use the `var:preset|...` form so styles stay token-driven):
 
-- **padding / margin** → `style.spacing.padding` / `style.spacing.margin`. Prefer preset spacing: `"padding":{"top":"var:preset|spacing|40"}`.
-- **gap** → `style.spacing.blockGap` (and the block's `layout`). **blockGap accepts only the preset form** (`var:preset|spacing|40`) — the style engine rejects raw `var(--wp--custom--*)` strings and silently falls back to the 24px default. Raw custom-property vars are fine in padding/margin (serialized inline verbatim).
-- **background-color / color** → `backgroundColor`/`textColor` (named preset) or `style.color.background`/`style.color.text` (raw). Prefer named presets.
+- **padding / margin** → `style.spacing.padding` / `style.spacing.margin`. Prefer preset spacing: `"padding":{"top":"var:preset|spacing|40"}`. Raw custom-property vars are fine here (serialized inline verbatim). The margin support takes a negative length.
+- **gap** → `style.spacing.blockGap` (and the block's `layout`). It accepts a preset reference (`var:preset|spacing|40`) or a raw length. **It drops any value that contains a parenthesis, backslash, ampersand, equals sign or closing brace**, so `calc()`, `clamp()` and raw `var(--wp--custom--*)` fall back silently to the 24px default. On a flex group it also accepts an object, `{"top": <row gap>, "left": <column gap>}`.
+- **background-color / color** → `backgroundColor`/`textColor` (named preset) or `style.color.background`/`style.color.text` (raw). Prefer named presets. **Write a raw colour as hex, with eight digits for transparency.** WordPress compiles element styles (`style.elements.*`), state styles and viewport states on the server and drops a declaration whose value holds a colour function (`rgb()`, `rgba()`, `hsl()`): the class is still added and no rule is printed. A static block's own saved inline style keeps such a value, which hides the trap. A colour function inside a gradient is kept. The standards audit fails on a dropped colour.
 - **background-image** → `core/cover` background, or `style.background.backgroundImage`.
-- **font-size / line-height / weight / letter-spacing** → `fontSize` (preset) or `style.typography.*`.
+- **font-size / line-height / weight / letter-spacing** → `fontSize` (preset) or `style.typography.*`. Letter spacing is written in `em`, never as a fraction of a pixel (§ Pixel values are whole pixels). With fluid typography off (`theme-json-guide.md`), a `clamp()` expression with viewport units is accepted as a block's own `style.typography.fontSize` and printed unchanged, so a design that writes its sizes as `clamp()` maps to attributes.
 - **font-family** → `fontFamily` (preset defined in `theme.json`).
 - **border / radius** → `style.border.*` (`width`, `color`, `radius`, `style`).
-- **min-height** → the `minHeight` dimension support renders as an **inline style no media query can override** — a height that changes per breakpoint (e.g. a 900px stage dropping to 640px on mobile) must live in the block's CSS file (rung 4), not the attribute.
+- **text-shadow** → valid in `theme.json` styles on WordPress 7.1, but no block has an attribute for it. A text shadow on one block is a rule in a block style.
+- **min-height** → the `minHeight` dimension support prints an **inline style**. On WordPress 7.1 and later a `@mobile` or `@tablet` value overrides it (§ Per-viewport values). A height that changes at any other width, or on an older core, lives in the block's CSS file with every one of its values (§ A value that steps at another width).
 - **max-width container** → constrained `layout` + `contentSize`/`wideSize` in `theme.json`, not a CSS `max-width`.
 - **flex/grid alignment & direction** → the block's `layout` object (`justifyContent`, `orientation`, `flexWrap`, `minimumColumnWidth`).
 
 If a declaration has no support and no preset path, escalate one rung — do not reach straight for custom CSS.
+
+## Per-viewport values, states and visibility (WordPress 7.1 and later)
+
+Checked on WordPress 7.1.3, on the front end and through the validator. The skill also runs on older cores: confirm each form with a render probe on the installed core before relying on it, and check the editor canvas on the first page that uses one, which was not checked.
+
+- **Per-viewport values.** `style["@mobile"]` and `style["@tablet"]` on a block instance take any style subtree: spacing, typography, colour, border, dimensions. They print under a `wp-states-<hash>` class with `!important`, so they beat the inline style the base attribute prints.
+
+  ```json
+  "style": {
+    "spacing": { "padding": { "top": "var:preset|spacing|80" } },
+    "@tablet": { "spacing": { "padding": { "top": "var:preset|spacing|60" } } },
+    "@mobile": { "spacing": { "padding": { "top": "var:preset|spacing|40" } } }
+  }
+  ```
+
+- **Per-viewport layout.** `style["@mobile"].layout` (and `@tablet`) overrides a container's flex orientation, wrap, justification and alignment, and a child's `selfStretch`, `flexSize` and grid span. A row that stacks on phones needs no stylesheet.
+  - **The orientation prints without `!important`,** unlike per-viewport spacing and typography: `flex-direction` on the group's layout class. A registered style's `column-reverse` in a media query therefore still reverses a row that the attributes stack.
+  - **A grid is placed per viewport.** `columnCount` and `rowCount` take a value per state and print range queries. With `layout.isManualPlacement`, each child's `columnStart`, `rowStart`, `columnSpan` and `rowSpan` are set per state too, so the markup keeps the reading order while two items share a row on one viewport and stack on another: the way to level items of two side columns without CSS.
+  - **A constrained group's content size** is overridden by `style["@mobile"].layout.contentSize` (and `@tablet`): a column that is a percentage of the page only from the tablet width up needs it.
+  - **A vertical flex group that wraps** sizes its line to its widest item, not to the window: with a wide table inside, a stack became 857px wide on a 390px screen. Set `flexWrap: "nowrap"` in the `@mobile` layout state of a stack that holds wide content.
+- **A block's size in a flex row** is a child layout attribute, per viewport: `style.layout` with `selfStretch: "fixedNoShrink"` and a `flexSize`, and another `flexSize` under `@mobile`, prints the flex basis for each state on any child block. A site logo follows through its image's own `max-width`, so a logo that changes size at a viewport state needs no CSS.
+- **Other values that take a state:** `dimensions.minWidth` on a group; a gallery's `blockGap`, which prints as both its gap and `--wp--style--unstable-gallery-gap`.
+- **Any block, not only core's.** The states are a render filter keyed off the block's `style` attribute, so a block from the monorepo or a plugin takes them for every support its `block.json` declares (a dynamic block's `style["@mobile"].spacing.margin`, say). Probe a third-party block once before relying on it.
+- **What prints nothing per viewport,** checked on 7.1.3:
+  - **`position`.** `style["@tablet"].position` prints nothing. A band sticky above a width uses the block support, plus a rule that sets `position: static` on core's `.is-position-sticky` below that width, which keeps the editor's Position control truthful.
+  - **A Buttons row's `flexWrap`** prints nothing, and a per-viewport `justifyContent` loses to core's `is-content-justification-<x>` class: a buttons row can only switch its orientation at a viewport state.
+- **Visibility.** `metadata.blockVisibility` hides a block: `false` hides it everywhere, `{"viewport":{"mobile":false}}` per viewport (`mobile`, `tablet`, `desktop`). Hidden everywhere, the block prints nothing at all, so it is not in the page for a crawler or a screen reader either; per viewport it prints and is hidden by a media query.
+- **States.** `style[":hover"]` (also `:focus`, `:focus-visible`, `:active`) works per instance on `core/button` and `core/navigation-link` only. It accepts a gradient (`style[":hover"].color.gradient` prints the background on the link). A `filter: brightness(n)` hover on a filled button is the same fill with each channel multiplied by n, so it is a hover colour and not a rule. Transforms and filters themselves have no support.
+- **The two breakpoints** come from `theme.json` `settings.viewport` (`theme-json-guide.md`). `@mobile` is `width <= mobile`. `@tablet` is the **range** between the two, so a value wanted everywhere below the tablet breakpoint is written in both states.
+- **Each bound is inclusive, and a whole pixel.** A design rule written `max-width: N` wants the value `N`. One written `min-width: N` wants the last pixel below it, `N - 1`: `767px` for a design that changes at `min-width: 768px`. Never a fraction such as `767.98px` (§ Pixel values are whole pixels). A design that uses both forms at the same nominal breakpoint can match only one with states; the other is a stylesheet rule or a recorded normalisation.
+- **There are only two breakpoints.** A change at any other width still needs a registered block style.
+
+### A value that steps at another width
+
+A block attribute for margin, padding, height or font size prints an inline style, and a media query in a block stylesheet cannot beat an inline style without `!important`. When a property changes at a width that is not one of the two viewport states, put **every** value of that property in the registered block style and leave the attribute unset. Mixing the two, with the base value as an attribute and the steps in CSS, is what forces `!important`.
+
+- Block gap is the exception: it prints a class rule, which a stylesheet can override.
+- **A column's width is the same case.** `core/column`'s `width` prints an inline `flex-basis`, and no viewport state reaches it: `style["@mobile"].dimensions.width` prints `width`, which a set flex basis outranks. Columns whose proportions change at a breakpoint are a flex group whose children carry a `flexSize` per viewport (above), or have every width in the block style.
+- **A named colour is the same case from the other side.** `backgroundColor` and `textColor` print a preset class with `!important`. A stylesheet changes such a colour at a breakpoint only by redefining the preset's custom property on the block (`block-styles-guide.md` § A second colour scheme for a template part).
+- `core/site-logo`'s `width` attribute has no per-viewport form. A logo that changes size at a viewport state uses the flex child attributes above. One that steps at another width needs a rule on its `img`.
+
+### Pixel values are whole pixels
+
+A value written in pixels is a whole number of pixels, everywhere: `theme.json`, block attributes, stylesheets. Never `767.98px`, `0.5px` or `-0.75px`. The standards audit fails on one.
+
+- **A breakpoint is the last whole pixel of its range.** `settings.viewport` holds `767px` for "below 768px". A stylesheet rule that must switch together with a viewport state uses the state's own bound (`max-width: 767px`), because WordPress prints the state as `(width <= 767px)`.
+- **The other side of a `min-width: N` rule is a range query,** `(width < N)`. It is exact at every width and holds a whole number, where `(max-width: N - 0.02px)` does not. WordPress prints range queries for the viewport states itself, so this asks nothing new of a browser.
+- **What the whole pixel costs, so that it can be said:** at a fractional viewport width inside the last pixel below a breakpoint, which only browser zoom or fractional display scaling produces, a viewport state ends up to a pixel before a design rule written `min-width: N`. Whole-pixel widths are unaffected. Converting a build from fractional to whole breakpoints left its layout identical at every whole width measured.
+- **Finer than a pixel means a relative unit.** Letter spacing is written in `em`. An original's sub-pixel tracking (`-0.75px` on a 36px heading) is usually one ratio of the font size (`-0.02em`) written out in pixels. Convert it, do not copy it, and record what the ratio changes where the same text is set at another size: the tracking then scales with the text, where the original's stayed fixed.
 
 ## Layout mapping cheatsheet
 
@@ -59,20 +125,164 @@ If a declaration has no support and no preset path, escalate one rung — do not
 - **Auto-fit card grid** → `core/group` `layout:{"type":"grid","minimumColumnWidth":"16rem"}`.
 - **Hero** → `core/cover` (background) with heading/paragraph/buttons inside.
 
+### Post content sits at content width, in every template
+
+Every template gives `core/post-content` a constrained layout, landing-page templates included:
+
+```html
+<!-- wp:post-content {"layout":{"type":"constrained"}} /-->
+```
+
+- **A block in the content is then as wide as the content column** (`settings.layout.contentSize`) unless it is aligned: `alignwide` takes `wideSize`, `alignfull` the full width. That holds in the editor as on the page.
+- **A full-bleed section of a page is an `alignfull` group in the page's content,** with its own inner constrained layout for its column. Write the alignment on every top-level block that is wider than the content column.
+- **Never let post content fill the template to get full-bleed sections for free.** A design of full-width bands tempts it: a flow-layout post content and unaligned sections look right on the front end. In the editor every block is then full width, so is each new block an editor adds, and the wide and full alignment controls are gone.
+- **Set `contentSize` and `wideSize` to the design's real text column and wide column.** They are what a new block gets.
+- **Converting is layout-neutral.** Giving the template's post content a constrained layout and every existing top-level block `"align":"full"` left the front end identical at every width measured.
+- **Check it in the editor,** on one page per template: the content's root is constrained, each section spans the canvas, and a paragraph inserted at the root is `contentSize` wide. The standards audit fails on a `core/post-content` without a constrained layout.
+
+### Name every group
+
+Every `core/group` carries a name in `metadata.name`, rows, stacks and grids included:
+
+```html
+<!-- wp:group {"metadata":{"name":"Hero"},"align":"full","layout":{"type":"constrained"}} -->
+```
+
+A build is mostly groups, and in the markup and in the editor's List View they all read "Group". The name is what a person finds a section by.
+
+- **Name a group by what it is in the design,** in a word or two: `Hero`, `Feature card`, `Link column`, `Store badges`. Not by its look or its layout (`Blue band`, `Row`), which the attributes already say.
+- **The top-level groups of a page and of a part take the design's own section names.** Repeated groups share a name (`Feature card`), or carry what tells them apart where that helps a reader (`Network: WhatsApp`).
+- **`metadata` is one object.** A group that is hidden or bound keeps those keys beside the name: `"metadata":{"name":"Account","blockVisibility":false}`.
+- **The name prints nothing.** It changes no class and no output, and the validator keeps it.
+- Other blocks may carry a name the same way. Only groups must: the standards audit fails on a group without one, in a template, a part, a pattern or a page source (`unnamed_groups`).
+
+### Layout recipes that replace CSS
+
+Each was checked by box measurements against an original.
+
+- **Shrink a block to its content** (a pill, or a heading whose gradient must span only its text): put it alone in a `core/group` row with centred justification. No `width: fit-content` rule. A gradient written with a corner keyword (`to top right`) takes its angle from the box, so it only matches when the box is the text.
+- **A narrow paragraph in a wider column:** one constrained group with `contentSize` for the narrow child, and `wideSize` plus `alignwide` on the wider one, in place of a nested group.
+- **Separate row and column gaps:** `blockGap` as an object (above), inside `@mobile` and `@tablet` too. The editor shows one control for a group, but the attribute validates and the layout prints both. This covers a row that stacks at a width the states cannot express: both gaps are simply set.
+- **A centred child wider than its column:** a vertical flex group wraps by default (`flex-wrap: wrap`). In a wrapping container the cross axis is aligned per line and the line is as wide as its widest child, so a centred child wider than the group overflows on one side only. `"flexWrap": "nowrap"` makes it overflow evenly.
+- **An image that must not shrink in a row:** the child layout value `selfStretch: "fixedNoShrink"` prints `flex-shrink: 0` with the flex basis. The older value `fixed` still shrinks.
+- **A gradient border:** two nested groups. The outer has the gradient background, padding of the ring's width, the radius and the shadow; the inner has the fill and a radius smaller by the ring's width. When the original draws its ring outside the box, take the ring's width off the surrounding padding, add twice the width to the content size, and give the shadow a negative spread of that width.
+- **A decoration layer** needs rules on the container and the layer only: `isolation: isolate` on the container and `z-index: -1` on an absolutely positioned first child put the layer over the container's background and under its content. Give the layer group a block gap of 0, because the flow layout's top margin shifts absolutely positioned children.
+- **A decoration placed for one design frame** is anchored to the frame's edge, not the viewport's: `max(0px, (100% - <frame>px) / 2)` from its side, and `clamp()` between the values the design's two frames give it. Drawings anchored to the viewport's edge were cut off at the widths between two frames; anchored to the frame, they held at every width measured across that range.
+- **A decorative marker hung outside a row** is an image with a negative left margin and a right margin that cancels the row's gap. No positioning CSS.
+
 ### Layout traps (defaults that fight the design)
 
 WordPress applies a default 24px flow gap wherever `blockGap` is unset; at page scale it shows up as ~25–35px of drift in the shared chrome. Handle these up front:
 
-- **Root layout:** theme.json root `blockGap` applies via `.wp-site-blocks > * + *`, inserting a gap between the header part, `main`, and the footer on every page. Zero it with `.wp-site-blocks > header.wp-block-template-part + *, .wp-site-blocks > * + footer.wp-block-template-part { margin-block-start: 0; }`.
+- **Root layout:** theme.json root `blockGap` applies via `.wp-site-blocks > * + *`, inserting a gap between the header part, `main`, and the footer on every page. Zero it with `.wp-site-blocks > header.wp-block-template-part + *, .wp-site-blocks > * + footer.wp-block-template-part { margin-block-start: 0; }`. A part is a `header` or `footer` element only when `theme.json` declares its area (`theme-json-guide.md` § Template parts).
+- **Bands in post content:** post content puts the root block gap between its top-level blocks too, which shows as strips of the page colour between full-width bands. The foundation writes one rule in the root stylesheet:
+
+  ```css
+  :is(.wp-block-post-content, .is-root-container) > .alignfull + .alignfull { margin-block-start: 0; }
+  ```
+
+  A band an editor inserts then sits flush as well (`.is-root-container` is the editor's), a plain block keeps its gap, and a margin set on a band still applies. Do not zero each band's top margin by attribute, and do not set `blockGap` to 0 on `core/post-content` in the templates: paragraphs typed into a page would then have no space between them.
 - **Template parts:** a part's root-level children each pick up `margin-block-start` from the default flow gap — zero margins on main/footer wrappers explicitly.
 - **Stacked columns:** `core/columns` stacked at ≤781px inherit a 24px vertical gap. Set `blockGap.top` explicitly — a literal px value when the design's mobile gap differs from the preset's mobile remap.
 - **Constrained-layout clamp:** a constrained parent clamps an oversized absolutely-positioned child (e.g. a decorative backdrop image wider than the content column) to content width, and the parent's `overflow: hidden` then crops it — give that child's figure `max-width: none`.
+- **Wide and full alignment:** in a constrained group with a custom `contentSize` and no `wideSize`, `alignwide` resolves to the content size. `alignfull` inside a padded constrained group bleeds through the padding with negative margins.
+- **Flex children:** a child's `flexSize` sets `flex-basis`, not width. Nowrap content wider than it widens the child unless `min-width` is 0. An image block in a nowrap flex row shrinks, because its `<img>` has `max-width: 100%` (use `fixedNoShrink`, above).
+- **A control with a minimum width** inside a shrink-wrapped flex item is a floor for its whole column. Sweep every such view below that minimum plus its paddings, and decide explicitly whether to copy the overflow or fix it.
+- **Scroll-driven entrances:** `animation-timeline: view()` measures against the nearest scroll container, which any ancestor with `overflow` set is. An entrance animation inside such an ancestor never runs.
+- **Where two dark full-width blocks meet over a light page**, keep a 1px overlap. Without it a light hairline shows between them at a fractional scale. A source's `margin-bottom: -1px` on such a block is this guard, not a hack to drop.
+- **A closed hover card or menu that is still laid out** widens a narrow page. Check sideways overflow at the narrowest width of every view (`visual-refinement.md`).
+
+## Images
+
+- **Media-library images carry `width` and `height` attributes.** WordPress adds both from the attachment to every `<img>` with a `wp-image-<id>` class. An image sized by height alone then takes its width from the attribute and renders squashed: give it `"width":"auto"` (`style="width:auto;height:…"`). The same file referenced from the theme has no attributes, so the fault only appears when an image moves into the library. For an SVG the attribute values are rounded, which can leave a sub-pixel difference in the computed width.
+- **Images that point at theme files reserve no space.** WordPress prints the two attributes for media-library images only. An image block that points at a theme file is 0px tall until the file arrives, and everything after it moves when it loads. For such an image in the flow, set both dimensions or an `aspectRatio` on the block. The standards audit lists these for review.
+- **Safe SVG reports an SVG's size from its `viewBox`,** not from the `width` and `height` the file declares, and `core/site-logo` and `core/image` derive their attributes from it. An icon drawn in a small `viewBox` reports that small size. Set the block's width explicitly and measure the result.
+- **The logo** is `core/site-logo`. Its duotone setting recolours a single-colour logo (both stops the same colour), which covers a white-on-dark variant without a second file.
+- **An image with only a width** gets `height:auto` from the validator, so write it that way from the start.
+- **An image lower than the text line beside it** sits on the bottom of its figure's line box. Give it the line's height with `scale: contain`.
+- **Decoration:** the image block has `isDecorative`, which prints `role="none"` and an empty alternative text.
+- **A linked image that is inline sits on a text line.** When the original's `<a>` around an image is inline or inline-block inside a plain block, a few pixels of descender space hang under the image. `core/image`'s figure does not reproduce that, so a rebuilt stack of such images is shorter by that space per image, and in the original the space disappears wherever the wrapper becomes a flex container. Decide per case whether it is a defect to fix or rhythm to keep as explicit spacing, and record it.
+- **Lazy loading is counted per page.** WordPress lazy-loads every content image after the third (`wp_omit_loading_attr_threshold` defaults to 3). Small icons, badges and images inside closed hover cards count, so the largest image of a first screen can come out `loading="lazy"`. It is not visible in a comparison; it costs loading time. Check and report it (`standards.md`).
+- **Images in the header count on every page,** closed menu panels included: three product tiles in a mega-menu panel made a single post's featured image lazy. Make such images lazy outright, which takes them out of the count: from `pre_render_block` on a block inside the panel, until its `render_block` filter, answer `pre_wp_get_loading_optimization_attributes` with `array( 'loading' => 'lazy' )` for `img`. Key it on a block that renders its inner blocks the usual way (a product collection, a group): `pre_render_block` does not fire for the blocks `core/navigation` renders itself. Checked on WordPress 7.1.3: the featured image went from `loading="lazy"` to `fetchpriority="high"`.
+- **Generated sizes can be heavier than the source.** The resized copies WordPress makes from an optimised PNG can be larger than the original. After importing design images, compare the generated sizes with the source, and note whether production serves images through a CDN that re-encodes them, in which case it does not matter.
+- **Emoji become images** where the browser fails WordPress's newest-emoji test. Any content image rule (radius, display, margins) must exclude `img.emoji`.
+
+## Icons (WordPress 7.1 and later)
+
+Checked on WordPress 7.1.3.
+
+- **An icon is a `core/icon` block.** Core ships 88 icons in its `core` collection: `<!-- wp:icon {"icon":"core/calendar"} /-->`. The block takes a text colour for the glyph, and a background, padding, border and radius for a tile around it. `style.dimensions.width` is the tile's outer size, because the glyph is drawn inside the block's own padding with `box-sizing: border-box`.
+- **A glyph core lacks is registered by the theme,** as a collection of its own, on `init`:
+
+  ```php
+  wp_register_icon_collection( '<theme-slug>', array( 'label' => __( '<Theme name>', '<text-domain>' ) ) );
+  wp_register_icon(
+  	'<theme-slug>/<name>',
+  	array(
+  		'label'     => __( '<What it shows>', '<text-domain>' ),
+  		'file_path' => get_theme_file_path( 'assets/icons/<name>.svg' ),
+  	)
+  );
+  ```
+
+  The block then names it `"icon":"<theme-slug>/<name>"`. The `core` collection is reserved for WordPress's own.
+- **A registered glyph is drawn with fills only.** The registry keeps `svg`, `path` and `polygon`, and on a path only `d`, `fill`, `fill-rule` and `transform` (`WP_Icons_Registry::sanitize_icon_content()`, 7.1.3); stroke attributes, `g` and `clipPath` are dropped, and the block's stylesheet fills every path. A glyph drawn with strokes then renders as filled blobs or not at all. Convert its strokes to outlines before registering it: with skia-pathops, `Path.stroke( width, cap, join )`, then `convertConicsToQuads()` and `simplify()`, at the stroke width the design draws.
+- **Give a registered SVG a square viewBox.** `core/icon` draws an icon at its viewBox's ratio, and an icon font's glyph box is square whatever the glyph, so with a tight viewBox a row of icons loses its level.
+- **A glyph from an icon font** is copied out of the font as a path in a square viewBox the size of the font's em box, so it sits in the box the font gave it. It keeps the font's licence: credit it in the README, and say which licence the theme then carries.
+- **An icon inside a button or a link** is still painted by the button's registered style (`block-styles-guide.md` § Icons in buttons): `core/icon` is a block of its own, not part of another block.
+
+## Buttons
+
+- **Width.** `core/button` has no minimum width. On WordPress 7.1 its width is `style.dimensions.width` with any CSS length or dimension preset, not only the four percentages, and a viewport state can override it. A fixed-width button, or a minimum the label never reaches, therefore needs no CSS. Only a minimum that the label can outgrow is a rule in a registered button style.
+- **The width is not saved in the markup.** The block's saved HTML carries neither `has-custom-width` nor the width: the render adds both to the wrapper from the attribute. Do not write either by hand: the validator moves a hand-written `has-custom-width` into `className`, which the class audit then fails. A width set only in `style["@mobile"]` prints as a viewport state, without the class; the link still fills the wrapper. Checked on 7.1.3.
+- **A fixed-width button gives way to a narrower column** only if its buttons block is as wide as the column. In a centred vertical group the buttons block shrink-wraps and overflows: set the group's justification to stretch and centre each buttons block. Core also sets `max-width: none` on a custom-width button (`.wp-block-buttons > .wp-block-button.has-custom-width`, 0,3,0), so in a vertical buttons block a width wider than the column overflows, and a theme cap needs that specificity. In a horizontal buttons block the button shrinks to fit.
+- **Icons.** `core/button` has no icon, and the `core/html` policy rejects an SVG inside a link. Paint a decorative icon in a button label from the button's registered style (`block-styles-guide.md` § Icons in buttons).
+- **Hover.** A background colour on one button silences the theme's hover background, whether it is an inline style or an `!important` preset class. A button with its own colour needs its own `:hover` state.
+- **Accessible names.** `core/button` has no `aria-label` attribute. A link whose accessible name differs from its visible text (one that adds "opens in a new tab", say) cannot be carried over as it is. The choices are the visible label as the name, the `title` attribute, or a render filter. Ask at blueprint time.
+- **A dynamic block's built-in button** (a comment form's submit, say) can be styled by attributes: `style.elements.button` on a block that declares no button colour support prints colour, background, border, typography, padding and shadow as one class rule, provided a colour path is set, which is what adds the element class. A flat border colour written as a preset reference is dropped there; `currentColor`, a raw colour or a per-side preset print.
+
+## Links, headings and lists
+
+- **A link colour on a block removes the theme's link hover** for every link inside it. The block's rule (`style.elements.link.color.text`) is printed as `.wp-elements-N a:where(…)` and outranks the theme's hover rule, which WordPress prints inside `:where()`. Give the block its own `:hover` colour if hover matters.
+- **Taking the underline off the link inside one block** has no editor control: "None" as a heading's or paragraph's decoration applies to the block, and the link keeps the theme's link style. The attribute route exists: with a link colour set on the block, `style.elements.link.typography.textDecoration` beside it (and under `:hover`) is printed in the same rule.
+- **`core/list` cannot drop its markers by attribute.** Its save function prints `list-style-type` for ordered lists only. A list without markers is a registered style.
+- **`core/breadcrumbs` takes its trail from a filter.** `block_core_breadcrumbs_items` reshapes it, to follow the header menu's sections instead of the page tree, say. Pick items by their `url`: WooCommerce adds a category crumb on a product, and core can change the keys an item carries, so a choice by position or by key picks the wrong item. The filter was used on 7.1.3; that a choice by position or key breaks is derived. Its separator is styled from the block's stylesheet (`block-styles-guide.md` § Selectors that surprise).
 
 ### core/navigation notes
 
 - `core/navigation-link` accepts `className` — registered block styles render on the `<li>`, enabling overlay-only items and bespoke glyphs (e.g. a CSS-mask external-link arrow) without a custom block.
-- **Active state, portably:** core only sets `aria-current`/`current-menu-item` when the link carries a post `id` matching the queried object — which bakes site-specific IDs into the theme. Match on URL **path** instead via a `render_block_core/navigation-link` filter using `WP_HTML_Tag_Processor`; the active style then needs specificity above core's own nav-link colour rules.
-- **Logo/CTA in the mobile overlay:** nesting `core/site-logo`, fill spacers, and `core/buttons` *inside* `core/navigation` places them in the native mobile overlay for free — but the logo then disappears from the collapsed bar, so add a second compact-only site-logo (gated by an `is-style-*` visibility variation) outside the nav. Pinning the overlay CTA to the bottom needs `flex-grow` on `.wp-block-navigation__responsive-close` **and** `__responsive-dialog`, not just `__responsive-container-content`.
+- **Active state, portably:** core only sets `aria-current`/`current-menu-item` when the link carries a post `id` matching the queried object — which bakes site-specific IDs into the theme. Match on URL **path** instead via a `render_block_core/navigation-link` filter using `WP_HTML_Tag_Processor`; the active style then needs specificity above core's own nav-link colour rules. A current-item look is `theme.json` or CSS, never an attribute.
+- **Logo/CTA in the mobile overlay:** nesting `core/site-logo`, fill spacers, and `core/buttons` *inside* `core/navigation` places them in the native mobile overlay for free — but the logo then disappears from the collapsed bar, so add a second compact-only site-logo (hidden by viewport, or gated by an `is-style-*` visibility variation on an older core) outside the nav. Pinning the overlay CTA to the bottom needs `flex-grow` on `.wp-block-navigation__responsive-close` **and** `__responsive-dialog`, not just `__responsive-container-content`.
+- **With no overlay menu, the block's classes and inline styles print on both its `nav` and its `ul`.** A border or padding rule on `.wp-block-navigation.is-style-x` is drawn twice. Scope it to `nav.wp-block-navigation.is-style-x`.
+- **The overlay menu switches at 600px, whatever `settings.viewport` holds.** With `overlayMenu` at its default, `mobile`, core shows the menu button below 600px and the links from 600px up, by two rules of its own stylesheet. A design that collapses at a wider breakpoint needs both countered between 600px and that breakpoint, in the navigation's block stylesheet. For a design that changes at `min-width: 760px`:
+
+  ```css
+  @media (min-width: 600px) and (width < 760px) {
+  	.wp-block-navigation .wp-block-navigation__responsive-container-open:not(.always-shown) {
+  		display: flex;
+  	}
+  	.wp-block-navigation .wp-block-navigation__responsive-container:not(.hidden-by-default):not(.is-menu-open) {
+  		display: none;
+  	}
+  }
+  ```
+
+  The leading class makes each selector outrank core's in either stylesheet order, and the open overlay is untouched. Checked against core's stylesheet on WordPress 7.1.3, one pixel either side of both bounds. A breakpoint below 600px needs core's two rules repeated for the band instead; that direction was not checked.
+- **`hasIcon: false` prints words.** The buttons then read "Menu" and "Close" as text. Keep the icon unless the design shows the words: `icon` chooses between the two glyphs core has, and a bespoke glyph is a rule on the button.
+- **Content `core/navigation` cannot hold,** such as a product collection in the overlay, is a template part appended by a `render_block_core/navigation` filter: printed with `block_template_part()` after the links, inside the overlay's container. Rendered in the overlay at phone and tablet widths.
+  - Gate the filter on a registered style of the navigation, so that the editor shows it and an editor can switch it off. The part is declared in `theme.json` like any other (`theme-json-guide.md` § Template parts).
+  - The appended blocks inherit the navigation's typography: set their font weight on them. Seen in the browser.
+  - Their images count towards the lazy-loading threshold on every page (§ Images).
+- **A cover in the overlay drops its content under its background.** While any modal is open, and the overlay is one, core's cover stylesheet sets `z-index: auto` on the inner container of a cover whose background is not directly followed by that container. A cover with a featured image is one. A cover shown in the overlay needs `z-index: 1 !important` on `.wp-block-cover__inner-container`, from the navigation's stylesheet. Read in core's cover stylesheet on 7.1.4, and seen on product tiles in the overlay.
+
+## Query loops, archives and pagination
+
+- **A query loop shows what the site holds.** A new site has a "Hello world!" post, and it takes a slot in any loop of the latest posts. Create as many sample posts as the design's loop shows before the view is compared (`SKILL.md`, Phase 2 step 6): they are newer, so they fill it. Where a post the run did not make would still show, say so in the report. Do not delete or unpublish it.
+- **`core/post-template` is a `ul`.** A list in post content shown inside a query loop is a nested list to the browser (a circle marker), while the same content on the single view has a disc. A content style must set the marker, and the archive's rendering of content should be compared with the single's as well as with its original.
+- **An element colour on a block inside a query loop is printed once per rendered post,** because element classes are numbered, not hashed like layout and state classes. Put link colours on `core/post-template`, which renders once and supports a link colour, or in a block style.
+- **`core/query-pagination` has no spacing or border support.** Its rule and spacing belong in a style on the block itself, not on a wrapper group, because the block prints nothing for a single page and a wrapper would leave a stray rule. `display: contents` on the numbers container gives even gaps and per-number wrapping.
+- **A template's whole output is texturised.** Text printed by a render filter or a dynamic block (a ` - ` in a label) gets typographic punctuation there, which `do_blocks()` in a test or a probe does not show. Write such a character as a character reference.
+- **What a block can know about the view** is narrower than it looks: see `custom-blocks-guide.md` § What a block can know.
 
 ## Forms (Jetpack)
 
@@ -81,32 +291,126 @@ When the design includes a contact or newsletter form and Jetpack is available, 
 - On local Studio sites the `contact-form` module works offline; the `subscriptions` module cannot activate without a WordPress.com connection — do not map newsletter signups to subscription blocks locally.
 - Field blocks are **composed** (Jetpack Forms 16.x): a self-closing `<!-- wp:jetpack/field-email /-->` fails validation. The required shape is the field's wrapping `<div>` + `wp:jetpack/label` + `wp:jetpack/input` inner blocks.
 - Any non-default `is-style-*` on `jetpack/contact-form` suppresses field labels (16.0.1) — apply `"className":"is-style-default is-style-<custom>"` together.
+- **A form in a template part takes the page's title as its accessible name** unless `formTitle` is set: set it to what the form is. Read in Jetpack Forms 16.3.1.
+- **The submit button is a `core/button`** with `"tagName":"button"` and `"type":"submit"`, inside the form, as the editor writes it. The form prints a button of its own, labelled "Submit", whenever its rendered content holds neither a `wp-block-button` nor a `wp-block-jetpack-button` class. A button block that validates and renders nothing is therefore replaced without a word: compare the button's label with the design's after the write. Read in Jetpack Forms 16.1.2.
 
-## File classification: template vs part vs page vs pattern
+## WooCommerce
+
+Checked with WooCommerce 11.2.1 and WooCommerce Subscriptions 9.3.0 on WordPress 7.1.3.
+
+- **WooCommerce's checkout template does not use the theme's header or footer.** Its `page-checkout` template puts WooCommerce's own `checkout-header` part at the top (the site title and a cart link) and has no footer; its cart and order-confirmation templates use the theme's `header` and `footer`. A store theme carries `templates/page-checkout.html`, WooCommerce's checkout body between the theme's parts:
+
+  ```html
+  <!-- wp:template-part {"slug":"header","tagName":"header"} /-->
+
+  <!-- wp:woocommerce/page-content-wrapper {"page":"checkout"} -->
+  <!-- wp:group {"metadata":{"name":"Main"},"tagName":"main","layout":{"type":"constrained"}} -->
+  <main class="wp-block-group"><!-- wp:woocommerce/store-notices /-->
+
+  <!-- wp:post-content {"align":"wide"} /--></main>
+  <!-- /wp:group -->
+  <!-- /wp:woocommerce/page-content-wrapper -->
+
+  <!-- wp:template-part {"slug":"footer","tagName":"footer"} /-->
+  ```
+
+  A design that shows a cut-down checkout header gets a part of the theme's for it.
+- **Subscriptions' plan options need the classic add-to-cart form on a product with variations.** In `woocommerce/add-to-cart-with-options` Subscriptions prints no plan options for such a product: they travel in each variation's price HTML, which only the classic variation script swaps in. `woocommerce/add-to-cart-form` prints them. Its default layout puts a one-time/subscribe choice with neither radio checked above the plans; four filters give one list:
+  - `wcsatt_subscription_options_layout` returning `'flat'`;
+  - `wcsatt_single_product_options` to order the options;
+  - `wcsatt_get_default_subscription_scheme_id` to preselect a plan;
+  - `wcsatt_single_product_one_time_option_has_price` to show the one-time price.
+
+  For a simple product the block form prints the options; whether its add-to-cart submits the chosen plan was not checked.
+- **Make the variation area a polite live region.** WooCommerce prints it as `<div class="woocommerce-variation single_variation" role="alert">`, and Subscriptions draws its plan options inside it, so every change of variation announced the whole list of options. Make it `role="status"`, with a `render_block_woocommerce/add-to-cart-form` filter and `WP_HTML_Tag_Processor`. Found in an accessibility review; not checked with a screen reader.
+- **A script that reads the variation form can read the previous variation.** WooCommerce shows a chosen variation's options about 300ms after the choice, and Subscriptions then redraws the options and the button's label, so for that moment the form still holds the previous variation's price. Take the price from the `found_variation` event's data, and check that its `variation_id` still matches the form's. Seen in the browser, with quick changes of variation.
+- **A product collection lays itself out.** `woocommerce/product-collection` takes a grid layout of its own, with per-viewport `columnCount` and `blockGap`, so a card grid that changes its columns at a breakpoint needs no CSS.
+- **A product collection in a template or a part picks its products by a property, never by hand.** A hand-picked collection stores product ids, and ids differ per environment. One by a property editors control, such as Featured (`woocommerce/product-collection/featured`) ordered by `menu_order`, needs no ids. It shows the first N products that match. Rendered with 0, 1, 2, 3 and 4 Featured products:
+  - with fewer than N, a fixed grid shows empty columns;
+  - with none, the block prints nothing;
+  - with more than N, the product order decides which show.
+
+  Ties in the product order are broken by title, though the markup names only `menu_order`: the collection's query sorts by `menu_order ASC, post_title ASC`, or both descending (`ProductCollection\QueryBuilder`). Products that were never sorted all have `menu_order` 0, so among them the title order alone decides which N show. A review that reads only the markup reports the order as undefined; it is not. Read in WooCommerce 11.2.1's source.
+
+  Out-of-stock products stay in the collection unless `woocommerceStockStatus` leaves out `outofstock`. The Featured flags are data: each environment needs them set, and the pull request says which.
+- **One block without interactivity support in a product collection turns client-side navigation off for the whole page** (`ProductCollection\Controller::is_block_compatible()`): a block counts when its `block.json` has `supports.interactivity` set to `true`, or `clientNavigation: true`. Check each block type you put in a collection; filters and pagination then reload the page instead.
+- **Product images are lazy, the first row included.** `woocommerce/product-image` prints `loading="lazy"` unless `woocommerce_product_image_loading_attr` returns `eager` or `auto` (WooCommerce 10.6 and later). A shop's first screen is then lazy whatever WordPress's threshold says: report it (`standards.md`).
+- **A product image tile with text over it needs no custom block.** Inside `woocommerce/product-template`, a `core/cover` with `useFeaturedImage` renders each product's own featured image as its background.
+- **`woocommerce_price_trim_zeros` reaches only prices WooCommerce formats in PHP.** The block cart and checkout format prices in the browser, so a product card's "$90" is "$90.00" there.
+- **Sample products are looked up by post type.** `get_page_by_path( $slug, OBJECT, 'product' )` also searches attachments (core adds them when the post type is a string), and a product named like its image ("Lavender Oil", `lavender-oil.png`) resolves to the image. Pass `array( 'product' )`, or use `get_posts( array( 'post_type' => 'product', 'name' => $slug ) )`.
+- **The closed Mini-Cart drawer leaves Tab stops.** WooCommerce prints the drawer in `wp_footer`, hidden with `aria-hidden` only, so its buttons stay in the Tab order. Bind `inert` to its open state with `data-wp-bind--inert="!state.isOpen"` on `.wc-block-mini-cart__drawer`, and print `inert` on the closed drawer so that it holds before the page hydrates. Add both to the footer's output with `WP_HTML_Tag_Processor`. Checked with the keyboard.
+- **The Mini-Cart's store has no state on the cart and checkout pages.** There `MiniCart::render()` returns a hidden, disabled button, or nothing, before it loads the cart state. Markup that reads `woocommerce/mini-cart` elsewhere, such as a cart count in the header, needs a static fallback on those two pages (`custom-blocks-guide.md` § What a block can know). Read in WooCommerce 11.2.1's source.
+
+## File classification: template vs part vs page
 
 For each HTML file in the set, decide its home:
 
 - **Core template** — the file represents a WordPress view: blog index → `templates/index.html` (or `home.html`); a single post layout → `single.html`; an archive → `archive.html`; a 404 → `404.html`; a generic page layout → `page.html`. **Never `front-page.html`** — see the homepage rule below.
 - **Shared-wrapper page content** — the file is an inner page (About, Services, Contact) that shares the same header/footer/wrapper as others and differs only in body content. The wrapper becomes a template (often `page.html`); the body becomes a **WordPress page** whose `post_content` is block markup, assigned to that template. The content lives in WordPress, not hardcoded in the template.
-- **Template part** — markup that repeats across files unchanged (header, footer, nav, a CTA banner) → `parts/*.html`, referenced via `core/template-part`.
-- **Block pattern** — a repeated *section* (feature grid, testimonial row, pricing table) that recurs with varying content → a registered pattern in `patterns/*.php`, inserted where needed. Use synced patterns only when the user wants edit-once-update-everywhere.
+- **Template part** — markup that repeats across files unchanged (header, footer, nav, a CTA banner) → `parts/*.html`, referenced via `core/template-part`. Each part is declared in `theme.json` `templateParts` with its area, which is what makes a header part a `<header>` (`theme-json-guide.md` § Template parts).
 
 When two files share chrome but differ in body, extract the chrome **once** into parts and a shared template; never duplicate it per file.
 
+**A recoloured copy of a part is a block style, not a second part.** `core/template-part` takes a `className`, so the template that needs the variant puts a registered style on the part (`block-styles-guide.md` § A second colour scheme for a template part).
+
+### Where content lives (a blueprint decision, with a default)
+
+**Default: nothing a visitor reads is held in a PHP pattern.** Content held in `patterns/*.php` and referenced from a part or a page is not editable where an editor expects it, and the theme's files no longer show what the site says.
+
+- Parts and templates are plain block markup in `.html` files, editable in the Site Editor.
+- Page content is written straight to the page.
+- A section two pages share is repeated in each page's content. A synced pattern, which is a database post, would keep the copies in step; use one only when the user wants edit-once-update-everywhere.
+- Translation functions are not used, which is what lets parts be plain HTML.
+
+Put this in the blueprint as a decision the user confirms, because two kinds of project need a different answer:
+
+- **Text in the chrome must be translatable**, or a part needs a theme-relative URL in its markup. That is what a PHP pattern is for: the part holds a `core/pattern` reference and the pattern file holds the markup. Say what it costs: that text is then edited in PHP, not in the Site Editor.
+- **The user wants starter patterns** offered in the inserter. Register those as well as, never in place of, the content. Copy each from a section the site already has, in a page as `export-pages.sh` writes it or in a template, so that it starts from markup the editor accepts. Then make it a theme file. A pattern file ships with the code, while a page's ids and URLs come from the database it was built in, so those come out, and its strings and its category become the theme's:
+  - A media-library image (its `id`, the `wp-image-<id>` class, the attachment URL) becomes an image the theme ships, `esc_url( get_theme_file_uri( 'assets/images/<file>' ) )`, or is left empty, `<img alt=""/>`, for an editor to fill. An image block with no `src` prints nothing on the front end (`render_block_core_image()`) and shows its placeholder in the editor. A cover with inner blocks shows no media placeholder, because the editor draws one only for a cover with no inner blocks, no background and no featured image: its media is added from the block toolbar, and the pull request says so.
+  - A hand-picked product collection, or a query filtered by a term id, picks by a property or by order instead (§ WooCommerce).
+  - A link into the site is `esc_url( home_url( '/<path>/' ) )`, not the page's root-relative `href`, which breaks on a site served from a subdirectory.
+  - Every visible string goes through the theme's text domain: `esc_html_e()`, or `wp_kses_post( __() )` for a string with inline markup. The `Title` and `Description` headers stay plain: core translates them with the theme's `TextDomain` header.
+  - The theme registers the category its patterns name. A `Categories:` header only names a category, and core registers none from it (`WP_Theme::get_block_patterns()`). The inserter lists a pattern under Uncategorized when none of its categories is registered. Register `<theme_slug>` on `init` with `register_block_pattern_category()` and a translated `label`. Write the slug as the literal the headers carry, not through a helper that returns `get_stylesheet()`, such as the project template's `<prefix>theme_get_slug()`: under a child theme that returns the child's slug, while the headers keep the theme's.
+
+  Insert each one into a page in the editor and check that no block reports unexpected or invalid content. This is the one check that inserts something in the editor (`visual-refinement.md` § The editor canvas), so discard the edits before leaving, within the minute before the editor autosaves: `wp.data.dispatch( 'core' ).clearEntityRecordEdits( 'postType', 'page', <id> )`, or that section's `beforeunload` listener, or the "Leave site?" dialog stops the extension. Read in WordPress 7.1.4's source and its block editor's `usePatternCategories()`, and tried with fourteen patterns copied from two pages and a template.
+
+The consequence to state in every report: no page content is in the theme or the repository, so another environment gets its pages by a content migration.
+
+**WordPress caches a theme's pattern list unless `WP_DEVELOPMENT_MODE` is `theme` or `all`:** on a deployed site, and on the local site once a run has put development mode back. Core keeps the headers of each pattern file in a site transient for 30 minutes (`wp_theme_files_cache_ttl`), and uses it while the theme's `Version` header is unchanged (`WP_Theme::get_block_patterns()`). Copying new files to a site does not clear it; `wp_clean_themes_cache()` does, and so does switching themes on a site that is not part of a multisite network. Until it expires, a new pattern file is not registered and a changed header keeps its old value: the inserter does not offer the new pattern, and a `core/pattern` block that names it prints nothing (`render_block_core_pattern()`). A change to a pattern's markup shows at once, because core includes the file each time the pattern's content is asked for. With a change that adds a pattern or changes a header, raise `Version` (in template mode in `assets/sass/style.scss`, then build), or say in the pull request that it can take 30 minutes to appear. Locally, run `dev-mode.sh on --site-path <site-path>` for the change and `dev-mode.sh restore --site-path <site-path>` when it is done, as a run does. Read in WordPress 7.1.4's source, and seen in the local site's transient with development mode off; not observed on a host.
+
 ### The homepage rule: no front-page.html
 
-Never create `templates/front-page.html`. The homepage is **content, not a view**: build it as a WordPress page whose `post_content` is the block markup, then point WordPress at it through the Reading settings (`wp option update show_on_front page` + `wp option update page_on_front <page-id>`). Choose its template by wrapper:
+Never create `templates/front-page.html`. The homepage is **content, not a view**: build it as a WordPress page whose `post_content` is the block markup, then point WordPress at it through the Reading settings (`studio wp option update show_on_front page --path=<site-path>`, then `studio wp option update page_on_front <page-id> --path=<site-path>`). Choose its template by wrapper:
 
 - Homepage shares the standard page chrome → the shared page template (`page.html` / `default`).
-- Homepage has its own chrome (different or absent header/footer, full-viewport hero) → a **custom page template** (e.g. `templates/page-home.html`) registered in `theme.json` `customTemplates`, rendering the page's content via `core/post-content`.
+- Homepage has its own chrome (different or absent header/footer, full-viewport hero) → a **custom page template** (e.g. `templates/page-home.html`) registered in `theme.json` `customTemplates`, rendering the page's content via `core/post-content` with a constrained layout (§ Post content sits at content width). Its full-width sections are `alignfull` blocks in the page.
 
 This keeps the homepage editable in WordPress like every other page instead of hardcoding its content in a template that shadows the page.
 
+## Long-form and repeated content: generate it
+
+- **Convert a text-heavy page with a script, not by hand.** Where the source is a flat run of paragraphs, headings and lists, a short script re-wraps each element in its block delimiters. It must refuse any element, class, attribute or inline style it does not recognise, and refuse to write unless the visible text of the result equals the visible text of the source. That guarantee matters for legal text, and it keeps tens of kilobytes of prose out of a builder's context.
+- **For hand-written source markup,** walk the source as a tree and state, at each level, what is expected, refusing anything else. Cross-check what the page repeats: each contents link against its target's id and words, ids for duplicates, and every link's `href`, `target` and `rel` before and after. Test the refusals with tampered copies of the source: each must be refused with nothing written.
+- **Two pages or templates of one design come from one generator,** with a table of what depends on the variant and a mode that prints the differences per named part. The two structures cannot drift apart, and a check mode fails when a file on disk no longer equals the source.
+- **A page that is one template plus one run of text does not need a builder.** The orchestrator generates it, validates it, writes it and compares it.
+
 ## Asset routing
 
-- **Fonts** → declare in `theme.json` `settings.typography.fontFamilies` with `fontFace` entries; copy the font files into `assets/fonts/`. Do not `@import` from a CDN.
-- **Content images** (photos, illustrations that are page content) → import to the media library: `studio wp media import <path> --porcelain --path=<site>` → use the returned attachment in `core/image`.
-- **Decorative / background images** (textures, hero backgrounds) → copy into the theme `assets/` and reference by theme-relative URL.
+- **Fonts** → declare in `theme.json` `settings.typography.fontFamilies` with `fontFace` entries; copy the font files into `assets/fonts/`. Do not `@import` from a CDN. Which file draws which weight is measured, not read (`theme-json-guide.md` § Font faces).
+- **Design images** (photos, illustrations, logos, icons, badges) → the media library, referenced as the editor writes them: the `id` attribute, the attachment URL and the `wp-image-<id>` class. An editor can then replace any of them, and no page points at a theme file. This is a blueprint decision with this default, because of what it brings:
+  - **SVG needs the Safe SVG plugin**, which becomes a site dependency.
+  - **The media travels with the content migration**, not with the deploy.
+  - Keep one manifest for the run (`<site-path>/.h2bt/media.json`: file name → id, URL and dimensions) and have every builder take ids from it. Import with the plugin's script, which writes it:
+
+    ```bash
+    bash "<plugin-root>/scripts/import-media.sh" --site-path <site-path> --list <list.json>
+    # H2BT_MEDIA items=<n> new=<n> kept=<n> failed=<n> … manifest=<site-path>/.h2bt/media.json
+    ```
+
+    The list is a JSON array of `{ "file", "title", "alt", "name" }`: `file` is absolute or relative to the list, and `name` is the file name in the library, which the manifest is keyed by, so two sources with one file name need a `name` each. It can be run again: an attachment is found by its source meta key before anything is uploaded. Originals are not scaled down. It runs as an administrator, because Safe SVG refuses an SVG that no user uploads. Anything but `failed=0` exits non-zero, with one `FAILED` line per file.
+- **Images a template, part or stylesheet itself needs** stay in the theme's `assets/`. A theme `.html` file cannot point at a media item portably, because ids and URLs differ per environment, and it cannot build a theme URL without PHP.
+  - Paint decoration from the block's stylesheet, where a relative URL resolves.
+  - For a real `<img>` in a part, the choices are a root-relative theme path, which breaks if WordPress is served from a subdirectory, or a media item whose URL is fixed up after migration. Record which was chosen, and reserve the image's space (§ Images).
 - **Linked CSS** → read it to extract tokens and per-class styling; it is design intent to be *translated*, not shipped. Do not enqueue the original stylesheet.
 - **JS** → see below.
 
@@ -114,9 +418,15 @@ This keeps the homepage editable in WordPress like every other page instead of h
 
 Static JS in the design (sliders, accordions, mobile menus, scroll effects) has no home in static block markup. Route it by rung:
 
-- **Core block already does it** (e.g. `core/navigation` mobile menu, `core/details` accordion) → use the core block; drop the bespoke JS. Native `<details name="group">` (same `name` on siblings) gives one-open-at-a-time accordion groups with zero JS — also usable inside a block's `render.php`.
+- **Core block already does it** → use the core block; drop the bespoke JS.
+  - A mobile menu is `core/navigation`.
+  - An accordion is `core/accordion` (with `core/accordion-item`, `core/accordion-heading` and `core/accordion-panel`; its `autoclose` attribute closes the other items) or a run of `core/details` blocks. Native `<details name="group">` (same `name` on siblings) gives one-open-at-a-time groups with zero JS — also usable inside a block's `render.php`. Choose by which markup is closer to the design's.
+  - Tabs are `core/tabs`, which holds a `core/tab-list` and a `core/tab-panels` with one `core/tab-panel` per tab. Every panel, the first included, is printed `hidden` until the block's script runs (7.1.3): without JavaScript no tab shows its content. Content that must be readable without scripts is not only in tabs.
+  - The accordion and tabs blocks are in WordPress 7.1. On an older core, check that the block exists before planning on it (§ Read the installed core, then probe).
 - **Needs custom behaviour** → follow `custom-blocks-guide.md`. Try the Interactivity API on an existing block, a variation or a filter first; then a block reused from the blocks monorepo; and only then a new block built in the monorepo. This is the home the user wants for "functionality beyond core."
 - **Purely decorative scroll/animation** → reproduce with CSS where cheap; otherwise drop it and note it in the report. Do not enqueue the original JS file wholesale.
+- **Behaviour the blueprint puts out of scope** is built in its default, script-free state. An element a later script reveals is kept as a hidden block (`metadata.blockVisibility: false`, or a hidden style on an older core) so its design is not lost.
+- **Cross-document view transitions** (`@view-transition { navigation: auto; }`) are a root rule, under `prefers-reduced-motion: no-preference` (`standards.md` § Accessibility). Do not give the header a `view-transition-name`: a named header slid in on every navigation, while a part that is the same on both pages stays still under the default crossfade. Checked in Chrome.
 
 ## core/html policy (enforced by the validator)
 
@@ -133,3 +443,5 @@ Everything else — text, links, layout, images — must be rewritten as editabl
 - Reproduce structure and spacing faithfully; accept sub-pixel/minor drift to stay on a lower ladder rung.
 - Anything dropped (animation, effect, unsupported layout) goes in the report's residual-drift list with the reason.
 - Long-tail markup with no clean mapping → decompose into core blocks plus tightly-scoped CSS where possible; `core/html` is a fallback only within the core/html policy above (embeds, bare SVG, scripts), flagged as a TODO. Do not invent block types.
+- **WordPress texturises content on output.** A straight apostrophe or quote in the stored text is shown as a typographic one, and a hyphen with a space on each side as an en dash. A design whose source shows straight quotes will differ by a fraction of a pixel per line. Record it as drift; do not turn texturising off for it.
+- **A shared section is measured again in every host.** The same screen width gives a different column width when the host page adds its own padding, so a minimum width or a wrap that never bit on the first page can bite on the second.

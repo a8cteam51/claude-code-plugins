@@ -1,21 +1,29 @@
 # ai-canvas
 
-Vibe-code pages and posts on any WordPress site from Claude Code. Connect a site once with an Application Password, then describe the page you want; Claude writes it as a single full-width Custom HTML block (markup, CSS, and JS), publishes it through the site's built-in REST API, and checks the result in your browser.
-
-No WordPress plugin of ours is required. The site needs one thing from the plugin directory, [Jamie's Visual HTML Editor](https://wordpress.org/plugins/jamies-visual-html-editor/), which lets the site owner click text and images on the finished page to edit them in wp-admin and gives the Custom HTML block its full-width alignment.
+Design a WordPress page with Claude on your own computer, then move it to your site when it is ready. Claude writes the page as a single full-width Custom HTML block (markup, CSS, and JS), shows it in a local preview, and changes it on your feedback. Nothing touches the site until you ask; then the page goes in through your own logged-in Chrome, with no password, key, or connection to set up.
 
 ## Skills
 
 | Skill | Trigger | What it does |
 |---|---|---|
-| **setup** | "connect Claude to my website", "set up AI-Canvas on `<site>`" | Walks a beginner through wp-admin (plugin install, Administrator user, Application Password), then verifies the connection and saves it |
-| **vibe** | "build a landing page on my site", "write a post about…", "change the photo on my page", "undo that" | Creates and updates pages and posts as one HTML block, with browser verification and undo |
+| **design** | "build me a landing page", "change the hero photo", "undo that" | Writes the page to a local folder, builds a preview, checks it, and iterates on feedback. Never touches a site. |
+| **publish** | "put it on my site", "send that change to the site", "make it live", "pull my page down" | Asks whether the page keeps the site's header and footer or stands alone, moves it into wp-admin by clipboard, creates the AI Canvas page templates if the site lacks them, saves a draft, and checks the result on the site. |
 
-Both skills are written for **non-technical users**: one step at a time, literal wp-admin labels, no jargon in user-facing text, results reported as the page (link plus screenshot) rather than files or API calls.
+Both skills are written for **non-technical users**: plain language, real copy instead of placeholder text, results reported as the page (address plus screenshot) rather than files or code.
 
 ## How it works
 
-Each page or post body is one block:
+Each page is one folder on your computer, in a place you choose. Claude asks where before the first draft; your Desktop is the usual answer.
+
+```text
+~/Desktop/ai-canvas/<page-slug>/
+├── block.html    the page: one complete Custom HTML block
+├── preview/      index.html, alone.html, editor.html, theme.html, phone.html
+├── history/      snapshots, so "undo that" always works
+└── site.txt      where the page lives on the site, once it does
+```
+
+`block.html` holds one block:
 
 ```html
 <!-- wp:html {"align":"full"} -->
@@ -25,51 +33,40 @@ Each page or post body is one block:
 <!-- /wp:html -->
 ```
 
-WordPress stores it as an ordinary page on one of two page templates the setup skill creates over REST: **AI Canvas (with header and footer)**, built by copying the header and footer parts from the theme's own page template, or **AI Canvas (blank)**, which renders nothing but the block. Neither shows a page title. The visual HTML editor plugin turns `align: full` into the theme's full-width wrapper, and the site owner can open the page in wp-admin and click any heading, paragraph, or image to change it.
+**Designing.** `scripts/canvas.sh preview` lints the block against the rules WordPress enforces silently (a `<` inside the script, a second `<h1>`, a document-level tag, an unprefixed selector) and builds five preview pages: the page between a stand-in header and footer, the page with nothing around it, the page with its script never run (what wp-admin's editor shows the site owner), the page under a deliberately hostile theme stylesheet, and the page at phone width. Each preview page exposes `aiCanvasReport()`, one line of JSON covering script errors, heading structure, overflow, images, target sizes, and which theme styles reached the block. With [Claude in Chrome](https://claude.com/chrome), Claude opens the preview, reads the report, looks at screenshots, and uses the page's widgets by mouse and keyboard before showing you anything.
 
-`scripts/wp.sh` is the only route to the site. It needs nothing but `bash` and `curl`, which macOS, Linux, and Git Bash on Windows all include. Credentials live in one file per site under `~/.claude/ai-canvas/sites/` (mode 600), read by curl itself, so the Application Password never appears on a command line after setup. Content travels as a multipart form field, so nothing is JSON-encoded on the way up, and a small awk decoder handles the way down. Commands: `sites`, `add-site`, `remove-site`, `me`, `find`, `get`, `create`, `update`, `revisions`, `restore`, `trash`, `media`, `upload`, `check`, `templates`, `template-get`, `template-ensure`, `template-delete`, and `contrast` (WCAG ratio for hex color pairs; offline, no site needed).
+**Publishing.** `scripts/canvas.sh copy` puts the block on the system clipboard and prints its hash. In your Chrome, Claude opens the page in wp-admin, switches the post editor to its Code editor, pastes, and confirms the editor holds exactly the local page (same hash) before WordPress saves it. The page never passes through Claude as text, so it arrives byte for byte. The first publish saves a draft only you can see; it goes live when you say.
 
-## setup
+**The templates.** Every page uses one of two page templates, and the publish skill asks you which: **AI Canvas** (the site's header, the page content at full width, the site's footer) or **AI Canvas (blank)** (only the page content, nothing around it). Neither prints a page title, and both wrap the content in `<main>`, so the same block works under either. The publish skill creates them on first use, copying the header and footer parts from the theme's own page template.
 
-A strict role split. The user performs every step that changes their site with Claude explaining exactly what to click and waiting; Claude never installs plugins or creates users or credentials itself. Once it holds the site address, username, and Application Password it:
+**Changes after publishing.** You keep designing locally; "send that to the site" replaces the page's content the same way. If the page was edited in wp-admin in the meantime, the publish skill notices (the stored hash no longer matches), copies the site's version down through the Code editor, and carries your pending changes over before sending anything.
 
-- Saves the connection with `wp.sh add-site`
-- Verifies credentials and capabilities with `wp.sh me`, catching a missing `unfiltered_html` (multisite, `DISALLOW_UNFILTERED_HTML`) or `edit_theme_options` (role below Administrator) before anything is built
-- Creates the two page templates with `wp.sh template-ensure`, discovering the theme's header and footer parts from its page template
-- Routes host-level problems (a stripped Authorization header) through the hosting company's support with a drafted message rather than server file edits
-- Offers a first page as a smoke test; its `check` step confirms the visual HTML editor plugin is active
+## scripts/canvas.sh
 
-## vibe
-
-- **Two templates.** Framed (site header and footer, no title) by default; blank for standalone landing pages. Chosen from the brief, or by one plain question.
-- **One block, scoped.** A single root element with a distinctive class, every selector prefixed with it, JS in an IIFE. Theme header and footer are never restyled. States only JS can leave (scroll reveals, tab panels) live under an `.is-js` class the script adds, so the page is complete in wp-admin's editor, where the script never runs.
-- **Human-editable output.** Text stays in ordinary elements and images in plain `<img>` tags so the site owner can edit them in wp-admin after the fact.
-- **Undo.** WordPress revisions are the history. `create` re-saves once so the first version is recorded (core skips revisions on insert), every `update` records the new version, and `restore` sends a revision back without decoding it. The owner sees the same history under Revisions in wp-admin.
-- **Verification.** With Claude in Chrome: open the live URL, screenshot, exercise the JS, read the console, check phone width, tab through the page and read its accessibility tree. Without it: `wp.sh check` confirms the page is served with its style and script intact and reports whether the full-width wrapper is present.
-- **Performance rules on the first write.** Right-sized Media Library variants, explicit image dimensions, fold-aware lazy loading, IntersectionObserver over scroll handlers.
-- **WCAG 2.1 AA on the first write.** Every color pairing run through `wp.sh contrast` (a requested brand color that fails is flagged to the user, not silently changed), no state signalled by color alone, 16px body text at 1.5 line height, one `<h1>` and template-aware landmarks (the blank template has no `<main>`, so the block supplies it), descriptive link and alt text, `prefers-reduced-motion`, 44px targets, visible `:focus-visible` rings, `<button>`-based widgets with true ARIA state and keyboard support, labelled forms with announced errors. AAA on request.
-- **Posts** ask once whether to publish or draft, since publishing notifies subscribers.
+Local only; it never contacts a site. Commands: `lint`, `preview`, `serve`, `keep`, `undo`, `hash`, `copy`, `paste`, `record`, `status`, and `contrast` (WCAG ratio for hex color pairs). It needs bash and the system's standard tools; `serve` needs python3, php, or ruby.
 
 ## Requirements
 
-On the WordPress site (the setup skill walks the user through all of it):
+On the WordPress site:
 
-- HTTPS (Application Passwords require it; local Studio sites excepted)
-- [Jamie's Visual HTML Editor](https://wordpress.org/plugins/jamies-visual-html-editor/) active, for in-place editing and full-width alignment
-- A dedicated **Administrator** user with an Application Password. Administrator is required because creating page templates needs `edit_theme_options`; the password is revocable from the user's profile at any time.
-- A **block theme**. The page templates only exist on block themes; classic themes are not supported.
+- A **block theme**. The page templates only exist on block themes.
+- [Jamie's Visual HTML Editor](https://wordpress.org/plugins/jamies-visual-html-editor/) active. It gives the Custom HTML block its full-width alignment and lets the site owner click text and images to edit them in wp-admin.
+- You, logged in to wp-admin in Chrome as an **Administrator** (creating the templates needs it). On a multisite network only network admins can publish pages with scripts.
 
-Locally: Claude Code only; the script uses `bash` and `curl`, which are already present on macOS, Linux, and Git Bash on Windows. [Claude in Chrome](https://claude.com/chrome) is optional but recommended; it upgrades verification from "page is served" to "page works".
+On your computer: Claude Code and [Claude in Chrome](https://claude.com/chrome). Designing works without Claude in Chrome, though Claude then cannot see the page; publishing without it is a manual paste and cannot create the templates.
+
+Developed and tested on macOS against WordPress 7.1 with Twenty Twenty-Five. The clipboard commands also have paths for Linux (`wl-copy`, `xclip`, `xsel`) and Windows (PowerShell, from Git Bash or WSL) that have not been run yet.
 
 ```bash
 # Install ai-canvas
 /plugin install ai-canvas@a8cteam51-claude-code-plugins
 
-# Connect a site (guided, one-time)
-# > connect Claude to my website https://example.com
-
-# Then build in natural language
+# Design locally
 # > build me a landing page for our spring launch
-# > swap the hero photo for something warmer
-# > undo that change
+# > make the heading bigger and swap the photo for something warmer
+# > undo that
+
+# Move it to the site when it is right
+# > put it on my site https://example.com
+# > make it live
 ```

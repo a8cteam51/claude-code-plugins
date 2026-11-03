@@ -4,9 +4,9 @@ Skills for moving Team 51 sites from Pressable to WordPress.com: audit a site,
 get a report and a runbook for that site, then work through the migration with
 checks at each stage.
 
-**Status: 0.1.0, a draft for evaluation.** The audit has been run read-only
-against real sites. Nothing after the audit has been used on a real migration
-yet; runbook steps that are unproven are marked UNTESTED.
+**Status: 0.1.0, a draft for evaluation.** One site, kwamebrathwaitearchive.org,
+has been migrated end to end with it, and the audit has been run against
+others. Runbook steps not yet run on a real migration are marked UNTESTED.
 
 ## Skills
 

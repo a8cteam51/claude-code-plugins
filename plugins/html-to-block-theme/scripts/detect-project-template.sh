@@ -12,8 +12,13 @@
 #
 # Always exits 0 after a successful inspection (it is a probe, not a gate); 2 on usage errors.
 # The last line is the machine-readable sentinel:
-#   H2BT_TEMPLATE mode=template repo=<dir> theme_slug=<slug> ... (see --help)
+#   H2BT_TEMPLATE mode=template repo="<dir>" theme_slug=<slug> ... (see --help)
 #   H2BT_TEMPLATE mode=standalone reason=<why>
+#   H2BT_TEMPLATE mode=template-unreadable reason=<why>
+# template-unreadable is a repository that is a project-template clone, but whose theme or
+# identifiers could not be read. It is not a standalone site: building a standalone theme
+# into it would ignore the repository's conventions. The caller stops and reports the reason.
+# Paths and the Node range are quoted, because they can hold a space.
 #
 set -euo pipefail
 
@@ -27,15 +32,22 @@ Prints the detected layout. In template mode the sentinel carries:
   repo, branch, theme_slug, theme_dir, theme_text_domain, prefix, features_slug,
   features_dir, features_text_domain, features_disabled, php_floor, wp_floor,
   node_engine, examples (template example features still present), allowlist
+
+mode=template-unreadable means a project-template clone whose theme could not be read
+(no single tracked theme, or its style.css is gone): stop and fix that, do not build
+a standalone theme into the repository.
 EOF
 }
+
+# A flag that takes a value must be followed by one.
+need_value() { [[ $# -ge 2 ]] || { echo "$1 needs a value" >&2; exit 2; }; }
 
 site_path=""
 repo=""
 while [[ $# -gt 0 ]]; do
 	case "$1" in
-		--site-path) site_path="${2:-}"; shift 2 ;;
-		--repo) repo="${2:-}"; shift 2 ;;
+		--site-path) need_value "$@"; site_path="$2"; shift 2 ;;
+		--repo) need_value "$@"; repo="$2"; shift 2 ;;
 		-h|--help) usage; exit 0 ;;
 		*) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
 	esac
@@ -53,6 +65,12 @@ standalone() {
 	exit 0
 }
 
+unreadable() {
+	echo "This is a project-template repository, but it could not be read: $1" >&2
+	echo "H2BT_TEMPLATE mode=template-unreadable repo=\"$repo\" reason=$1"
+	exit 0
+}
+
 toplevel="$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null || true)"
 [[ -n "$toplevel" && "$(cd "$toplevel" && pwd -P)" == "$repo" ]] || standalone "not-a-git-clone"
 [[ -f "$repo/mu-plugins/mu-loader.php" ]] || standalone "no-mu-loader"
@@ -63,9 +81,11 @@ fi
 # The theme is the one tracked directory under themes/.
 theme_slugs="$(git -C "$repo" ls-files themes | awk -F/ 'NF > 2 { print $2 }' | sort -u)"
 theme_count="$(printf '%s\n' "$theme_slugs" | grep -c . || true)"
-[[ "$theme_count" -eq 1 ]] || standalone "expected-one-tracked-theme-found-${theme_count}"
+[[ "$theme_count" -eq 1 ]] || unreadable "expected-one-tracked-theme-found-${theme_count}"
 theme_slug="$theme_slugs"
 theme_dir="$repo/themes/$theme_slug"
+# git still lists a tracked file that was deleted or renamed in the working tree.
+[[ -f "$theme_dir/style.css" ]] || unreadable "theme-style-css-missing-in-themes/${theme_slug}"
 
 # The features plugin is the tracked mu-plugins/<dir>/ whose entry file has a Plugin Name header.
 features_slug=""
@@ -79,8 +99,9 @@ done < <(git -C "$repo" ls-files mu-plugins | awk -F/ 'NF > 2 { print $2 }' | so
 features_dir=""
 [[ -n "$features_slug" ]] && features_dir="$repo/mu-plugins/$features_slug"
 
-header() { # header <file> <name>: the value of a WordPress file-header line.
-	sed -n "s/^[[:space:]*]*$2:[[:space:]]*//p" "$1" 2>/dev/null | head -1 | tr -d '\r'
+header() { # header <file> <name>: the value of a WordPress file-header line, or nothing.
+	[[ -f "$1" ]] || return 0
+	{ sed -n "s/^[[:space:]*]*$2:[[:space:]]*//p" "$1" 2>/dev/null || true; } | head -1 | tr -d '\r'
 }
 
 prefix="$(python3 - "$theme_dir/.phpcs.xml" <<'PY' 2>/dev/null || true
@@ -97,7 +118,7 @@ theme_text_domain="$(header "$theme_dir/style.css" 'Text Domain')"
 features_text_domain=""
 features_disabled="no"
 if [[ -n "$features_dir" ]]; then
-	entry="$(grep -l 'Plugin Name:' "$features_dir"/*.php | head -1)"
+	entry="$(grep -l 'Plugin Name:' "$features_dir"/*.php 2>/dev/null | head -1 || true)"
 	features_text_domain="$(header "$entry" 'Text Domain')"
 	[[ -f "$features_dir/.disabled" ]] && features_disabled="yes"
 fi
@@ -132,4 +153,4 @@ Template-mode repository: $repo
   template examples:    $examples_csv
   blocks allowlist:     $allowlist
 EOF
-echo "H2BT_TEMPLATE mode=template repo=$repo branch=${branch:-} theme_slug=$theme_slug theme_dir=$theme_dir theme_text_domain=$theme_text_domain prefix=$prefix features_slug=$features_slug features_dir=$features_dir features_text_domain=$features_text_domain features_disabled=$features_disabled php_floor=$php_floor wp_floor=$wp_floor node_engine=$node_engine examples=$examples_csv allowlist=$allowlist"
+echo "H2BT_TEMPLATE mode=template repo=\"$repo\" branch=${branch:-} theme_slug=$theme_slug theme_dir=\"$theme_dir\" theme_text_domain=$theme_text_domain prefix=$prefix features_slug=$features_slug features_dir=\"$features_dir\" features_text_domain=$features_text_domain features_disabled=$features_disabled php_floor=$php_floor wp_floor=$wp_floor node_engine=\"$node_engine\" examples=$examples_csv allowlist=$allowlist"

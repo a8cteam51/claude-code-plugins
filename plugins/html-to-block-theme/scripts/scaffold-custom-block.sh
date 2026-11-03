@@ -36,9 +36,25 @@ block's src and build block.json in .github/blocks-allowlist under an approved-e
 comment. --prefix defaults to the one in the theme's .phpcs.xml. Build with
 `npm run build:features:blocks`.
 
-Refuses to overwrite an existing block directory.
+Refuses to overwrite an existing block directory. A scaffold that fails part-way removes the
+block directory it made, so it can be run again.
+
+Last line: H2BT_BLOCK_OK ..., or H2BT_BLOCK_PARTIAL ... (exit 1) when the block's files were
+written but package.json could not be wired: add the printed ADD MANUALLY lines, then build.
 EOF
 }
+
+# A flag that takes a value must be followed by one.
+need_value() { [[ $# -ge 2 ]] || { echo "$1 needs a value" >&2; exit 2; }; }
+
+# The block directory this run made, until the scaffold is complete: removed on any failure.
+unfinished_block_dir=""
+wiring=""
+cleanup() {
+	[[ -z "$wiring" ]] || rm -f "$wiring"
+	[[ -z "$unfinished_block_dir" ]] || rm -rf "$unfinished_block_dir"
+}
+trap cleanup EXIT
 
 # --- Template layout ----------------------------------------------------------------------
 
@@ -52,11 +68,11 @@ scaffold_template_block() {
 	local features_slug repo entry text_domain package const_path block_dir
 	features_slug="$(basename "$features_dir")"
 	repo="$(cd "$features_dir/../.." && pwd -P)"
-	entry="$(grep -l 'Plugin Name:' "$features_dir"/*.php | head -1)"
+	entry="$(grep -l 'Plugin Name:' "$features_dir"/*.php 2>/dev/null | head -1 || true)"
 	[[ -n "$entry" ]] || { echo "No plugin entry file (Plugin Name header) in $features_dir" >&2; return 1; }
 	text_domain="$(file_header "$entry" 'Text Domain')"
 	package="$(file_header "$entry" '@package')"
-	const_path="$(grep -oE "define\( '[A-Z0-9_]+_DIR_PATH'" "$entry" | head -1 | sed -E "s/define\( '([A-Z0-9_]+)'/\1/")"
+	const_path="$(grep -oE "define\( '[A-Z0-9_]+_DIR_PATH'" "$entry" | head -1 | sed -E "s/define\( '([A-Z0-9_]+)'/\1/" || true)"
 	if [[ -z "$prefix" ]]; then
 		prefix="$(python3 - "$repo" <<'PY'
 import glob, re, sys
@@ -77,6 +93,12 @@ PY
 	block_dir="$features_dir/blocks/src/$slug"
 	[[ -e "$block_dir" ]] && { echo "Block already exists: $block_dir" >&2; return 1; }
 	mkdir -p "$block_dir"
+	unfinished_block_dir="$block_dir"
+
+	# The title is free text: a quote would break block.json, and */ would close the docblock.
+	local title_json title_doc
+	title_json="$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$title")"
+	title_doc="$(printf '%s' "$title" | tr '\n\r' '  ' | sed 's|\*/|* /|g')"
 	for silence in "$features_dir/blocks/index.php" "$features_dir/blocks/src/index.php"; do
 		[[ -f "$silence" ]] || printf '<?php declare( strict_types=1 ); // Silence is golden.\n' >"$silence"
 	done
@@ -86,7 +108,7 @@ PY
 	"\$schema": "https://schemas.wp.org/trunk/block.json",
 	"apiVersion": 3,
 	"name": "${namespace}/${slug}",
-	"title": "${title}",
+	"title": ${title_json},
 	"category": "design",
 	"icon": "screenoptions",
 	"textdomain": "${text_domain}",
@@ -118,7 +140,7 @@ EOF
 	cat >"$block_dir/render.php" <<EOF
 <?php declare( strict_types=1 );
 /**
- * Renders the ${title} block.
+ * Renders the ${title_doc} block.
  *
  * @package  ${package}
  *
@@ -136,6 +158,7 @@ EOF
 EOF
 
 	local blocks_php="$features_dir/includes/blocks.php"
+	mkdir -p "$features_dir/includes"
 	if [[ ! -f "$blocks_php" ]]; then
 		cat >"$blocks_php" <<EOF
 <?php declare( strict_types=1 );
@@ -175,7 +198,8 @@ EOF
 
 	# package.json: build/start scripts and lint paths, inserted textually so the file's own
 	# formatting (blank lines between script groups) survives.
-	python3 - "$repo/package.json" "mu-plugins/$features_slug/blocks" <<'PY'
+	wiring="$features_dir/blocks/.h2bt-wiring.$$"
+	python3 - "$repo/package.json" "mu-plugins/$features_slug/blocks" >"$wiring" <<'PY'
 import json, re, sys
 path, blocks = sys.argv[1], sys.argv[2]
 text = open(path).read()
@@ -208,6 +232,9 @@ for name, needle in (('lint:scripts', f'{blocks}/src'), ('format:scripts', f'{bl
     if new == cmd:
         print(f'ADD MANUALLY: add {needle} to the "{name}" script')
         continue
+    if json.dumps(cmd) not in text:
+        print(f'ADD MANUALLY: add {needle} to the "{name}" script')
+        continue
     text = text.replace(json.dumps(cmd), json.dumps(new), 1)
     changed.append(name)
 
@@ -219,6 +246,12 @@ missing = [p for p in ('@wordpress/blocks', '@wordpress/block-editor') if '"' + 
 if missing:
     print('ADD MANUALLY: npm install -D ' + ' '.join(missing) + '  (ESLint import/no-extraneous-dependencies)')
 PY
+	cat "$wiring"
+	# The devDependencies line is always a manual step. A script that could not be added is not:
+	# without it the build command the sentinel names does not exist.
+	local unwired
+	unwired="$(grep -c -e '^ADD MANUALLY: add ' -e '^ADD MANUALLY: "' "$wiring" || true)"
+	rm -f "$wiring"
 
 	local allowlist="$repo/.github/blocks-allowlist"
 	mkdir -p "$repo/.github"
@@ -233,7 +266,13 @@ PY
 	if [[ -f "$features_dir/.disabled" ]]; then
 		echo "NOTE: $features_dir/.disabled is present, so the features plugin registers nothing until it is deleted."
 	fi
-	echo "H2BT_BLOCK_OK slug=${slug} dir=${block_dir} layout=template exclusion=approved build=\"npm run build:features:blocks\""
+	unfinished_block_dir=""
+	if [[ "$unwired" -gt 0 ]]; then
+		echo "The block's files are written, but package.json could not be wired: add the ADD MANUALLY lines above, then run the build." >&2
+		echo "H2BT_BLOCK_PARTIAL slug=${slug} dir=\"${block_dir}\" layout=template exclusion=approved unwired=${unwired}"
+		exit 1
+	fi
+	echo "H2BT_BLOCK_OK slug=${slug} dir=\"${block_dir}\" layout=template exclusion=approved build=\"npm run build:features:blocks\""
 }
 
 slug=""
@@ -246,11 +285,11 @@ approved="no"
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--exclusion-approved) approved="yes"; shift ;;
-		--slug) slug="${2:-}"; shift 2 ;;
-		--title) title="${2:-}"; shift 2 ;;
-		--namespace) namespace="${2:-}"; shift 2 ;;
-		--features-dir) features_dir="${2:-}"; shift 2 ;;
-		--prefix) prefix="${2:-}"; shift 2 ;;
+		--slug) need_value "$@"; slug="$2"; shift 2 ;;
+		--title) need_value "$@"; title="$2"; shift 2 ;;
+		--namespace) need_value "$@"; namespace="$2"; shift 2 ;;
+		--features-dir) need_value "$@"; features_dir="$2"; shift 2 ;;
+		--prefix) need_value "$@"; prefix="$2"; shift 2 ;;
 		--theme-dir|--layout)
 			echo "$1 is no longer supported: blocks are never scaffolded into a theme. Reuse or build them in the blocks monorepo (references/custom-blocks-guide.md)." >&2
 			exit 2
@@ -267,8 +306,8 @@ fi
 [[ -n "$slug" ]] || { echo "--slug is required" >&2; exit 2; }
 [[ -n "$title" ]] || { echo "--title is required" >&2; exit 2; }
 [[ -n "$namespace" ]] || { echo "--namespace is required (use the project theme slug)" >&2; exit 2; }
-[[ "$slug" =~ ^[a-z][a-z0-9-]*$ ]] || { echo "Slug must be lowercase alphanumeric + hyphens: $slug" >&2; exit 1; }
-[[ "$namespace" =~ ^[a-z][a-z0-9-]*$ ]] || { echo "Namespace must be lowercase alphanumeric + hyphens: $namespace" >&2; exit 1; }
+[[ "$slug" =~ ^[a-z][a-z0-9-]*$ ]] || { echo "Slug must be lowercase alphanumeric + hyphens: $slug" >&2; exit 2; }
+[[ "$namespace" =~ ^[a-z][a-z0-9-]*$ ]] || { echo "Namespace must be lowercase alphanumeric + hyphens: $namespace" >&2; exit 2; }
 [[ -n "$features_dir" && -d "$features_dir" ]] || { echo "--features-dir must name the features mu-plugin directory" >&2; exit 2; }
 
 scaffold_template_block

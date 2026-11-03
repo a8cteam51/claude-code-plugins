@@ -1,0 +1,41 @@
+<?php
+// Run by export-pages.sh, which stages it in <site-path>/.h2bt/ and fills in its placeholder.
+
+$export_dir = __DIR__ . '/__EXPORT_DIR__';
+
+if ( ! is_dir( $export_dir ) || ! is_writable( $export_dir ) ) {
+	echo 'H2BT_EXPORT_FAIL reason=export-dir-not-writable dir=' . $export_dir . "\n";
+	exit;
+}
+
+$counts = array(
+	'page'     => 0,
+	'wp_block' => 0,
+	'skipped'  => 0,
+);
+
+$posts = get_posts(
+	array(
+		'post_type'   => array( 'page', 'wp_block' ),
+		'post_status' => array( 'publish', 'draft', 'pending', 'private', 'future' ),
+		'numberposts' => -1,
+		'orderby'     => 'ID',
+		'order'       => 'ASC',
+	)
+);
+
+foreach ( $posts as $export_post ) {
+	if ( false === strpos( $export_post->post_content, '<!-- wp:' ) ) {
+		++$counts['skipped'];
+		continue;
+	}
+
+	$file = $export_dir . '/' . $export_post->post_type . '-' . $export_post->ID . '.html';
+	if ( false === file_put_contents( $file, $export_post->post_content ) ) {
+		echo 'H2BT_EXPORT_FAIL reason=write-failed file=' . $file . "\n";
+		exit;
+	}
+	++$counts[ $export_post->post_type ];
+}
+
+echo 'H2BT_EXPORT_OK pages=' . $counts['page'] . ' patterns=' . $counts['wp_block'] . ' skipped=' . $counts['skipped'] . "\n";

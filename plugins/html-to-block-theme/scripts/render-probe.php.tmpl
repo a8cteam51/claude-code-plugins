@@ -1,0 +1,45 @@
+<?php
+/**
+ * render-probe.php.tmpl — render block markup and print what WordPress makes of it.
+ *
+ * render-probe.sh stages this file inside the site dir (<site-path>/.h2bt/) after
+ * substituting the __PLACEHOLDERS__, alongside the markup file it references, and runs it
+ * with `studio wp eval-file`. It writes nothing to the database.
+ *
+ * Output: H2BT_PROBE_BEGIN ..., the rendered HTML, the block-supports stylesheet, and
+ * H2BT_PROBE_OK — or one H2BT_PROBE_FAIL: ... line. BEGIN is printed before the blocks render,
+ * so a warning the markup raises lands between BEGIN and the HTML and is not trimmed away.
+ *
+ * Placeholders (the caller generates or validates both):
+ *   __MARKUP_FILE__  basename of the block-markup file in this same directory
+ *   __POST_ID__      id of the post the blocks should read, or 0 for none
+ */
+
+$markup_file = __DIR__ . '/__MARKUP_FILE__';
+$post_id     = (int) '__POST_ID__';
+
+if ( ! is_readable( $markup_file ) ) {
+	echo 'H2BT_PROBE_FAIL: markup file not readable: ' . $markup_file . "\n";
+	exit;
+}
+
+if ( $post_id > 0 ) {
+	$probe_post = get_post( $post_id );
+	if ( ! $probe_post instanceof WP_Post ) {
+		echo 'H2BT_PROBE_FAIL: no post with id ' . $post_id . "\n";
+		exit;
+	}
+	$GLOBALS['post'] = $probe_post;
+	setup_postdata( $probe_post );
+}
+
+echo 'H2BT_PROBE_BEGIN php=' . PHP_VERSION . ' wp=' . get_bloginfo( 'version' ) . ' theme=' . get_stylesheet() . "\n";
+
+$html = do_blocks( (string) file_get_contents( $markup_file ) );
+$css  = wp_style_engine_get_stylesheet_from_context( 'block-supports', array( 'prettify' => true ) );
+
+echo "--- html ---\n";
+echo $html . "\n";
+echo "--- block-supports css ---\n";
+echo $css . "\n";
+echo "H2BT_PROBE_OK\n";

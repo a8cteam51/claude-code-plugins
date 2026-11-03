@@ -19,12 +19,12 @@ Add the marketplace once, then install whichever plugins you need:
 | [wpbakery-to-gutenberg](#wpbakery-to-gutenberg) | Convert WPBakery pages on a Studio site to Gutenberg block markup in place | `/wpbakery-to-gutenberg:wpbakery-batch`, natural language |
 | [html-to-block-theme](#html-to-block-theme) | Turn static HTML/CSS/JS designs into a standards-driven WordPress block theme | Natural language |
 | [figma-extract](#figma-extract) | Pull images and design context out of the current Figma selection | `/figma-extract:extract` |
-| [page-annotator](#page-annotator) | Annotate a page in Chrome and file each note as a GitHub issue with a screenshot | `/page-annotator:annotate` |
 | [poseidon-local](#poseidon-local) | Run the Poseidon plan/implement agents locally instead of via GitHub Actions | `/poseidon-plan`, `/poseidon-implement` |
-| [ai-canvas](#ai-canvas) | Connect a WordPress site once, then vibe-code pages and posts as a full-width Custom HTML block through the REST API, verified in the browser | Natural language |
+| [ai-canvas](#ai-canvas) | Design a WordPress page locally as a full-width Custom HTML block, then move it to the site through your logged-in Chrome with no connection setup | Natural language |
 | [site-launch-comparison](#site-launch-comparison) | Screenshot two versions of a site and build a side-by-side before/after report | Natural language |
 | [vip-plugin-updates](#vip-plugin-updates) | Turn a folder of plugin zips into one PR per plugin against a VIP repo that vendors its plugins | Natural language |
 | [pressable-to-wpcom-migration](#pressable-to-wpcom-migration) | Audit a Pressable site for a move to WordPress.com, generate its runbook, and work through the migration with checks | Natural language |
+| [fresh-eyes-review](#fresh-eyes-review) | Re-check a change Claude just made for missed bugs and regressions, then fix them | Natural language |
 
 ## plugin-review
 
@@ -182,6 +182,7 @@ Convert a set of static **Claude Design** HTML/CSS/JS files into a standards-dri
 **What's included:**
 
 - **html-to-block-theme skill** - Natural-language trigger for phrases like "build a block theme from the designs in ./design"
+- **change-built-theme skill** - For changes to a theme after its run: sends each change to the guide that governs it and ends with the standards audit, run on the page content `export-pages.sh` exports from the site
 - **blueprint-analyzer / section-builder agents** - Subagents for the planning pass and per-section build, keeping design HTML out of the main context
 - **scripts/** - `scaffold-custom-block.sh`, `serve-html.sh`, `standards-audit.sh`, and a sentinel-verified `write-page-content.php.tmpl`
 - **Bundled Playwright MCP** - Shipped via the plugin's `.mcp.json`; no separate install step
@@ -251,45 +252,6 @@ It opens an MCP session to `http://127.0.0.1:3845/mcp`, calls `get_design_contex
 /figma-extract:extract 1:23 --out ./design
 ```
 
-## page-annotator
-
-Annotate the web page you're viewing in Chrome and file each note as a GitHub issue — with a screenshot. Click elements, leave notes ("this button wraps", "wrong colour on hover"), hit **Create GitHub issues**, and each annotation becomes its own issue carrying a screenshot of the element ringed in context plus the selector, markup, and browser details. A front-end QA companion: point at the problem instead of describing it. **One annotation → one issue.** The plugin does not read or change your code.
-
-**What's included:**
-
-- **annotate skill** - `/page-annotator:annotate`, plus natural-language triggers like "QA this page and raise tickets"
-- **page-annotator.user.js** - The dependency-free vanilla-JS overlay, installed as a Tampermonkey userscript; makes no network requests and talks to Claude through a hidden DOM node
-- **scripts/** - `file-issues.mjs` and `serve-userscript.js`
-
-**What it does:**
-
-- Probes for the userscript, arms the overlay, and polls a hidden JSON node until you click **Create GitHub issues**
-- Screenshots each annotated element in capture mode — scrolled into view, Claude's own toolbar and pins hidden, the element ringed
-- Previews the issues and **waits for your approval** before filing anything, then writes issue numbers back so filed pins turn green and are skipped by later batches
-- Remembers the target `owner/repo` per site, prefilling from the working directory's git remote when it can
-
-Because it drives your real browser session, logged-in states, feature flags, and real data all work. One GitHub tab opens per batch to attach screenshots — GitHub has no API for issue attachments, and the plugin will not read your session cookie out of your keychain to fake one.
-
-**Requirements:**
-
-- The [Claude in Chrome](https://claude.com/chrome) extension, connected to Claude Code, with permission for the site you're annotating **and for `github.com`**
-- [Tampermonkey](https://www.tampermonkey.net/) (or Violentmonkey) — Claude walks you through installing the userscript the first time, and re-prompts when the plugin ships a newer version
-- The [`gh` CLI](https://cli.github.com) authenticated, with write access to the target repository
-
-**Note:** annotation data is published to an issue tracker — element text, markup, page URL, and browser details all land in the issue, publicly if the repo is public. The overlay scrubs form values, URL query strings, and token-like strings from captured markup, but visible text is kept verbatim.
-
-```bash
-# Install page-annotator
-/plugin install page-annotator@a8cteam51-claude-code-plugins
-
-# Annotate the active tab
-/page-annotator:annotate
-
-# Target a specific tab, or prefill the repository
-/page-annotator:annotate staging.example.com
-/page-annotator:annotate a8cteam51/example
-```
-
 ## poseidon-local
 
 Run the [Poseidon](https://github.com/a8cteam51/poseidon-actions) **plan** and **implement** agents locally in your Claude Code session instead of via GitHub Actions — on the model you choose. In CI each agent is a composite action wrapping `anthropics/claude-code-action` with a fixed model and a hard turn cap; this plugin runs the same agents in your session, so you pick the model with `/model` and there is no turn cap.
@@ -330,37 +292,38 @@ Run the [Poseidon](https://github.com/a8cteam51/poseidon-actions) **plan** and *
 
 ## ai-canvas
 
-Vibe-code pages and posts on any WordPress site. Connect a site once with an Application Password, then describe the page you want; Claude writes it as a single full-width Custom HTML block (markup, CSS, and JS), publishes it through the site's built-in REST API, and checks the result in your browser. The site needs only [Jamie's Visual HTML Editor](https://wordpress.org/plugins/jamies-visual-html-editor/) from the plugin directory, which gives the block full-width alignment and lets the site owner click text and images on the finished page to edit them in wp-admin. Both skills are written for non-technical users.
+Design a WordPress page with Claude on your own computer, then move it to your site when it is ready. Claude writes the page as a single full-width Custom HTML block (markup, CSS, and JS) in a local folder, shows it in a local preview, and changes it on your feedback. Nothing touches the site until you ask; then the page goes in through your own logged-in Chrome, with no password, key, or connection to set up. The site needs [Jamie's Visual HTML Editor](https://wordpress.org/plugins/jamies-visual-html-editor/) from the plugin directory, which gives the block full-width alignment and lets the site owner click text and images on the finished page to edit them in wp-admin. Both skills are written for non-technical users.
 
 **What's included:**
 
-- **setup skill** - Guided connection with a strict role split: the user performs every site-changing step in wp-admin (plugin install, dedicated Administrator user, Application Password) with beginner-level click-path instructions; Claude then saves the connection and verifies credentials and capabilities, including `unfiltered_html` and `edit_theme_options`, then creates the two AI Canvas page templates (site header and footer, or blank) by copying the theme's own header and footer parts
-- **vibe skill** - Page and post building as one scoped HTML block: read-before-write, "undo that" through WordPress revisions, right-sized Media Library images, performance rules on the first write, a Claude-in-Chrome verification loop, and plain-language reporting (link plus screenshot, never file or API talk)
-- **scripts/wp.sh** - REST client that needs only bash and curl; credentials live in a private per-site file under `~/.claude/ai-canvas/sites/` so the Application Password never appears on a command line after setup
+- **design skill** - Local design loop: one block per page in `ai-canvas/<slug>/block.html`, saved where the user chooses (the skill asks; the Desktop is the usual answer), a lint for the rules WordPress enforces silently, five preview pages (the page inside a stand-in header and footer, the page alone, the page as wp-admin's editor shows it, the page under a hostile theme stylesheet, the page at phone width), snapshots for "undo that", and performance and WCAG 2.1 AA rules applied on the first draft
+- **publish skill** - Asks whether the page keeps the site's header and footer (**AI Canvas** template) or stands alone (**AI Canvas (blank)**), creates whichever template the site lacks, moves the page into wp-admin by clipboard through the post editor's Code editor, refuses to save unless the editor holds exactly the local page, saves a draft, and checks the result on the site; also sends later changes, brings a page edited on the site back down, and makes a draft live on request
+- **scripts/canvas.sh** - Local helper that never contacts a site: `lint`, `preview`, `serve`, `keep`, `undo`, `hash`, `copy`, `paste`, `record`, `status`, `contrast`; needs only bash and the system's standard tools
+- **scripts/report.js** - `aiCanvasReport()` in every preview page: one line of JSON covering script errors, heading structure, overflow, images, target sizes, and which theme styles reached the block
 
 **What it does:**
 
-- Finds or creates pages and posts, writes complete `<!-- wp:html {"align":"full"} -->` blocks, and keeps the markup human-editable (plain text elements, `<img>` tags, `data-vc-bg` hero backgrounds)
-- Uploads and reuses Media Library assets, referencing right-sized generated variants instead of full-size originals
-- Verifies like a user: opens the live URL in Chrome, screenshots, exercises the JS, reads the console, checks phone width; without the browser, `wp.sh check` confirms the page is served with style and script intact and whether the full-width wrapper is present
-- Translates every error into plain language and routes setup problems (missing capabilities, stripped Authorization header) back through the setup skill or the host's support
+- Keeps the page on your computer while you and Claude work on it, and moves it to the site only when you ask
+- Verifies like a user: opens the preview in Chrome, reads the report, screenshots, uses the widgets by mouse and keyboard, checks phone width; after publishing, checks the page inside the real theme
+- Publishes byte for byte: the page travels by clipboard rather than through the model, and matching hashes are required before and after the save
+- Notices when a page was edited in wp-admin since it was last sent, and brings that version down before changing anything
 
 **Requirements:**
 
-- A WordPress site over HTTPS (local Studio sites excepted) with [Jamie's Visual HTML Editor](https://wordpress.org/plugins/jamies-visual-html-editor/) active; a block theme is required
-- A dedicated Administrator user with an Application Password (templates need `edit_theme_options`) — the setup skill walks the user through it
-- Optional: [Claude in Chrome](https://claude.com/chrome) for visual self-verification
+- A WordPress site with a block theme and [Jamie's Visual HTML Editor](https://wordpress.org/plugins/jamies-visual-html-editor/) active
+- You, logged in to wp-admin in Chrome as an Administrator, and [Claude in Chrome](https://claude.com/chrome) for publishing and for visual checks
 
 ```bash
 # Install ai-canvas
 /plugin install ai-canvas@a8cteam51-claude-code-plugins
 
-# Connect a site (guided, one-time)
-# > connect Claude to my website https://example.com
-
-# Then build in natural language
+# Design locally
 # > build me a landing page for our spring launch
 # > undo that change
+
+# Move it to the site when it is right
+# > put it on my site https://example.com
+# > make it live
 ```
 
 ## site-launch-comparison
@@ -448,9 +411,9 @@ Turn a folder of downloaded plugin zips into **one pull request per plugin** aga
 
 ## pressable-to-wpcom-migration
 
-Move a Team 51 site from Pressable to WordPress.com. A read-only audit inspects the site and writes a report (blockers, decisions, manual work) and a runbook tailored to that site, with commands filled in. The other skills walk the runbook: the Reprint sync through the Migration Assistant, platform items, a rehearsal, the cutover freeze and DNS change, and the tasks after cutover such as merging stats and migrating subscribers to the new blog ID.
+Move a Team 51 site from Pressable to WordPress.com. A read-only audit inspects the site and writes a report (blockers, decisions, manual work) and a runbook tailored to that site, with commands filled in. The other skills walk the runbook: the Reprint sync through the Migration Assistant, platform items, a rehearsal, the cutover freeze and DNS change, the tasks after cutover such as merging stats and migrating subscribers to the new blog ID, the staging site and decommissioning. Each migration's report and progress are published to a shared Team 51 space on Spacefast, so anyone can see who is migrating what and where it stands.
 
-**Status: 0.1.0, a draft for evaluation.** The audit has been run read-only against real sites. No step after the audit has been used on a real migration; unproven runbook steps are marked UNTESTED.
+**Status: 0.1.0, a draft for evaluation.** One site, kwamebrathwaitearchive.org, has been migrated end to end with it, and the audit has been run against others. Runbook steps not yet run on a real migration are marked UNTESTED.
 
 **What's included:**
 
@@ -458,22 +421,25 @@ Move a Team 51 site from Pressable to WordPress.com. A read-only audit inspects 
 - **migration-run skill** - "Continue the example.org migration". Does the agent's steps, hands a person theirs with the links and blog IDs they need, and asks before anything that writes
 - **migration-verify skill** - "Is the copy in parity?" Data fingerprint, plugin and config comparison, URL crawl, and a check for writes to the old site after the freeze
 - **migration-dns skill** - Registrar and name server audit, whether the partner's registrar login is needed, record cutover, and a zone comparison before name servers change
+- **migration-status skill** - "What's the status of the example.org migration?" Read-only answers from the shared Team 51 migrations space on Spacefast, for anyone, with or without a local migrations folder
 - **scripts/checks.py** - The check catalogue: VideoPress content, WooCommerce gateways and webhooks, WooPayments, blog ID change, wp-config constants, files outside `wp-content`, deploy currency and drift, DNS and email records, and more. One function per check
 - **scripts/runbook.py** - The steps, switched on by what the audit finds
+- **scripts/space.py** - Reads and publishes each migration's page and status in the Team 51 migrations space, and signs in to Spacefast from within the skills
 - **assets/** - Two mu-plugins that only filter at runtime: a quarantine for the copy (no email, scheduled jobs, webhooks or checkout until cutover) and a read-only freeze for the live site during the final sync
 
 **What it does:**
 
 - Starts from the production site, not from repo or project names, when working out what deploys to it
 - Flags VideoPress content, Jetpack plan gaps and WooPayments as work for a person, and holds sites whose registrar or DNS login is the partner's until that access is confirmed
-- Refuses to connect WordPress.com deploys where the existing deploy is stale, drifted or absent
+- Refuses to connect WordPress.com deploys where the existing deploy is stale, drifted or absent, and removes the Pressable deploy allowlist from `.deployignore` first
+- Checks the migrations space before starting, so two people never run the same migration, and updates it after every step
 - Never uses SafetyNet on a migration target. The migrated site stays Team 51-managed: nothing is transferred and Team 51 tooling stays
 - Says what it could not check instead of reporting a gap as clean
 
 **Requirements:**
 
 - `team51` CLI authenticated through 1Password, `gh` with access to `a8cteam51`
-- `dig`, `whois`, `python3`, `php`
+- `dig`, `whois`, `python3`, `php`, and Node (`npx`) for the Spacefast CLI; the skills ask you to approve a Spacefast sign-in when needed
 - The `team51` and `context-a8c` MCP servers for Pressable, DeployHQ, Linear, Slack and P2 lookups (the audit runs without them and reports what it skipped)
 
 ```bash
@@ -483,6 +449,32 @@ Move a Team 51 site from Pressable to WordPress.com. A read-only audit inspects 
 # Then trigger the skills in natural language:
 # > Audit example.org for migration to WordPress.com.
 # > What's next for the example.org migration?
+```
+
+## fresh-eyes-review
+
+Re-examine a change Claude **just made in this session** and fix what the first pass missed. The stance is to distrust recent work: the bugs that survive are the ones Claude was confident about, so the skill re-derives from the real diff and the real APIs instead of re-confirming from memory. Distinct from a first-pass review of unfamiliar code.
+
+**What's included:**
+
+- **fresh-eyes-review skill** - Natural-language trigger for phrases like "recheck with fresh eyes", "double-check this", "did we miss anything" or "sanity-check the change", typically after implementing a change or opening a PR
+
+**What it does:**
+
+- Re-reads the actual diff rather than its memory of what it wrote
+- Greps every caller of a function, hook, constant or return shape whose contract changed, including callers outside the edited file
+- Checks guessed identifiers, field names, paths and config keys against the real schema, API response or file, and flags anything it could not verify
+- Proves a change is additive rather than assuming it, by asking whether inputs that used to work still behave the same
+- Re-checks gates and allowlists for fail-closed behaviour, over-broad grants and smuggled writes
+- Confirms logging, caching and other side effects fire on the right path the right number of times, and that tests cover the risky cases
+- Applies the fixes, re-runs tests and linters, and reports found-and-fixed, needs-your-decision and checked-clean separately, without inventing issues to look thorough
+
+```bash
+# Install fresh-eyes-review
+/plugin install fresh-eyes-review@a8cteam51-claude-code-plugins
+
+# Then, after Claude has made a change:
+# > Recheck that with fresh eyes — anything we missed?
 ```
 
 ## License

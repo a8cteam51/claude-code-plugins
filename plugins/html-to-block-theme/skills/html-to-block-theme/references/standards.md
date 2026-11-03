@@ -1,12 +1,17 @@
 # Standards
 
-Non-negotiable rules for the delivered theme. The standards audit (`scripts/standards-audit.sh`) enforces the comment and custom-CSS rules; the rest are review criteria.
+Non-negotiable rules for the delivered theme. The standards audit (`scripts/standards-audit.sh`) enforces the comment rule in block markup (and, in a standalone theme, in its stylesheets), the custom-CSS rules, the reserved preset slugs, the dropped-colour rule, whole-pixel values, the layout of post content, group names, settings written as classes and the areas of template parts; the rest are review criteria. Pass it `--content-dir <site-path>/.h2bt/pages` so the page content, which is not in the theme, is checked too. It also fails on a `theme.json` that does not parse (`theme_json`), which WordPress ignores, and on a directory that is not a theme. Its last line is `H2BT_AUDIT_OK` or `H2BT_AUDIT_FAIL`.
 
 ## Comments
 
 - **Block markup** (templates, parts, patterns, page content) contains **only `<!-- wp ... -->` block delimiters.** No other HTML comments — no `<!-- hero section -->`, no `<!-- TODO -->` left in shipped markup. The Gutenberg delimiter is the single permitted comment form.
 - **PHP files** (`functions.php`, `render.php`, `patterns/*.php`) follow WordPress coding standards: a file docblock and function docblocks where they add meaning are fine; avoid line-by-line inline narration. No commented-out code.
-- **CSS / JS**: no explanatory inline comments beyond a short file header where one genuinely helps. Keep it clean, not annotated.
+- **CSS / JS**: no explanatory inline comments beyond a short file header where one genuinely helps. Keep it clean, not annotated. A scaffold's explanatory comments go, also above a rule that is kept. A `stylelint-disable` comment in a project repository's Sass stays, with the description stylelint requires, and so do an `eslint-disable` comment and the `translators:` comment ESLint asks for on a string with placeholders. Read the Sass and JS that a run or a change wrote for comments before calling it done, because only part of the rule is checked:
+  - In a standalone theme the audit fails on a comment in `style.css` or a block stylesheet after the file's header (`css_comments`).
+  - In a project repository nothing checks it: the audit reads the Sass for other rules but not for comments, Sass leaves `//` comments out of the CSS it builds, and the repository's stylelint and ESLint have no rule against a comment (`@wordpress/stylelint-config` 26.1.0 and `@wordpress/eslint-plugin` 27.1.0, through `@a8csp/configs` 1.1.0).
+  - In either layout the audit reads no JS.
+
+  Later changes to one built theme added eleven explanatory comments to its Sass and JS; CI's lint passed each pull request, and the audit of the theme with all eleven in it ended `H2BT_AUDIT_OK`.
 
 If a section needs a note for the user, it goes in the **report**, not as a comment in the theme.
 
@@ -18,6 +23,11 @@ If a section needs a note for the user, it goes in the **report**, not as a comm
 - Never reproduce a value in CSS that already exists as a token — reference `var(--wp--preset--…)`.
 - Do not enqueue the design's original stylesheets or JS. They are intent to translate, not assets to ship.
 
+## Text wrapping
+
+- **No widows.** The team sets `text-wrap-style: pretty` on headings, paragraphs, list items, quotes and captions, and `text-wrap-style: balance` on headings in a browser that has no `pretty` (`@supports not (text-wrap-style: pretty)`). It is a root rule the foundation writes (`SKILL.md` Phase 2, step 1). This is the team's convention, not an observation.
+- **Write the longhand.** The `text-wrap` shorthand also sets `text-wrap-mode`, so a root `text-wrap: pretty` on paragraphs reset the `nowrap` a marquee's text inherited, and the marquee wrapped. `text-wrap-style: pretty` leaves the mode alone. Seen in the browser.
+
 ## Block markup conventions
 
 - Use documented attributes only (`className`, `anchor`, `style`, `backgroundColor`, `textColor`, `fontSize`, `fontFamily`, `align`, `layout`, plus per-block attributes). Never invent attribute names.
@@ -25,6 +35,19 @@ If a section needs a note for the user, it goes in the **report**, not as a comm
 - Every block validates through the Studio validator (`validate_blocks`) — markup whose `save()` output differs from input is wrong; fix it, never ship invalid blocks.
 - **`core/html` is restricted** (enforced by the validator's static policy check): allowed only within the core/html policy in `mapping-guide.md`; everything else must be editable blocks.
 - Custom CSS hooks are always registered block styles: every class a stylesheet targets is either a block's own wrapper/structural class or an `is-style-*` class backed by `register_block_style()`. Structural rung-4 CSS targets block selectors directly (wrapper classes, contextual combinators). An unregistered bespoke className used as a CSS hook is a violation (`block-styles-guide.md`, decision rule).
+- **A setting is an attribute, never a class.** What the editor has a control for (font family, font size, colour, alignment) is written as the block's attribute, so that the control shows it. The same value as a class in `className`, or as a preset class in the markup with no attribute behind it, validates and shows only under Additional CSS class(es). The audit fails on both, and on a `className` the theme's stylesheets select that is not a registered style (`class_hooks`).
+- **No colour function in an element, state or viewport style** (`style.elements.*`, `style[":hover"]`, `style["@mobile"]`): WordPress drops the declaration. Write eight-digit hex (`mapping-guide.md` § CSS → block supports). The audit fails on it (`dropped_colors`).
+- **No preset slug that is one of core's flag classes:** a palette entry named `text`, `link` or `border`, or a font size named `custom` (`theme-json-guide.md`). The audit fails on it (`reserved_slugs`).
+- **A value written in pixels is a whole number of pixels,** in `theme.json`, in block attributes and in stylesheets. A breakpoint is the last whole pixel of its range (`767px`, never `767.98px`), the other side of a `min-width: N` rule is the range query `(width < N)`, and a finer value uses a relative unit, such as a letter spacing in `em` (`mapping-guide.md` § Pixel values are whole pixels). The audit fails on a fraction of a pixel (`subpixel_values`).
+- **Every template gives `core/post-content` a constrained layout,** landing-page templates included. A block is then as wide as the content column unless it is aligned wide or full, in the editor as on the page, and a page's full-bleed sections are `alignfull` blocks in its content (`mapping-guide.md` § Post content sits at content width). The audit fails on post content without one (`post_content_layout`).
+- **Every `core/group` has a name** (`"metadata":{"name":"Hero"}`), in templates, parts and page content, rows, stacks and grids included. A person reads the markup tree and the editor's List View by those names (`mapping-guide.md` § Name every group). The audit fails on a group without one (`unnamed_groups`).
+
+## Content and images
+
+- **Nothing a visitor reads is held in a PHP pattern,** unless the blueprint records that the project needs translatable template text or the user asked for starter patterns (`mapping-guide.md` § Where content lives). Parts and templates are plain block markup; page content is in the page.
+- **Design images are media-library items;** only an image a template, part or stylesheet itself needs is a theme file (`mapping-guide.md` § Asset routing).
+- **Every theme-file image in a template or part reserves its space:** both dimensions or an `aspectRatio` on the block. The audit lists the ones that do not (`image_review`); each is fixed or explained in the report (an image out of the flow, sized by its block style).
+- **The largest image of each view's first screen is not lazy-loaded.** WordPress lazy-loads every content image after the third, small icons included. Read the `loading` attribute of that image on every view and report it; whether the theme raises `wp_omit_loading_attr_threshold` is a per-project decision.
 
 ## Theme structure
 
@@ -32,15 +55,17 @@ A valid block theme has:
 
 ```
 style.css            # theme header comment block (required)
-theme.json           # source of truth
+theme.json           # source of truth; declares every part in templateParts, with its area
 functions.php        # register_block_style() + wp_enqueue_block_style() per block, font/asset wiring
 templates/           # index.html (required) + others (single, archive, 404, page, custom page templates…) — never front-page.html
-parts/               # header.html, footer.html, shared chrome
-patterns/            # *.php registered patterns
+parts/               # header.html, footer.html, shared chrome, as plain block markup
+patterns/            # only when the blueprint calls for them (translatable chrome, starter patterns); never the home of page content
 styles/              # global (full-theme) style variations only (*.json); block styles are PHP-registered
 assets/css/blocks/   # one CSS file per block type (core-button.css, core-group.css…), enqueued via wp_enqueue_block_style()
-assets/              # fonts/, images/
+assets/              # fonts/, and only the images a template, part or stylesheet itself references
 ```
+
+Page content and design images are not in this tree: they live in the site's database and media library, and reach another environment by a content migration.
 
 A theme never contains a block (`block.json`). Blocks come from the A8C Special Projects blocks monorepo, installed as plugins, per `custom-blocks-guide.md`; the standards audit fails a theme that ships one (`theme_blocks`).
 
@@ -48,26 +73,36 @@ A theme never contains a block (`block.json`). Blocks come from the A8C Special 
 
 **Template mode** (an a8csp-project-template repository) uses that template's structure instead. `project-template-guide.md` § Where each piece goes has the full mapping; in short:
 - Sass sources build `style.css`.
-- Block CSS goes in `assets/css/src/blocks/*.scss`, built to `assets/css/build/blocks/`.
+- Block CSS goes in `assets/sass/blocks/*.scss`, built to `assets/css/blocks/`.
+- All Sass is written nested, one parent rule per block style with its states, children, descendants and breakpoints inside it (`block-styles-guide.md`, template mode).
 - PHP goes in `includes/*.php`, loaded by the template's `functions.php`.
 - Theme JS is ES modules under `assets/js/src/`, built to `assets/js/build/`.
 - Blocks come from the blocks monorepo. Only an approved exclusion goes in the features mu-plugin.
 
-The template's own gates (PHPCS, PHPStan, stylelint, ESLint, build integrity, blocks allowlist, tests) apply on top of these standards. Run them with `scripts/template-checks.sh`.
+The template's own gates (PHPCS, PHPStan, stylelint, ESLint, build integrity, blocks allowlist, tests) apply on top of these standards. Run them with `scripts/template-checks.sh`. The conversion writes no tests: under the repository's `tests/` directory it only deletes what a template example's removal recipe names (`project-template-guide.md` § Checks).
 
-**`style.css` is not auto-enqueued on block themes** (observed on WP 7.0.1/Studio): `functions.php` must enqueue it explicitly — `wp_enqueue_style( '<theme-slug>-style', get_stylesheet_uri(), … )` plus `add_editor_style( 'style.css' )` so the editor matches. Root `style.css` is exempt from the one-file-per-block-type rule and is where responsive token overrides live (`theme-json-guide.md`); a separate `assets/css/tokens.css` is flagged STRAY by the audit.
+**`style.css` is not auto-enqueued on block themes** (observed on WP 7.0.1/Studio): `functions.php` must enqueue it explicitly — `wp_enqueue_style( '<theme-slug>-style', get_stylesheet_uri(), … )` plus `add_editor_style( 'style.css' )` so the editor matches. Root `style.css` is exempt from the one-file-per-block-type rule and is where responsive token overrides and the reset rules the design relies on live (`theme-json-guide.md`); a separate `assets/css/tokens.css` is flagged STRAY by the audit.
 
 The theme must **not** ship `templates/front-page.html` — the standards audit fails a theme containing it. The homepage is a WordPress page set as the static front page; see the homepage rule in `mapping-guide.md`.
 
 ## WordPress / PHP
 
 - Escape output (`esc_html`, `esc_attr`, `esc_url`, `wp_kses_post`); use `get_block_wrapper_attributes()` in render callbacks.
-- One text domain, matching the theme slug, used consistently in i18n calls. (Template mode: the theme uses the theme slug and the features mu-plugin its own text domain; each component sticks to its own.)
+- One text domain, matching the theme slug, used consistently in i18n calls. (Template mode: the theme uses the theme slug and the features mu-plugin its own text domain; each component sticks to its own.) Plain `.html` parts and templates carry no translation functions; strings in PHP, such as block style labels, still do.
 - Bundle fonts locally (declared in `theme.json` `fontFace`); no CDN `@import`.
 
 ## Accessibility
 
-- Preserve semantic landmarks: header/nav/main/footer map to the right blocks and template parts.
+- Preserve semantic landmarks: header/nav/main/footer map to the right blocks and template parts. A part is a `<header>` or a `<footer>` only when `theme.json` declares its area (`theme-json-guide.md` § Template parts; the audit fails on an undeclared part, `template_parts`), and each template wraps its content in a group with `"tagName":"main"`.
+- **No skip link in the theme.** Core prints one before every block template that has a `main` element. A design's own skip link is not rebuilt: the page would have two.
 - Maintain heading order from the design (don't skip levels for styling — style with `theme.json`/supports instead).
-- Images carry `alt`; decorative images use empty `alt`.
+  - **Where the design itself skips a level** (an H1, then cards with H3s), add the missing level as a heading that only a screen reader gets: a `core/heading` with core's `screen-reader-text` class, such as an H2 over the grid. Checked by reading the outline before and after.
+  - **Search results have an H1.** A design with no search view leaves search results to `templates/index.html`, which in one build gave them no H1. The chrome row then adds `templates/search.html` with one (`SKILL.md` Phase 1, step 5).
+- **What the design shows only visually is also said in words.** A star rating drawn with icons gets visually hidden text, such as "Rated 5 out of 5", in an element with core's `screen-reader-text` class. Found in an accessibility review.
+- Images carry `alt`; decorative images use empty `alt` (the image block's `isDecorative` also prints `role="none"`).
+- A control's accessible name survives the rebuild. Where the original names a link differently from its visible text, the blueprint says how that is kept (`mapping-guide.md` § Buttons).
 - Interactive blocks expose state via ARIA (`aria-expanded`, `aria-pressed`, `hidden`) as shown in `custom-blocks-guide.md`.
+- **Focus is visible on every surface.** One focus colour for the whole theme measured about 1.5:1 on a dark band. Take the ring's colour from a custom property of the theme's (`--<theme-slug>-focus-color`) that the background preset classes, and covers without `is-light`, set to a colour that contrasts with them. Contrast was measured in an accessibility review.
+  - Over photos and video, a light outline with a dark halo (a `box-shadow` outside the outline) holds on any frame.
+  - Inside a bar of fixed height, such as a header, draw the ring inside the control with a negative `outline-offset`, so that it does not spill onto what is under the bar.
+- **Motion has an off switch.** Every transition and animation the theme adds, a view transition included, is written under `@media (prefers-reduced-motion: no-preference)`, and smooth scrolling is undone under `reduce`. The project template's example motion partial pairs them this way.

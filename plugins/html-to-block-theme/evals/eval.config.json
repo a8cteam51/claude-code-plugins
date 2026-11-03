@@ -1,0 +1,10 @@
+{
+  "model": "claude-opus-5-5",
+  "effort": "xhigh",
+  "wordpress": "7.1",
+  "site_path": "~/Studio/h2bt-evals",
+  "concurrency": 6,
+  "max_calls": 1500,
+  "samples": { "first": 3, "full": 5 },
+  "thresholds": { "followed": 0.8, "unaided_low": 0.34 }
+}

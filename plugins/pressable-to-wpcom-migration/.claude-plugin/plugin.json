@@ -1,7 +1,7 @@
 {
   "name": "pressable-to-wpcom-migration",
   "version": "0.1.0",
-  "description": "Migrate Team 51 sites from Pressable to WordPress.com: a read-only audit that reports blockers, decisions and manual work and generates a per-site runbook; guided execution through Reprint sync, cutover freeze, DNS and post-cutover tasks; and verification checks at each stage.",
+  "description": "Migrate Team 51 sites from Pressable to WordPress.com: a read-only audit that reports blockers, decisions and manual work and generates a per-site runbook; guided execution through the Reprint copy, cutover freeze, DNS, post-cutover tasks and decommission; verification checks at each stage; and a shared Team 51 migrations space that tracks each migration's status.",
   "author": {
     "name": "Automattic Special Projects"
   },

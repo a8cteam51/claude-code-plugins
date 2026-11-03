@@ -88,18 +88,19 @@
     {
       "name": "html-to-block-theme",
       "source": "./plugins/html-to-block-theme",
-      "description": "Convert a set of static Claude Design HTML/CSS/JS files into a standards-driven WordPress block theme on a local Studio site, using theme.json, block styles, patterns, and blocks from the A8C Special Projects blocks monorepo, refined to match in the browser via Claude in Chrome. Builds into A8C Special Projects project-template repositories under their conventions and CI gates.",
-      "version": "0.4.0",
+      "description": "Convert a set of static Claude Design HTML/CSS/JS files, or the pages of an existing site, into a standards-driven WordPress block theme on a local Studio site, using theme.json, block styles, editable page content, and blocks from the A8C Special Projects blocks monorepo, refined to match in the browser via Claude in Chrome. Builds into A8C Special Projects project-template repositories under their conventions and CI gates. A second skill holds later changes to a theme it built to the same standards, and ends each with the standards audit.",
+      "version": "0.9.0",
       "author": {
         "name": "Automattic Special Projects"
       },
       "repository": "https://github.com/a8cteam51/claude-code-plugins",
       "license": "MIT",
-      "keywords": ["wordpress", "block-theme", "theme-json", "gutenberg", "html", "claude-design", "studio", "claude-in-chrome", "a8csp-project-template"],
+      "keywords": ["wordpress", "block-theme", "theme-json", "gutenberg", "html", "claude-design", "studio", "claude-in-chrome", "a8csp-project-template", "blocks-monorepo"],
       "category": "development-tools",
       "strict": true,
       "skills": [
-        "./skills/html-to-block-theme"
+        "./skills/html-to-block-theme",
+        "./skills/change-built-theme"
       ]
     },
     {
@@ -123,23 +124,6 @@
       ]
     },
     {
-      "name": "page-annotator",
-      "source": "./plugins/page-annotator",
-      "description": "Annotate the web page you're viewing in Chrome and file each note as a GitHub issue. An overlay installed as a Tampermonkey userscript lets you name a repository, click elements and leave notes; hit Create GitHub issues — Claude screenshots each annotated element and opens one issue per note, with the screenshot, selector, markup and browser details attached.",
-      "version": "0.3.0",
-      "author": {
-        "name": "Automattic Special Projects"
-      },
-      "repository": "https://github.com/a8cteam51/claude-code-plugins",
-      "license": "MIT",
-      "keywords": ["browser", "annotation", "overlay", "qa", "front-end", "chrome", "claude-in-chrome", "design-review", "tampermonkey", "userscript", "github", "issues", "bug-report", "screenshot"],
-      "category": "development-tools",
-      "strict": true,
-      "skills": [
-        "./skills/annotate"
-      ]
-    },
-    {
       "name": "poseidon-local",
       "source": "./plugins/poseidon-local",
       "description": "Run the Poseidon plan and implement agents locally in your Claude Code session on the model you choose, instead of via GitHub Actions. Fetches the live upstream instructions from a8cteam51/poseidon-actions each run (always up to date) and swaps the OpsOasis MCP gateway for your local team51 MCP.",
@@ -160,19 +144,19 @@
     {
       "name": "ai-canvas",
       "source": "./plugins/ai-canvas",
-      "description": "Vibe-code pages and posts on a WordPress site: guide a beginner through connecting the site (Jamie's Visual HTML Editor plugin, Editor user, Application Password), then build and update content as a single full-width Custom HTML block through the site's REST API, with browser verification and undo.",
-      "version": "2.1.0",
+      "description": "Design a WordPress page with Claude on your own computer as a single full-width Custom HTML block, with a local preview, checks, and undo, then move it to the site through your logged-in Chrome: no password or connection setup, a choice of AI Canvas page templates (with the site's header and footer, or the page alone) created on first use, and a draft to review before it goes live.",
+      "version": "3.0.0",
       "author": {
         "name": "Automattic Special Projects"
       },
       "repository": "https://github.com/a8cteam51/claude-code-plugins",
       "license": "MIT",
-      "keywords": ["wordpress", "landing-page", "vibe-coding", "rest-api", "application-passwords", "custom-html-block", "block-theme", "claude-in-chrome"],
+      "keywords": ["wordpress", "landing-page", "vibe-coding", "local-preview", "clipboard", "custom-html-block", "block-theme", "claude-in-chrome"],
       "category": "development-tools",
       "strict": true,
       "skills": [
-        "./skills/setup",
-        "./skills/vibe"
+        "./skills/design",
+        "./skills/publish"
       ]
     },
     {
@@ -235,7 +219,7 @@
     {
       "name": "pressable-to-wpcom-migration",
       "source": "./plugins/pressable-to-wpcom-migration",
-      "description": "Migrate Team 51 sites from Pressable to WordPress.com: a read-only audit that reports blockers, decisions and manual work and generates a per-site runbook, then guided execution and verification through sync, cutover, DNS and handover.",
+      "description": "Migrate Team 51 sites from Pressable to WordPress.com: a read-only audit that reports blockers, decisions and manual work and generates a per-site runbook, then guided execution and verification through the copy, cutover, DNS, post-cutover tasks and decommission, tracked in a shared Team 51 migrations space.",
       "version": "0.1.0",
       "author": {
         "name": "Automattic Special Projects"
@@ -249,7 +233,25 @@
         "./skills/migration-audit",
         "./skills/migration-run",
         "./skills/migration-verify",
-        "./skills/migration-dns"
+        "./skills/migration-dns",
+        "./skills/migration-status"
+      ]
+    },
+    {
+      "name": "fresh-eyes-review",
+      "source": "./plugins/fresh-eyes-review",
+      "description": "Re-examine a change Claude just made, catch the bugs, missed callers, unverified assumptions and regressions that survived the first pass, and fix them.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Automattic Special Projects"
+      },
+      "repository": "https://github.com/a8cteam51/claude-code-plugins",
+      "license": "MIT",
+      "keywords": ["code-review", "self-review", "double-check", "regression", "bugs", "verification", "pull-request"],
+      "category": "development-tools",
+      "strict": true,
+      "skills": [
+        "./skills/fresh-eyes-review"
       ]
     }
   ]
