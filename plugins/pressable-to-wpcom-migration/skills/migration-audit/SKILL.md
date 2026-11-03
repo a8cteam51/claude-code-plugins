@@ -211,6 +211,14 @@ absent would overwrite manual changes on the server.
 
    If the current directory is a clone of that repo, pass `--repo-dir .`
    instead of `--repo` to the drift check.
+5. Then check the deploy branch's `.deployignore` for the Pressable deploy
+   allowlist (a `# BEGIN Pressable deploy allowlist` block that many Team 51
+   repos carry). WordPress.com deployments ignore its `!` lines and copy
+   nothing, so it has to come out before they are connected:
+
+   ```bash
+   python3 "$S/deploy_check.py" allowlist --repo a8cteam51/<repo> --rev <server branch>
+   ```
 
 Write `deploy.json`:
 
@@ -223,14 +231,18 @@ Write `deploy.json`:
   },
   "other_projects": ["<project, server or repo> - what it is and where it deploys"],
   "needs_decision": ["<a different project for this site that could change the plan> - why"],
-  "revision_check": { }, "drift_check": { }
+  "revision_check": { }, "drift_check": { }, "allowlist_check": { }
 }
 ```
+
+`allowlist_check` is the allowlist output as printed; leave it out only when
+no deploy targets production.
 
 Choosing `state`: `drifted` if the drift check found real differences (read
 its lists; built assets and ignored files are not drift); otherwise the
 revision check's state (`current` → `connected-current`); `not-connected` when
-no enabled server targets production; `unknown` when you could not tell.
+no enabled server targets production; `unknown` when you could not tell. A
+drift check that reports `nothing-compared` proved nothing: `unknown`.
 
 `other_projects` is for the record: the same project's development server, an
 old staging project. It shows as information. `needs_decision` is only for a

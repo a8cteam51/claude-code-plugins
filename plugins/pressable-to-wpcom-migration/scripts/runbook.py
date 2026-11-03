@@ -434,6 +434,28 @@ STEPS = [
          body="Search the site's repo and mu-plugins, and any database-stored snippets, for host-specific code:\n\n"
               "```bash\ngrep -rnI -i -E 'IS_PRESSABLE|pressable|batcache|pcm_|edge.?cache|mystagingwebsite|openhostingservice' .\n```",
          verify="Each hit is either harmless or has a change planned."),
+    dict(id="post.deploy-allowlist", phase="post", actor="both", title="Remove the Pressable deploy allowlist from .deployignore", when=has("post.deploy-allowlist"),
+         body="Before connecting WordPress.com deploys. Repos that used Pressable's own Git deployments carry a block in "
+              "`.deployignore` between `# BEGIN Pressable deploy allowlist` and `# END Pressable deploy allowlist`. It starts "
+              "with `/*` and re-includes the repo's own components with `!` lines. WordPress.com deployments apply "
+              "`.deployignore` with rsync, which ignores the `!` lines, so with the block in place every deploy copies nothing "
+              "and still reports success "
+              "([popculturemondays#298](https://github.com/a8cteam51/popculturemondays/pull/298) is the case that found it).\n\n"
+              "```bash\npython3 {scripts}/deploy_check.py allowlist --repo {repo} --rev {deploy_branch}\n```\n\n"
+              "If it reports `present: false`, skip this step. Otherwise:\n\n"
+              "1. **A person disconnects Pressable's Git deployment** for this repo on every Pressable site that has it: the "
+              "old production site (`{pressable_id}`), still frozen, and any development, staging or old production copy "
+              "deploying the branch (MyPressable → the site → Git). The Pressable API does not show this. Pressable deletes "
+              "every file on a site that the repo lacks unless the block protects it, so merging the removal while any of them "
+              "is still connected wipes that site's uploads and plugins.\n"
+              "2. **Open a pull request** that deletes the block, markers included. The check lists what the block was keeping "
+              "out that would now deploy (`newly_deployed_without_block`). Add a plain line for each that must not reach the "
+              "server, such as `/tests/` in #298. Never use `!` lines: WordPress.com ignores them. Do the same on any other "
+              "branch a WordPress.com deployment uses.\n"
+              "3. Merge it only after step 1 is confirmed. Opening and merging the pull request writes to the repo, so state "
+              "both and get a yes.",
+         verify="`deploy_check.py allowlist` on the branch reports `present: false`, and the person confirmed no Pressable site "
+                "still deploys from the repo."),
     dict(id="post.deploy-connect", phase="post", actor="agent", title="Connect WordPress.com GitHub Deployments", when=has("post.deploy-connect"),
          body="After cutover, not before: a deploy before the window would land on the empty site and be replaced by the "
               "copy, and a push during the window would deploy to both hosts. Done this way on 2026-10-16.\n\n"
@@ -443,10 +465,13 @@ STEPS = [
               "(`mcp__team51__wpcom_list_deployment_webhooks` shows the webhook; `wpcom_sync_deployment_webhook_secret` stores "
               "the secret if the CLI did not). Note that the CLI creates the deployment as automatic: "
               "every push to the branch deploys. Without `--deploy` nothing is deployed until the next push. Deploy once on "
-              "purpose and confirm the files on the target still match the repo.\n\n"
+              "purpose and confirm the files on the target still match the repo. \"Deployment succeeded\" is not proof: the "
+              "deployment log's target directory step must show a non-zero `total size`.\n\n"
               "This connection, on the repo's default branch, is also what lets OpsOasis move the repo's "
               "`wpcom-blog-id-production` property to the new blog ID overnight.",
-         verify="```bash\npython3 {scripts}/deploy_check.py drift --repo {repo} --rev <deployed sha> --host wpcom --site {target}\n```\nreports `clean`."),
+         verify="```bash\npython3 {scripts}/deploy_check.py drift --repo {repo} --rev <deployed sha> --host wpcom --site {target}\n```\n"
+                "reports `clean` with a non-zero `tracked_files_compared`. `nothing-compared` means `.deployignore` still "
+                "excludes everything: go back to step `post.deploy-allowlist`."),
     dict(id="platform.deploy-reconcile", phase="platform", actor="both", title="Reconcile server changes into the repo before connecting deploys", when=has("platform.deploy-reconcile"),
          body="Files on the server differ from the repo. Read `{dir}/deploy.json` for the list. Bring each real change into the "
               "repo through a pull request, deploy through the existing pipeline, and re-run the drift check until it is clean. "

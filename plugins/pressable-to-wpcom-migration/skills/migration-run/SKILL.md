@@ -97,6 +97,7 @@ the next. The riskiest are:
 
 - anything on the live Pressable site (plugin deletion, the freeze);
 - `search-replace`, plugin deactivation and uninstall on the target;
+- removing the Pressable deploy allowlist from `.deployignore`;
 - connecting deploys;
 - removing the quarantine.
 
@@ -134,6 +135,11 @@ stopped.
   existing account will show a setup prompt on the new blog ID; clicking
   through it creates a second Stripe account and orphans the real one. The
   WooPayments team re-links the existing account instead.
+- **The Pressable deploy allowlist comes out before WordPress.com deploys go
+  in, and Pressable's Git deployments go before it.** With the block in
+  `.deployignore`, WordPress.com deploys copy nothing and report success.
+  Without it, a Pressable site still deploying from the repo deletes every
+  file the repo lacks. Step `post.deploy-allowlist` has the order.
 - **The site stays Team 51-managed.** Do not transfer anything, and do not
   remove Atlantis, SSO, Team 51 accounts or monitoring. Handing a site to a
   partner is a separate process.

@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### Changed
+- The Pressable deploy allowlist in `.deployignore` is removed before
+  WordPress.com deploys are connected (`post.deploy-allowlist`), after
+  Pressable's Git deployments are disconnected. WordPress.com deployments
+  ignore its `!` lines and copy nothing (popculturemondays#298). The audit
+  checks for it with `deploy_check.py allowlist`.
+- `deploy_check.py drift` follows gitignore rules, `!` lines included. With the
+  allowlist in place it used to treat every file as ignored, compare nothing
+  and report `clean`. It now reports `nothing-compared` when nothing is left
+  to compare, and ignores `!` lines for `--host wpcom` as WordPress.com does.
 - VideoPress content and Jetpack plan gaps are reported as work for a person,
   like WooPayments. They no longer hold a site or count as decisions.
 - Stats merge and subscriber migration are steps on every site.

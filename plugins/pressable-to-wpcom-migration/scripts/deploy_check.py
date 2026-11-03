@@ -8,7 +8,10 @@ Drift check (compares files on the server with the deployed revision):
     deploy_check.py drift --repo a8cteam51/site --rev <sha> --host pressable --site example.com
     deploy_check.py drift --repo-dir /path/to/clone --rev <sha> --host pressable --site example.com
 
-Both print JSON. Both are read-only. A repo existing for a site proves nothing:
+Pressable deploy allowlist (does .deployignore carry the block, and what deploys without it?):
+    deploy_check.py allowlist --repo a8cteam51/site --rev trunk
+
+All print JSON. All are read-only. A repo existing for a site proves nothing:
 only run these for a DeployHQ server (or host deployment) that is confirmed to
 target the site being audited.
 """
@@ -77,26 +80,65 @@ def revision(args):
     print()
 
 
-def load_ignore(repo_dir, rev):
+ALLOWLIST_BEGIN = "# BEGIN Pressable deploy allowlist"
+ALLOWLIST_END = "# END Pressable deploy allowlist"
+
+
+def read_ignore(repo_dir, rev):
     try:
-        text = run(["git", "show", "%s:.deployignore" % rev], cwd=repo_dir)
+        return run(["git", "show", "%s:.deployignore" % rev], cwd=repo_dir)
     except RuntimeError:
-        return []
-    return [line.strip() for line in text.splitlines() if line.strip() and not line.strip().startswith("#")]
+        return ""
+
+
+def patterns_of(text, host="pressable"):
+    patterns = [line.strip() for line in text.splitlines() if line.strip() and not line.strip().startswith("#")]
+    if host == "wpcom":
+        # WordPress.com deployments apply .deployignore with rsync, which does not honour `!` lines.
+        patterns = [p for p in patterns if not p.startswith("!")]
+    return patterns
+
+
+def without_allowlist(text):
+    """The .deployignore text without the Pressable allowlist block, or None if it has none."""
+    lines = text.splitlines()
+    start = next((i for i, l in enumerate(lines) if l.strip() == ALLOWLIST_BEGIN), None)
+    end = next((i for i, l in enumerate(lines) if l.strip() == ALLOWLIST_END and start is not None and i > start), None)
+    if start is None or end is None:
+        return None
+    return "\n".join(lines[:start] + lines[end + 1:])
+
+
+def _matches(pat, path, is_dir):
+    if pat.endswith("/**"):
+        return path.startswith(pat[:-3].lstrip("/") + "/")
+    if pat.endswith("/"):
+        if not is_dir:
+            return False
+        pat = pat.rstrip("/")
+    if pat.startswith("**/"):
+        pat = pat[3:]
+    elif "/" in pat:
+        want, have = pat.lstrip("/").split("/"), path.split("/")
+        return len(want) == len(have) and all(fnmatch.fnmatchcase(h, w) for h, w in zip(have, want))
+    return fnmatch.fnmatchcase(path.rsplit("/", 1)[-1], pat)
 
 
 def ignored(path, patterns):
-    base = os.path.basename(path)
-    for pat in patterns:
-        bare = pat.strip("/")
-        if pat.endswith("/**"):
-            bare = pat[:-3].strip("/")
-        if path == bare or path.startswith(bare + "/") or fnmatch.fnmatch(path, pat.lstrip("/")) or fnmatch.fnmatch(base, pat.replace("**/", "")):
+    """gitignore rules: the last matching pattern wins, and nothing inside an ignored directory comes back."""
+    parts = path.split("/")
+    for i in range(1, len(parts) + 1):
+        sub, is_dir, verdict = "/".join(parts[:i]), i < len(parts), False
+        for pat in patterns:
+            neg = pat.startswith("!")
+            if _matches(pat[1:] if neg else pat, sub, is_dir):
+                verdict = not neg
+        if verdict:
             return True
     return False
 
 
-def drift(args):
+def with_repo(args, fn):
     tmp = None
     try:
         repo_dir = args.repo_dir
@@ -104,21 +146,60 @@ def drift(args):
             tmp = tempfile.mkdtemp(prefix="t51-drift-")
             run(["gh", "repo", "clone", args.repo, tmp, "--", "--quiet", "--no-checkout"])
             repo_dir = tmp
-        _drift(args, repo_dir)
+        try:
+            run(["git", "cat-file", "-e", args.rev + "^{commit}"], cwd=repo_dir)
+        except RuntimeError:
+            try:
+                run(["git", "cat-file", "-e", "origin/%s^{commit}" % args.rev], cwd=repo_dir)
+                args.rev = "origin/" + args.rev
+            except RuntimeError:
+                run(["git", "fetch", "--quiet", "origin", args.rev], cwd=repo_dir)
+        fn(args, repo_dir)
     finally:
         if tmp:
             shutil.rmtree(tmp, ignore_errors=True)
 
 
-def _drift(args, repo_dir):
-    try:
-        run(["git", "cat-file", "-e", args.rev + "^{commit}"], cwd=repo_dir)
-    except RuntimeError:
-        run(["git", "fetch", "--quiet", "origin", args.rev], cwd=repo_dir)
+def tracked_files(repo_dir, rev):
+    return [p for p in run(["git", "ls-tree", "-r", "--name-only", rev], cwd=repo_dir).splitlines() if p]
 
-    patterns = load_ignore(repo_dir, args.rev)
-    tracked = [p for p in run(["git", "ls-tree", "-r", "--name-only", args.rev], cwd=repo_dir).splitlines() if p]
+
+def _allowlist(args, repo_dir):
+    """Does .deployignore carry the Pressable deploy allowlist, and what would deploy without it?"""
+    text = read_ignore(repo_dir, args.rev)
+    rest = without_allowlist(text)
+    out = {"repo": args.repo or repo_dir, "rev": args.rev, "present": rest is not None}
+    if rest is not None:
+        before, after = patterns_of(text), patterns_of(rest, "wpcom")
+        tracked = [p for p in tracked_files(repo_dir, args.rev) if not is_tooling(p)]
+        newly = [p for p in tracked if ignored(p, before) and not ignored(p, after)]
+        tops = {}
+        for p in newly:
+            parts = p.split("/")
+            top = "/".join(parts[:2]) if parts[0] in ("themes", "plugins", "mu-plugins") and len(parts) > 2 else parts[0]
+            tops[top] = tops.get(top, 0) + 1
+        out.update(
+            deployed_now=sum(1 for p in tracked if not ignored(p, before)),
+            newly_deployed_without_block=sorted(tops.items()),
+            newly_deployed_files=newly[:200],
+            note="Without the block, these paths deploy too. Exclude any that must not reach the server (tests, CI tooling, "
+                 "other sites' themes) with plain lines in .deployignore; WordPress.com deployments ignore `!` lines.")
+    json.dump(out, sys.stdout, indent=2)
+    print()
+
+
+def _drift(args, repo_dir):
+    patterns = patterns_of(read_ignore(repo_dir, args.rev), args.host)
+    tracked = tracked_files(repo_dir, args.rev)
     deployable = [p for p in tracked if not ignored(p, patterns) and not is_tooling(p)]
+    if not deployable:
+        json.dump({"repo": args.repo or repo_dir, "rev": args.rev, "site": args.site, "tracked_files_compared": 0,
+                   "state": "nothing-compared",
+                   "evidence": ".deployignore excludes every tracked file for this host, so a deploy would copy nothing. "
+                               "On WordPress.com that is the Pressable deploy allowlist; see `deploy_check.py allowlist`."},
+                  sys.stdout, indent=2)
+        print()
+        return
 
     # Compare whole directories for our own themes and plugins, single files elsewhere
     # (mu-plugins also holds host files that are not ours to judge).
@@ -176,13 +257,17 @@ def main():
     d.add_argument("--rev", required=True)
     d.add_argument("--host", required=True, choices=["pressable", "wpcom"])
     d.add_argument("--site", required=True)
+    a = sub.add_parser("allowlist")
+    a.add_argument("--repo")
+    a.add_argument("--repo-dir")
+    a.add_argument("--rev", required=True, help="branch or commit")
     args = ap.parse_args()
     if args.cmd == "revision":
         revision(args)
     else:
         if not (args.repo or args.repo_dir):
-            ap.error("drift needs --repo or --repo-dir")
-        drift(args)
+            ap.error("%s needs --repo or --repo-dir" % args.cmd)
+        with_repo(args, _drift if args.cmd == "drift" else _allowlist)
 
 
 if __name__ == "__main__":

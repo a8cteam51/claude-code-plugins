@@ -793,6 +793,24 @@ def deploys(m):
         out.append(F("deploy.other-projects", "Deploys", "info", "Other deploy targets or repos connected with this site",
                      "\n".join("- %s" % o for o in others),
                      "None of these deploys to production. Listed so nobody mistakes one for the production deploy."))
+    allow = d.get("allowlist_check")
+    if state in ("connected-current", "behind-tooling-only", "behind") and (allow is None or allow.get("present")):
+        if allow is None:
+            out.append(F("deploy.allowlist-not-checked", "Deploys", "manual", "`.deployignore` was not checked for the Pressable deploy allowlist",
+                         "No `allowlist_check` in deploy.json.",
+                         "Run `deploy_check.py allowlist` on the deploy branch before connecting WordPress.com deploys.",
+                         steps=["post.deploy-allowlist"]))
+        else:
+            newly = allow.get("newly_deployed_without_block") or []
+            out.append(F("deploy.pressable-allowlist", "Deploys", "manual", "`.deployignore` carries the Pressable deploy allowlist",
+                         "Branch `%s` of `%s` has the `BEGIN Pressable deploy allowlist` block. %s" % (
+                             prod.get("branch"), prod.get("repo"),
+                             ("Without it these would also deploy: " + ", ".join("`%s` (%d)" % (p, n) for p, n in newly) + ".")
+                             if newly else "Removing it deploys nothing new."),
+                         "Remove the block before connecting WordPress.com deploys. WordPress.com deployments use rsync, which "
+                         "ignores its `!` lines, so with the block in place a deploy copies nothing and still reports success. "
+                         "Pressable's own deployments rely on it, so they must be disconnected first.",
+                         steps=["post.deploy-allowlist"]))
     flagged = d.get("needs_decision") or []
     if flagged:
         out.append(F("deploy.needs-decision", "Deploys", "decision", "A separate project exists for this site and may change the plan",
