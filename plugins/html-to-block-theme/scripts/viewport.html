@@ -30,7 +30,8 @@
  * a and b are addresses: a full URL, or a path on this server (about.html and /about.html are
  * the same page). Without strip, a and b sit side by side (panes 0 and 1). With strip=<n>, each URL gets a row
  * of n panes scrolled to consecutive screenfuls, so one capture shows a whole page: a's panes
- * are 0…n-1 and b's are n…2n-1.
+ * are 0…n-1 and b's are n…2n-1. Wherever a pane index is taken, 'a' and 'b' name the first pane
+ * of each address, with or without strip.
  *
  * A pane whose page is on another origin is loaded through that origin's own copy of this file
  * (/_h2bt/viewport.html?embed=1), which relays requests to the page it frames. The relay runs
@@ -47,22 +48,30 @@
  *                                  pane; call it before measuring. It also reports what would
  *                                  make a measurement wrong: a stylesheet that did not load, a
  *                                  font family no loaded face draws, an image with no size,
- *                                  an accordion or tabs block still unhydrated
+ *                                  an accordion or tabs block still unhydrated. With
+ *                                  transitions off, a script that waits for transitionend (a
+ *                                  carousel's move) waits for ever: check it in a page of its own
  *   h2bt.scroll( y )               scrolls every pane (strip panes keep their screenful offset)
  *   h2bt.run( index, source )      evaluates a function body with ( doc, win ) in one pane and
- *                                  resolves with its JSON-safe result
+ *                                  resolves with its JSON-safe result; index is a number, or
+ *                                  'a' or 'b' for the first pane of each address
  *   h2bt.resize( width[, height] ) sets every pane to a new CSS width (and height) without
  *                                  reloading, sends each pane a resize event (a hidden tab
  *                                  sends none), and resolves with each pane's innerWidth. It
  *                                  switches transitions off for good: reload to see one.
  *   h2bt.pages()                   each pane's width, document height and sideways overflow,
  *                                  with the elements that reach past the edge
- *   h2bt.texts( index[, root] )    the visible text of one pane, grouped by nearest block
- *   h2bt.compareText( options )    pairs the text groups of panes 0 and 1 in order and resolves
+ *   h2bt.texts( index[, root[, hidden]] )
+ *                                  the visible text of one pane, grouped by nearest block;
+ *                                  text clipped to a 1px box (screen-reader-only) is left out
+ *                                  unless hidden is true
+ *   h2bt.compareText( options )    pairs the text groups of a and b in order (the first pane of
+ *                                  each, also in a strip) and resolves
  *                                  with the differences only. Options: a, b or root (selectors
  *                                  of the region to compare), tolerance (px, default 0.5),
  *                                  boxes (also compare each group's block box), types (false
- *                                  to skip size, weight, colour, line height and underline).
+ *                                  to skip size, weight, colour, line height and underline),
+ *                                  hidden (true to include screen-reader-only text).
  *                                  Groups only one pane has are differences too: the first
  *                                  five are listed with only: "a" or "b", and unpaired
  *                                  gives their count.
@@ -316,6 +325,25 @@
 				}
 				return element;
 			};
+			// Screen-reader-only text is in the page but not on it: a design's "Play video" span that
+			// the build carries as an image's alt would shift every later pair by one.
+			const hiddenCache = new Map();
+			const clipped = ( element ) => {
+				if ( ! element || element === doc.documentElement ) {
+					return false;
+				}
+				if ( hiddenCache.has( element ) ) {
+					return hiddenCache.get( element );
+				}
+				const style = win.getComputedStyle( element );
+				const box = element.getBoundingClientRect();
+				const value = ( ( style.overflowX !== 'visible' || style.overflowY !== 'visible' ) && box.width <= 1 && box.height <= 1 )
+					|| style.clipPath === 'inset(50%)'
+					|| ( style.position === 'absolute' && /^rect\(\s*[01]px,?\s*[01]px,?\s*[01]px,?\s*[01]px\s*\)$/.test( style.clip ) )
+					|| clipped( element.parentElement );
+				hiddenCache.set( element, value );
+				return value;
+			};
 			const walker = doc.createTreeWalker( root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT );
 			const groups = [];
 			let current = null;
@@ -328,7 +356,7 @@
 						continue;
 					}
 					probe.selectNodeContents( node );
-					if ( ! probe.getClientRects().length ) {
+					if ( ! probe.getClientRects().length || ( ! options.hidden && clipped( node.parentElement ) ) ) {
 						continue;
 					}
 					text = node.nodeValue;
@@ -404,11 +432,16 @@
 
 	let readyPromise = null;
 
+	// The first pane of each address. Side by side b is pane 1; in a strip, pane 1 is a's second
+	// screenful and b starts at pane <strip>.
+	const first = { a: 0, b: urls.length > 1 ? ( strip > 1 ? strip : 1 ) : -1 };
+	const paneIndex = ( index ) => ( typeof index === 'string' && index in first ? first[ index ] : index );
+
 	const h2bt = {
 		panes,
 		scale,
 		run( index, source ) {
-			const pane = panes[ index ];
+			const pane = panes[ paneIndex( index ) ];
 			if ( ! pane ) {
 				return Promise.reject( new Error( 'h2bt: no pane ' + index ) );
 			}
@@ -461,14 +494,14 @@
 		pages() {
 			return Promise.all( panes.map( ( _, index ) => this.probe( index, 'page' ) ) );
 		},
-		texts( index, root ) {
-			return this.probe( index, 'texts', { root } );
+		texts( index, root, hidden ) {
+			return this.probe( index, 'texts', { root, hidden: !! hidden } );
 		},
 		async compareText( options = {} ) {
 			const tolerance = options.tolerance === undefined ? 0.5 : options.tolerance;
 			const [ a, b ] = await Promise.all( [
-				this.texts( 0, options.a || options.root ),
-				this.texts( 1, options.b || options.root ),
+				this.texts( 'a', options.a || options.root, options.hidden ),
+				this.texts( 'b', options.b || options.root, options.hidden ),
 			] );
 			if ( ! a || ! b ) {
 				return { error: 'region not found', found: [ !! a, !! b ] };
