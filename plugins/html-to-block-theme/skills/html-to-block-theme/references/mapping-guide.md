@@ -42,6 +42,7 @@ Attribute forms move between WordPress versions. Markup written from memory of a
 | Site nav | `core/navigation` | Lives in `parts/header.html`. |
 | `<main>` | `core/group` with `"tagName":"main"` | In the template, around the page's content. Core's skip link targets it. |
 | Skip link (`<a href="#main">Skip to content</a>`) | nothing | Core prints one before every block template that has a `main` element, and uses that element's `id` when it has one. Rebuilding the design's own gives the page two. |
+| A year in a copyright line | `core/paragraph` bound to a source | Typed text is wrong the next January. See `custom-blocks-guide.md` § Dynamic content from meta. |
 | Logo | `core/site-logo` | No part then carries an environment URL. Its duotone setting recolours a single-colour logo (§ Images). |
 | Icon / inline SVG / icon-font glyph | `core/icon` on WordPress 7.1 and later: one of core's icons, or a glyph the theme registers (§ Icons). A decorative icon inside a button or link is painted from the block's stylesheet (§ Buttons); custom behaviour (`custom-blocks-guide.md`) if interactive | An SVG wrapped in an `<a>`/`<div>` fails the core/html policy — icon *links* are `core/social-links` (restyled by a block style variation when the glyph is bespoke). On an older core, an icon is a `core/image` from the media library, or `core/html` (bare inline SVG only) when it must inherit colour. |
 | Background media + overlay + content | `core/cover` | Maps cleanly to hero sections with a background image/colour and overlay. |
@@ -277,6 +278,7 @@ Checked on WordPress 7.1.3.
 
 ## Query loops, archives and pagination
 
+- **A query that inherits is only `{"inherit":true}`.** `core/post-template` then runs the main query, so `perPage`, `orderBy` and the rest do nothing and mislead whoever reads them. The number of posts comes from Settings > Reading. That is `posts_per_page` in the database, not in the theme: when the design shows another number, set the option and record it under `changed`, since another environment needs it too. The Site Editor sets `perPage` from that option when it loads the block, so one that appears after a save there is not a fault. Read in WordPress 7.1.3's source (`post-template.php`, the query block's editor script).
 - **A query loop shows what the site holds.** A new site has a "Hello world!" post, and it takes a slot in any loop of the latest posts. Create as many sample posts as the design's loop shows before the view is compared (`SKILL.md`, Phase 2 step 6): they are newer, so they fill it. Where a post the run did not make would still show, say so in the report. Do not delete or unpublish it.
 - **`core/post-template` is a `ul`.** A list in post content shown inside a query loop is a nested list to the browser (a circle marker), while the same content on the single view has a disc. A content style must set the marker, and the archive's rendering of content should be compared with the single's as well as with its original.
 - **An element colour on a block inside a query loop is printed once per rendered post,** because element classes are numbered, not hashed like layout and state classes. Put link colours on `core/post-template`, which renders once and supports a link colour, or in a block style.
@@ -386,6 +388,14 @@ Never create `templates/front-page.html`. The homepage is **content, not a view*
 - Homepage has its own chrome (different or absent header/footer, full-viewport hero) → a **custom page template** (e.g. `templates/page-home.html`) registered in `theme.json` `customTemplates`, rendering the page's content via `core/post-content` with a constrained layout (§ Post content sits at content width). Its full-width sections are `alignfull` blocks in the page.
 
 This keeps the homepage editable in WordPress like every other page instead of hardcoding its content in a template that shadows the page.
+
+### The posts index beside a static homepage
+
+Checked over HTTP on WordPress 7.1.3, on a category archive for the archive facts.
+
+- **With a page as the front page, the blog has an address only when `page_for_posts` names a page.** Without it each post has its own address and nothing lists them: the page a menu links to as the blog renders as an ordinary page. Create the page and set the option (`section-builder.md`).
+- **The listing stays in the template.** WordPress serves that page with `templates/home.html` or, without one, `templates/index.html`, not with `page.html`, and does not print the page's content, so a query placed in its content never shows.
+- **One index design usually serves archives too.** Without `templates/archive.html`, an archive is served by `templates/index.html`, so a heading written there as text names every category after the blog. `core/query-title` with `"type":"archive"` cannot replace it there, because it prints nothing on the posts page. When the heading is text, add `templates/archive.html`: the same layout, from one generator (§ Long-form and repeated content), with `core/query-title` in that slot. `"showPrefix":false` drops its "Category:". It has no design file of its own, so compare it at a category's address against the index's design, apart from the heading.
 
 ## Long-form and repeated content: generate it
 

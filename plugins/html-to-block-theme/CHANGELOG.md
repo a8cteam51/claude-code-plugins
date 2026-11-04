@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.10.0] - 2026-11-02
+
+So that a run can take a full-site handoff from `sp-site-design-harness` (a8cteam51/claude-code-plugins#19, #13). The Reading-settings and archive facts were checked over HTTP on WordPress 7.1.3, with throwaway themes and pages on the eval site. No run has built a handoff with these rules yet, and no eval probe covers them.
+
+### Added
+- **Design documents.** `DESIGN.md`, `decisions.md` and `views.md`, in the design directory or its parent, are read at blueprint time. They outrank what is inferred from the HTML, but not a measurement or a rule of this skill. What applies is carried into the blueprint, because builders do not read them, and the report says what they asked for and which copy, images and links are still placeholder. A run with no such files is unchanged.
+- **State files.** `<view>--<state>.html` is a second state of `<view>.html`: one more design file in its row, compared in that state on the site, whatever group `group-designs.py` gives it.
+- **The posts index beside a static homepage** (`mapping-guide.md`): `page_for_posts` is what gives the blog an address, the listing stays in the template, and an index whose heading is plain text gets a `templates/archive.html`.
+- **The current year in standalone themes** (`custom-blocks-guide.md`, `mapping-guide.md`): a bound paragraph with a real year as its saved text. Only template mode had this rule. Tried with `do_blocks()` on 7.1.3.
+- **Queries that inherit** (`mapping-guide.md` § Query loops): only `{"inherit":true}`, with the number of posts from Settings > Reading. Read in core's source, not run.
+
+### Changed
+- **Hooks name a prefixed function** (`standards.md`; the `functions.php` example in `block-styles-guide.md`, which was a closure), and a theme's own function has no `function_exists()` guard.
+
 ## [0.9.0] - 2026-10-29
 
 From fixes made to a theme this skill built, after its run: accessibility fixes, alignment with the design file, product menus, the standards audit's findings and starter patterns, in a project-template repository on WordPress 7.1.3 and 7.1.4 with WooCommerce 11.2.1 and WooCommerce Subscriptions 9.3.0. Each new passage in the guides says how it was checked, and the ones that are derived or a team convention say so. Not checked:

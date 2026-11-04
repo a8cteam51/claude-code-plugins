@@ -29,7 +29,7 @@ Three pieces in `functions.php`, all on `init`:
 `functions.php`:
 
 ```php
-add_action( 'init', function () {
+function theme_register_block_styles() {
 	$ver = wp_get_theme()->get( 'Version' );
 
 	// One on-demand stylesheet per block type that carries custom CSS.
@@ -51,7 +51,8 @@ add_action( 'init', function () {
 			'label' => __( 'Ghost', 'theme-textdomain' ),
 		)
 	);
-} );
+}
+add_action( 'init', 'theme_register_block_styles' );
 ```
 
 `assets/css/blocks/core-button.css`:
