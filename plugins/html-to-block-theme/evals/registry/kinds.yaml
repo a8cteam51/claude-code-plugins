@@ -80,8 +80,8 @@ files:
       "Links, headings and lists": platform
       "core/navigation notes": platform
       "Query loops, archives and pagination": platform
-      "Forms (Jetpack)": environment
-      "WooCommerce": environment
+      "Forms (Jetpack)": reference
+      "WooCommerce": reference
       "File classification: template vs part vs page": decision
       "Where content lives (a blueprint decision, with a default)": decision
       "The homepage rule: no front-page.html": decision

@@ -20,7 +20,7 @@ The plugin's own directory is `${CLAUDE_PLUGIN_ROOT}`. Where a guide writes `<pl
 The dispatching prompt gives the site path and your view: its `name` and its row of the target table. It may add something about the view that is in no file yet. When it says the view may be half built, read what exists before you write; when it says groundwork may be wrong, check that groundwork before you depend on it. Everything else is on disk, under `<site-path>/.h2bt/`. Read these before anything else:
 
 - **`blueprint.md`**, the build contract. **Read its build notes first:** they say what already exists and is checked, the authoring procedure earlier builders settled on, and what is out of scope. Your row of the target table says what your view becomes: the part and template files, or the page's title, slug, parent path, template slug and whether it is the front page. It also names the design file or files the view comes from and the report it uses. If the row leaves one of these open, that is a gap in the blueprint: build what does not depend on it and report it under `todos`.
-- **`run.json`**, the facts of the run: the design directory (`design_dir`); the site's address and WordPress version (`site`); the theme's directory (`theme.dir`); the widths to sweep and the narrowest width the design must hold (`widths`, `narrowest`); for a live site whether the original's defects are fixed or copied (`defects`); and in template mode the repository, the features mu-plugin directory, the PHP prefix and the text domains (`template`).
+- **`run.json`**, the facts of the run: the design directory (`design_dir`); the site's address and WordPress version (`site`); the theme's directory (`theme.dir`); the widths to sweep and the narrowest width the design must hold (`widths`, `narrowest`); whether the original's defects are fixed or copied (`defects`, set when the blueprint asked); and in template mode the repository, the features mu-plugin directory, the PHP prefix and the text domains (`template`).
 - **`serve.json`**, where the original is served: `url` is the base URL (a design file is at `<url><its path in the design directory>`), `harness` the comparison harness, `sink` the directory the harness writes long results to. If the original does not load, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/serve-html.sh" --ensure --site-path <site-path>`, which brings the server back, and read the file again.
 - **`analysis/<name>.json`**, the analysis of your view, or of the view your row says it uses, and `analysis/tokens.json`. Their values are derived from stylesheets, not measured: measure before you rely on one.
 - **`media.json`**, the media manifest, when the blueprint routes images to the media library.
@@ -39,7 +39,7 @@ The dispatching prompt gives the site path and your view: its `name` and its row
 - `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/standards.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/visual-refinement.md`
 
-Read `block-styles-guide.md` or `custom-blocks-guide.md`, in the same directory, if the blueprint says this view needs them.
+Read `block-styles-guide.md` or `custom-blocks-guide.md`, in the same directory, if the blueprint says this view needs them. Read `woocommerce-guide.md` before writing any WooCommerce block, template or filter, and `jetpack-forms-guide.md` before writing a Jetpack form.
 
 ## Build
 
@@ -95,6 +95,13 @@ Validate with the Studio MCP validator, `mcp__wordpress-studio__validate_blocks`
 4. Validate the final file once.
 
 Never loop per block. Any block still invalid after the final call → rewrite it in a **policy-compliant** form (editable blocks plus scoped CSS; `core/html` only within the policy), then validate once more: a block rewritten after the last call has not been validated, and the gate below is about validated blocks. That third call is the last. If the final call applied fixes, compare the view once more before handing back, because the markup changed after you last looked. Never ship invalid blocks. Track `(validated_ok, auto_fixed, downgraded)`.
+
+**The validator's count can be short without a word.** Its editor does not register every block the site has: WooCommerce's blocks, Jetpack's form blocks and blocks-collection blocks such as `a8csp/marquee` were missing from it on WordPress 7.1.4. It skips a block it does not know together with everything inside it, and still reports the rest as all valid: `0/0` for a cart page, `6/6` for a contact page, its form and every field skipped. Compare its count with the number of blocks in your markup. When it is short, check the rest in the site's own block editor, where every plugin is loaded:
+
+- open the written page in the block editor, or the template or part in the Site Editor, and walk `wp.data.select( 'core/block-editor' ).getBlocks()` and each block's `innerBlocks` for `isValid === false`. Markup not yet on the site can be checked in an editor tab with `wp.blocks.parse()` and the same walk;
+- then read whether it opened with unsaved changes: `wp.data.select( 'core/editor' ).isEditedPostDirty()` for a page, `wp.data.select( 'core' ).hasEditsForEntityRecord( 'postType', 'wp_template', '<theme>//<slug>' )` (or `wp_template_part`) for a template or a part. A plugin block that adds attributes when it loads (a Jetpack form, a WooCommerce cart) leaves the page dirty, so whoever opens it next gets "Leave site?" and an autosave. Write what the editor added into your source (`getEditedPostContent()` shows it) and check again. Discard the edits before closing the tab (`visual-refinement.md` § The editor canvas).
+
+Count the blocks checked this way in `validated_ok`. A block neither check reached has not been validated.
 
 ## Refine
 

@@ -88,6 +88,8 @@ Routes, REST endpoints, script-driven regions, third-party scripts, redirects. P
 
 A design handoff is intent. A live site is intent plus years of collisions: two stylesheets disagreeing, markup a browser repairs, an accessibility gap. A literal copy reproduces them, and reproducing some of them costs more CSS than the design does. Ask the user to choose between an exact copy and fixing defects, and record the answer in the blueprint.
 
+A generated design handoff can carry defects too. When its analyses or the first comparison show some, `SKILL.md` (Phase 1, step 5) asks the same question, and what follows applies to it as written.
+
 When defects are fixed, three things make that workable:
 
 - **A definition.** A defect is a visible inconsistency that comes from colliding stylesheets, broken markup or an accessibility gap, where the intent is clear from the rest of the page.
