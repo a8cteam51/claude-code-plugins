@@ -1,6 +1,6 @@
 ---
 name: publish-design-options
-description: Package the design options from this session behind one private Spacefast link for partner review
+description: Package the design options from this session, or a full site preview from /prep-handoff, behind one private Spacefast link for partner review
 ---
 
 # Publish design options
@@ -62,6 +62,7 @@ Cap at 20 candidates. Over that, stop and ask for a path.
 | folder-per-option | two or more sibling dirs each holding `index.html` | each dir is one option |
 | flat siblings | several `*.html` in one dir sharing assets | each file is one option |
 | one multi-page site | an entry file whose `href`s resolve to other candidates | **one option, not N** |
+| site preview | a `handoff/source/` folder, or any folder holding `home.html` plus WordPress view files (`index.html`, `single.html`, `page.html`, …) | **site-preview mode** — see below |
 
 The disambiguating test is cross-linking: separate options never link to each
 other, pages of one site do. Grep each candidate's `href`s against the other
@@ -202,9 +203,13 @@ Tokens to substitute, all of them required:
 | Token | Value |
 |---|---|
 | `{{PROJECT}}` | Project or client name — appears in `<title>` and under the cover headline |
+| `{{TITLE}}` | `Design options` (`Site preview` in site-preview mode) |
+| `{{TITLE_LOWER}}` | `{{TITLE}}` in lowercase |
+| `{{HEADLINE}}` | `Design&nbsp;options` (`Site&nbsp;preview`), inserted unescaped |
+| `{{NOUN}}` | `options` (`views`) |
 | `{{VERSION}}` | `Version 1.0`, or the round of review this is |
 | `{{DATE}}` | Long-form date, e.g. `January 1, 2026` |
-| `{{COUNT}}` | Number of options |
+| `{{COUNT}}` | Number of options, or of views in a site preview |
 | `{{OPTIONS}}` | One `<li>` per option, in the shape below |
 | `{{PROVENANCE}}` | `<dt>`/`<dd>` pairs: a `Published` timestamp, then one per option naming its absolute source path |
 
@@ -220,7 +225,7 @@ one:
     </a></li>
 ```
 
-HTML-escape every substituted value, and assert no `{{` remains in the output
+HTML-escape every substituted value except `{{HEADLINE}}`, and assert no `{{` remains in the output
 before continuing. Keep each `toc__note` to one line — what the direction does,
 in the language used with the user, not a feature list.
 
@@ -329,6 +334,45 @@ Then report:
 
 Never print API keys, space keys, or state files. The share link itself is the
 deliverable and is meant to be reported.
+
+## Site-preview mode
+
+For partner review of a whole site designed by `design-site-templates`
+(usually `handoff/source/`, via `/prep-handoff`). The steps above all apply,
+with these differences:
+
+- **The scope root is the project, not the source folder.** The folder given
+  is what gets published; the project's state lives above it. When it is
+  `handoff/source/`, the scope root is the folder that holds `handoff/` (the
+  project folder, `projects/<slug>/` inside the harness). Steps 6 and 9 read
+  `.spacefast/space.json` and `.design-template` from there, and anything
+  this skill records is written there. **Nothing is ever written into the
+  source folder:** html-to-block-theme builds from it, and a new file there
+  also makes `decisions.md` look older than the set, which sends
+  `/prep-handoff` back to packaging.
+- **Options become views.** Name them from the Views table in the notes file
+  (`handoff/views.md`, or `views.md` in the folder) in its order: Home, Page,
+  Blog post, Blog index, Search, 404, then the state files ("Blog post — no
+  comments yet", …), then the sitemap pages (FAQ, Contact, …) in the notes'
+  Sitemap order. Name source: the notes file. The confirmation gate (step 4)
+  still applies.
+- **Staging.** Copy the folder whole into `stage/site/` (excluding `*.md`
+  files), keeping its layout so the views' relative links between each other
+  keep working. The overview page goes at `stage/index.html`, because the
+  folder's own `index.html` is the blog index, not an overview.
+- **Overview page.** Same template, with `{{TITLE}}` `Site preview`,
+  `{{NOUN}}` `views`, `{{COUNT}}` the number of views, and one `<li>` per view
+  linking `site/<file>`. Each `toc__note` is that view's line from the notes
+  (what it is, not how it was made). Provenance names the source folder once,
+  not each file.
+- **Link audit.** In addition to step 8, every relative link between views
+  must resolve inside `stage/site/`.
+- **Verify (step 10).** Assert the overview links every view, including each
+  Page row in the notes' Sitemap; check network and console errors on every
+  view, including the state files and the sitemap pages.
+- **Same space.** A site preview goes to the project's existing space (the
+  one the options went to) as a new version, so the partner's link doesn't
+  change. The publish message says `Site preview: <project> — <date>`.
 
 ## 14. On failure
 
