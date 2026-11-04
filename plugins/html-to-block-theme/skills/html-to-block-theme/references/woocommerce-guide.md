@@ -88,7 +88,6 @@ Each passage says what it was checked with. Passages without a version were chec
 - **Spacing WooCommerce adds:** `.wc-block-checkout` has a 24px top padding and `.wc-block-checkout__actions` a 36px bottom margin. "You are currently checking out as a guest." prints whenever guest checkout is allowed (`checkoutAllowsGuest`), whatever the sign-up settings. **(7.1.4)**
 - **Measure after the Store API answers.** The checkout first renders skeleton summary lines and a loading payment step, and re-renders when the Store API answers, one to three seconds later: the summary card grew by 74px and the payment step by 31px. **(7.1.4)**
 - **The error state can be shown without placing an order:** `wp.data.dispatch( 'wc/store/validation' ).showAllValidationErrors()`. **(7.1.4)**
-- **The order summary's screen-reader text reads the Store API's encoded product name:** a product named "Salt & Pepper" is announced as "Salt &#038; Pepper". Report it; the theme cannot change it. **(7.1.4)**
 
 ## My Account
 
