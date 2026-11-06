@@ -8,7 +8,8 @@
 # the $t51_args array.
 #
 # The PHP is sent base64-encoded so nothing in it needs shell escaping. The
-# scripts in this directory are read-only; this wrapper does not make them so.
+# scripts in this directory are read-only except mu_plugin.php and
+# web_root_fetch.php, which say so at the top; this wrapper does not make them so.
 set -euo pipefail
 
 host="${1:-}"; site="${2:-}"; script="${3:-}"; raw="${4:-}"

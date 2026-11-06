@@ -517,6 +517,103 @@ def config_and_files(m):
     return out
 
 
+def size(n):
+    return "%.1f MB" % (n / 1048576.0) if n >= 1048576 else "%d KB" % max(1, n // 1024)
+
+
+@check
+def web_root(m):
+    """Files served from outside wp-content. The copy brings wp-content and the database only (eagleman.com, 2026-11-06)."""
+    area = "Files outside wp-content"
+    w = m.get("webroot")
+    if not w:
+        return [F("webroot.not-checked", area, "manual", "Files served from outside wp-content were not checked",
+                  "No webroot.json in the migration folder.",
+                  "Run `web_root.php` (audit step 2). Folders in the web root, and links, attachments and redirects that point "
+                  "into them, are not copied and were found on a real migration only by hand.")]
+    out = []
+    behaviour = (".php", ".htaccess", ".ini", ".html", ".xml", ".txt")  # files.root covers these
+    entries = [e for e in w.get("entries") or [] if not (e["type"] == "file" and e["name"].lower().endswith(behaviour))]
+    links = [l for l in (w.get("links") or {}).get("by_dir") or [] if l.get("in_web_root")]
+    att = w.get("attachments") or {}
+    in_root_att = att.get("in_web_root") or 0
+    if entries or links or in_root_att:
+        lines = []
+        for e in entries:
+            if e["type"] == "dir":
+                exts = ", ".join("%s %d" % (k or "no extension", v) for k, v in (e.get("extensions") or {}).items())
+                lines.append("- `%s/`: %s%d files, %s (%s), newest %s%s" % (
+                    e["name"], "symlink to `%s`, " % e["link_to"] if e.get("link_to") else "", e.get("files", 0),
+                    size(e.get("bytes", 0)), exts or "empty", e.get("modified") or "-", ", more not counted" if e.get("truncated") else ""))
+            else:
+                lines.append("- `%s`: %s, modified %s" % (e["name"], size(e.get("bytes", 0)), e.get("modified")))
+        for l in links:
+            lines.append("- Content links to %d files in `%s`, %d of them in the web root (posts %s)" % (
+                l["files"], l["dir"], l["in_web_root"], ", ".join(str(i) for i in l.get("post_ids", []))))
+        if in_root_att:
+            lines.append("- %d attachments have their file in the web root, not in uploads (%s), so the Media Library points there" % (
+                in_root_att, ", ".join("`%s`: %d" % kv for kv in sorted((att.get("in_web_root_dirs") or {}).items()))))
+        out.append(F("webroot.files", area, "manual", "Files are served from the web root, outside wp-content",
+                     "Web root `%s`.\n%s" % (w.get("web_root"), "\n".join(lines)),
+                     "The copy brings wp-content and the database only, so these 404 on the new site. Copy them to the same path "
+                     "in the target's web root (`/srv/htdocs` on WordPress.com) before the window, then again after the freeze, "
+                     "and check every linked file on the copy.",
+                     steps=["platform.web-root", "sync.web-root", "verify.web-root"]))
+    up = w.get("uploads") or {}
+    moved = [k for k in ("upload_path", "upload_url_path") if up.get(k)] + (["UPLOADS constant"] if up.get("uploads_const") else [])
+    if moved or up.get("in_wp_content") is False:
+        out.append(F("webroot.uploads-location", area, "blocker" if up.get("in_wp_content") is False else "manual",
+                     "Uploads are configured away from the default location",
+                     "Uploads directory `%s`, URL `%s`. Set by: %s." % (up.get("basedir"), up.get("baseurl"), ", ".join(moved) or "unknown"),
+                     "The copy expects uploads in `wp-content/uploads`. If the directory is outside wp-content its files are not "
+                     "copied at all. Plan where the files go on WordPress.com and how their URLs keep working before scheduling.",
+                     steps=["platform.web-root"]))
+    red = w.get("redirects") or {}
+    if red.get("from_static"):
+        into = red.get("into_web_root") or {}
+        out.append(F("webroot.static-redirects", area, "decision", "%d redirect rules start at a file path" % red["from_static"],
+                     "\n".join("- %s" % x for x in red.get("from_static_examples") or []) +
+                     ("\n\nRules sending visitors into the web root: %s." % ", ".join("`%s`: %d" % kv for kv in sorted(into.items())) if into else ""),
+                     "On WordPress.com, paths under `/wp-content/` are served by the web server without WordPress, so a redirect "
+                     "rule for one never runs and the old URL returns 404 (98 such rules on eagleman.com). Rules from other file "
+                     "paths (`.pdf` and similar outside wp-content) are untested and may behave the same. Decide per group: put a "
+                     "copy of the file at the old path on the target, or accept that old links to it break.",
+                     steps=["platform.web-root", "verify.web-root"]))
+    hits = (w.get("code") or {}).get("hits") or []
+    if hits:
+        out.append(F("webroot.code", area, "manual", "Theme or mu-plugin code builds paths outside wp-content",
+                     "\n".join("- `%s`" % h for h in hits[:20]) + ("\n- ...and more" if len(hits) > 20 else ""),
+                     "Read each. Code that writes to the web root keeps doing so on WordPress.com, where `/srv/htdocs` is writable, "
+                     "but those files are outside wp-content: anything it writes between the first copy of the folder and the "
+                     "freeze has to be copied again, and backups may not include it.",
+                     steps=["platform.web-root", "sync.web-root"]))
+    tooling = w.get("wp_content_root") or []
+    plain = [t for t in tooling if not t["name"].startswith(".")]
+    if plain:
+        out.append(F("webroot.repo-files", area, "manual", "Repo files sit at the wp-content root and will be public on the new site",
+                     "\n".join("- `wp-content/%s%s`" % (t["name"], "/" if t["type"] == "dir" else "") for t in plain) +
+                     ("\n\nDotfiles there too (%s): WordPress.com answers 403 for those." % ", ".join("`%s`" % t["name"] for t in tooling if t["name"].startswith("."))
+                      if len(plain) < len(tooling) else ""),
+                     "The copy brings everything in wp-content, so these were readable at `/wp-content/<name>` on eagleman.com's "
+                     "copy until they were deleted by hand. Delete them on the target after the copy, and exclude them with plain "
+                     "lines in `.deployignore` before WordPress.com deploys are connected, or the next deploy puts them back.",
+                     steps=["sync.web-root", "verify.web-root"]))
+    if att.get("missing"):
+        out.append(F("webroot.missing-attachments", area, "info", "%d attachments have no file on the source" % att["missing"],
+                     ", ".join("`%s`" % x for x in att.get("missing_examples") or []) +
+                     (" (checked %d of %d)" % (att.get("checked", 0), att.get("total", 0)) if att.get("checked") != att.get("total") else ""),
+                     "Already broken on the source, so not a migration gap, unless a plugin offloads media elsewhere: then find out "
+                     "where the files live and whether that works from WordPress.com."))
+    broken = [l for l in (w.get("links") or {}).get("by_dir") or [] if l["files"] > l.get("in_web_root", 0)]
+    if broken:
+        out.append(F("webroot.dead-links", area, "info", "Content links to files outside wp-content that are not on the server",
+                     "\n".join("- `%s`: %d of %d linked files missing, e.g. %s" % (l["dir"], l["files"] - l.get("in_web_root", 0), l["files"],
+                                                                                  ", ".join("`%s`" % x for x in l.get("missing_examples", [])[:2])) for l in broken),
+                     "Not in the web root on the source either. A redirect rule may handle them (see the redirects finding), or they "
+                     "are already broken. Compare with the source in `verify.web-root`."))
+    return out
+
+
 @check
 def plugins(m):
     out = []

@@ -5,6 +5,7 @@
 
 Reads (all optional except site.json):
     site.json        output of site_audit.php on the source
+    webroot.json     output of web_root.php on the source: what is served from outside wp-content
     pressable.json   Pressable site details (pressable_get_site)
     related.json     list of related Pressable sites
     dns-*.json       output of dns_audit.py, one per apex domain
@@ -37,7 +38,7 @@ SEVERITY_HEADINGS = [
     ("auto", "Handled by the process", "An agent or script does these; listed so nothing is a surprise."),
     ("info", "Worth knowing", "No action on its own."),
 ]
-INPUTS = [("site.json", "Site inventory (WP-CLI)"), ("pressable.json", "Pressable site details"), ("related.json", "Related Pressable sites"),
+INPUTS = [("site.json", "Site inventory (WP-CLI)"), ("webroot.json", "Files served from outside wp-content"), ("pressable.json", "Pressable site details"), ("related.json", "Related Pressable sites"),
           ("dns-*.json", "DNS and registrar"), ("deploy.json", "Deploy state"), ("wpcom.json", "WordPress.com-side facts (subscribers, stats, plans)"),
           ("context.json", "Context from P2, Slack and Linear")]
 
@@ -83,6 +84,7 @@ def main():
 
     manifest = {
         "site": site,
+        "webroot": load(os.path.join(d, "webroot.json")),
         "pressable": load(os.path.join(d, "pressable.json"), {}),
         "related": load(os.path.join(d, "related.json"), []),
         "dns": [load(p) for p in sorted(glob.glob(os.path.join(d, "dns-*.json"))) if load(p)],

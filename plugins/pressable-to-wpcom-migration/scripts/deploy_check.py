@@ -40,7 +40,11 @@ TOOLING_NAMES = ("LICENSE", "composer.json", "composer.lock", "package.json", "p
 
 
 def is_tooling(path):
-    """Repo files that a wp-content deploy never puts on the server.
+    """Repo tooling at the root (README, LICENSE, composer files, dotfiles).
+
+    The drift and revision checks leave these out: a difference in them is not a
+    deploy gap. Whether a deploy puts them on the server is not confirmed for
+    WordPress.com, so `allowlist` lists them for plain exclusions instead.
 
     Root level only. A readme, config file or dotfile inside a theme or plugin
     is deployed with it, so it is compared like any other file.
@@ -171,8 +175,11 @@ def _allowlist(args, repo_dir):
     out = {"repo": args.repo or repo_dir, "rev": args.rev, "present": rest is not None}
     if rest is not None:
         before, after = patterns_of(text), patterns_of(rest, "wpcom")
-        tracked = [p for p in tracked_files(repo_dir, args.rev) if not is_tooling(p)]
+        # Tooling files are not set aside here: with the block gone, nothing confirms WordPress.com leaves a root
+        # README or composer.json out (eagleman.com), so they are listed and get plain exclusions.
+        tracked = tracked_files(repo_dir, args.rev)
         newly = [p for p in tracked if ignored(p, before) and not ignored(p, after)]
+        tooling = sorted({"/" + p.split("/", 1)[0] + ("/" if "/" in p else "") for p in newly if is_tooling(p)})
         tops = {}
         for p in newly:
             parts = p.split("/")
@@ -182,8 +189,11 @@ def _allowlist(args, repo_dir):
             deployed_now=sum(1 for p in tracked if not ignored(p, before)),
             newly_deployed_without_block=sorted(tops.items()),
             newly_deployed_files=newly[:200],
+            exclude_lines=tooling,
             note="Without the block, these paths deploy too. Exclude any that must not reach the server (tests, CI tooling, "
-                 "other sites' themes) with plain lines in .deployignore; WordPress.com deployments ignore `!` lines.")
+                 "other sites' themes) with plain lines in .deployignore; WordPress.com deployments ignore `!` lines. Add every "
+                 "line in `exclude_lines` too: repo tooling at the root (README, LICENSE, composer files, dotfiles) would "
+                 "otherwise land in wp-content, where plain files are publicly readable.")
     json.dump(out, sys.stdout, indent=2)
     print()
 

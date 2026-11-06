@@ -3,6 +3,50 @@
 ## [Unreleased]
 
 ### Changed
+- The audit checks what a site serves from outside wp-content, which the copy
+  does not bring (`web_root.php` → `webroot.json`). Found by hand on
+  eagleman.com, where the theme moves PDFs tagged "papers" to
+  `/srv/htdocs/papers` and 98 redirect rules point old uploads paths there.
+  It reports:
+  - folders and files in the web root;
+  - content links and attachments that point there;
+  - upload paths moved away from wp-content;
+  - redirect rules from file paths, which never run on WordPress.com because
+    it serves `/wp-content/` paths without WordPress;
+  - theme and mu-plugin code that builds paths outside wp-content.
+
+  New steps copy the files before the window (`platform.web-root`), again
+  after the freeze (`sync.web-root`), and check them on the copy
+  (`verify.web-root`, with `web_root_compare.py`). The copy is made as on
+  eagleman.com: `web_root_fetch.php` downloads each file from the source's
+  public URL into the same path on the target, and fetching an old redirected
+  path places the file at that path, which is how the 98 redirects were kept.
+  It writes files on the target, so it runs after a yes.
+- The audit lists repo files at the wp-content root (`webroot.repo-files`).
+  The copy brought eagleman.com's README.md, LICENSE and composer files into
+  the new site's wp-content, publicly readable (dotfiles there answer 403).
+  `sync.web-root` deletes them, and `deploy_check.py allowlist` now gives the
+  plain `.deployignore` lines that keep root tooling out (`exclude_lines`),
+  instead of assuming a WordPress.com deploy leaves it out (eagleman#331).
+- `cut.domain`: in a Pressable zone the old `atomic-domain` TXT cannot be
+  replaced (Pressable manages it and hides it), and adding the new value beside
+  it fails with "multiple domain verification TXT records". The new values go
+  in the WordPress.com zone, and primary is set once the name servers point
+  there or the domain is off the Pressable site.
+- `dns.export` writes each TXT value as one quoted string: WordPress.com's
+  BIND import rejects the split form that DKIM keys over 255 characters use.
+- Connecting a domain adds WordPress.com's default DMARC and SPF records.
+  The zone steps delete them, and `dns_compare.py` flags a second SPF or DMARC
+  record on the new server.
+- `dns_compare.py --names-from` takes a zone file as well as a folder, reads
+  `$ORIGIN` and relative names, `*.zone` and `zone-*.records.json`, and stops
+  if it finds no names. Handed a file it used to compare the apex and `www`
+  only (2 names, not eagleman.com's 54). It now compares a CNAME name by its
+  CNAME and leaves `atomic-domain` values out, which brought eagleman.com's
+  comparison from 202 differences to the 3 real ones.
+- `post.stats` says what a correct merge shows: `report_blog_id` is the new
+  blog and `include_blog_id` the old one. eagleman.com's first merge ran the
+  other way and the new blog showed no history.
 - The Pressable deploy allowlist in `.deployignore` is removed before
   WordPress.com deploys are connected (`post.deploy-allowlist`), after
   Pressable's Git deployments are disconnected. WordPress.com deployments

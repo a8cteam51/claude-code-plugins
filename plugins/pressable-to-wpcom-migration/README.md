@@ -78,6 +78,7 @@ the raw audit data, database diffs and notes stay in the local folder.
 
 ```
 scripts/site_audit.php   one read-only `wp eval` on the source   ─┐
+scripts/web_root.php     what is served from outside wp-content  │
 scripts/dns_audit.py     registrar, name servers, records        ├─► migrations/<domain>/*.json
 scripts/deploy_check.py  is the existing deploy current?         ─┘            │
 MCP lookups              Pressable, DeployHQ, Linear, Slack      ──────────────┤

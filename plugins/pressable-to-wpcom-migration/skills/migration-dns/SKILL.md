@@ -66,6 +66,12 @@ reaches Pressable through OpsOasis, which has no zones route, and Pressable's
 name servers refuse zone transfers. Leave out the `atomic-domain-…` TXT; it
 belongs to the old site.
 
+Write each TXT value as one quoted string, even a DKIM key over 255
+characters. WordPress.com's **Import BIND file** rejects the split form
+(`"..." "..."`) with "TXT record is not in expected format" and imports
+nothing (eagleman.com, 2026-11-06). Strict parsers such as dnspython reject
+the one-string form, so don't validate the file with one.
+
 Check the export against the audit: every name the audit found must be in it.
 If the audit found a name the export lacks, the export is incomplete.
 
@@ -85,7 +91,12 @@ Domains Between WP Cloud Hosts*, and the 2026-10-16 migration):
    it, so we can (`cut.release-pressable`).
 3. Replace the `atomic-domain` TXT records at the apex and `www` with fresh
    values from Blog RC's Domain Verification Record tool, then set the domain
-   primary (`cut.domain`).
+   primary (`cut.domain`). In a Pressable zone they cannot be replaced:
+   Pressable keeps one per attached domain, hidden from its DNS editor, and a
+   second value beside it fails with "Domain has multiple domain verification
+   TXT records". Put the new values in the WordPress.com zone only, and set
+   primary once the name servers point there, or once the domain is off the
+   Pressable site.
 4. Check both the apex and `www` report WordPress.com at
    `/.well-known/hosting-provider`, and that `www` resolves; add a `www` CNAME
    if the zone lacks one (`cut.hosting-check`).
@@ -115,7 +126,12 @@ cutover. It is a separate site with its own migration.
 1. Import the zone: WordPress.com dashboard → Domains → the domain → DNS
    records → menu → **Import BIND file**. It accepts A, AAAA, CNAME, MX, SRV,
    TXT and NS, and errors when a record conflicts with one already there.
-   Other record types (CAA, for example) are added by hand.
+   Other record types (CAA, for example) are added by hand. Connecting the
+   domain adds WordPress.com's own `v=DMARC1;p=none;` at `_dmarc` and
+   `v=spf1 include:_spf.wpcloud.com ~all` at the apex. Delete both after the
+   import, and add `include:_spf.wpcloud.com` to the imported SPF if the site
+   sends mail from WordPress.com: two SPF records fail SPF, and receivers
+   ignore DMARC when there are two.
 2. Compare the two zones by asking each set of name servers directly, before
    anything is switched:
 
@@ -123,8 +139,12 @@ cutover. It is a separate site with its own migration.
    python3 "$S/dns_compare.py" <apex> --old ns1.openhostingservice.com --new ns1.wordpress.com --names-from "$D"
    ```
 
-   It takes names from the audit files and from `zone-export.*`. Add
-   `--ignore-site-records` only if the old zone has not yet been repointed.
+   It takes names from the audit files and the zone export in the folder
+   (`zone-export.*`, `*.zone`, `zone-*.records.json`); `--names-from` also
+   takes one of those files. It compares a CNAME name by its CNAME only, leaves
+   `atomic-domain-…` values out, and flags a second SPF or DMARC record on the
+   new server. Add `--ignore-site-records` once the site records differ on
+   purpose (apex A/AAAA and all of `www`).
 3. When it reports `ZONES MATCH`, change the name servers at the registrar.
    For a third-party registrar this is the partner's login.
 4. Afterwards:

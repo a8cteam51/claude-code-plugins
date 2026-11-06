@@ -265,6 +265,24 @@ STEPS = [
               "The quarantine stays: it was installed on the new site on purpose.",
          verify="Exits 0. `{scripts}/mu_plugin.sh status wpcom {target} t51-migration-freeze.php` reports the file absent, "
                 "and the quarantine file present."),
+    dict(id="sync.web-root", phase="sync", actor="both", title="Copy the web-root files again, now the source is frozen", when=has("sync.web-root"),
+         body=UNTESTED +
+              "The folders copied in `platform.web-root` may have changed since: on eagleman.com the theme moves every PDF "
+              "tagged \"papers\" into `/srv/htdocs/papers`. The source is frozen, so this copy is the last one. Copy again "
+              "whatever is newer on the source, the same way as before: run `web_root.php` on both sites again, then the "
+              "compare with `--fetch-out` and the fetch (state it and get a yes).\n\n"
+              "If `platform.web-root` decided to keep old file URLs working by placing files at their old paths, the same "
+              "fetch does it now, after the Migration Assistant's copy: it follows each old path's redirect on the source "
+              "and writes the file at the old path on the target, never over a file already in wp-content.\n\n"
+              "**Repo files at the wp-content root** (`webroot.repo-files`): the copy brought them, and plain files there are "
+              "public. Delete each one listed (`README.md`, `LICENSE`, `composer.json` and the like) on the target; dotfiles "
+              "can stay, WordPress.com answers 403 for them. Deleting files is a write: list them and get a yes. Put every "
+              "file the finding names in the list:\n\n"
+              "```bash\nteam51 wpcom:run-site-wp-cli-command {target_blog_id} \"eval 'foreach ([\\\"README.md\\\", \\\"LICENSE\\\"] as \\$f) {{ @unlink(WP_CONTENT_DIR . \\\"/\\$f\\\"); }}'\"\n```",
+         verify="```bash\n{scripts}/wp_eval.sh wpcom {target} {scripts}/web_root.php > {dir}/webroot-target.json\n"
+                "python3 {scripts}/web_root_compare.py {dir}/webroot.json {dir}/webroot-target.json\n```\n"
+                "Every line reads `ok`. `webroot.json` was taken at the audit: if files were added since, re-run "
+                "`web_root.php` on the source first. `wp_content_root` in `webroot-target.json` lists only dotfiles."),
     dict(id="verify.domain-owner", phase="verify", actor="both", title="Connect the domain owner's WordPress.com account to the new site",
          when=has("verify.domain-owner"),
          body="Needed only when the domain is registered at WordPress.com under an account other than `a8cteam51` "
@@ -336,6 +354,18 @@ STEPS = [
          body="```bash\npython3 {scripts}/url_check.py https://{domain} https://{target} --limit 150 > {dir}/url-check.txt\n```\n\n"
               "What visitors see is compared in `verify.frontend`.",
          verify="No URL that returns 200 on the source returns an error on the target. Redirect targets match apart from the host."),
+    dict(id="verify.web-root", phase="verify", actor="agent", title="Check the files served from outside wp-content", when=has("verify.web-root"),
+         body="The crawl in `verify.urls` follows the sitemap, which lists pages, not files. Request every linked file the "
+              "audit found in the web root, and a sample of the redirect rules from file paths, on both sites:\n\n"
+              "```bash\n{scripts}/wp_eval.sh wpcom {target} {scripts}/web_root.php > {dir}/webroot-target.json\n"
+              "python3 {scripts}/web_root_compare.py {dir}/webroot.json {dir}/webroot-target.json --paths-out {dir}/webroot-paths.txt\n"
+              "python3 {scripts}/url_check.py https://{domain} https://{target} --paths {dir}/webroot-paths.txt\n```",
+         verify="The comparison reads `ok` on every line. In `url_check.py`, every linked file returns the same status on both. "
+                "An old path that redirects on the source and returns 200 on the target is fine: the file was placed at the "
+                "old path (as on eagleman.com). One that returns 404 on the target is acceptable only where "
+                "`platform.web-root` recorded that its old links may break. `curl -sI https://{target}/wp-content/README.md` "
+                "(and each other repo file the audit listed) returns 404. Where code writes outside wp-content, someone has "
+                "uploaded a test file through it on the target and opened its URL, or the Linear issue says who will."),
     dict(id="verify.frontend", phase="verify", actor="agent", title="Compare what visitors see on the copy with the live site", when=None,
          body="Same sample of pages, desktop and mobile, logged out, against the baseline taken at the start of the window. "
               "Compares status, console errors, failed requests, missing stylesheets and scripts, fonts, key computed styles, "
@@ -430,9 +460,41 @@ STEPS = [
               "source and recreate its behaviour on the target: the same file if the platform supports it, otherwise a mu-plugin "
               "or a redirect plugin.",
          verify="Each redirect or behaviour from the file works on the temporary URL."),
+    dict(id="platform.web-root", phase="platform", actor="both", title="Copy the files served from the web root", when=has("platform.web-root"),
+         body=UNTESTED +
+              "The audit found files served from outside wp-content (`{dir}/webroot.json`, findings `webroot.*` in the report). "
+              "The copy brings wp-content and the database only, so they would 404 on the new site, as the paper PDFs did on "
+              "eagleman.com (2026-11-06).\n\n"
+              "1. **Copy each folder and file** listed under `entries` in `webroot.json` to the same path in the target's web "
+              "root, before the window. The Migration Assistant leaves files added to the target beforehand in place, and "
+              "WordPress.com serves files from its web root (`/srv/htdocs`). On eagleman.com the files were downloaded from the "
+              "live site's public URLs straight into the target's folder. The fetch writes files on the target, so state what "
+              "it will fetch and get a yes:\n\n"
+              "```bash\npython3 {scripts}/web_root_compare.py {dir}/webroot.json {dir}/webroot-target.json --fetch-out {dir}/webroot-fetch.json --source-url https://{domain}\n"
+              "T51_ARGS=\"$(cat {dir}/webroot-fetch.json)\" {scripts}/wp_eval.sh wpcom {target} {scripts}/web_root_fetch.php\n```\n\n"
+              "(Take `webroot-target.json` with `web_root.php` on the target first.) It fetches up to 200 files a run and "
+              "lists the rest under `remaining`: run the compare and the fetch again until nothing is left. Before the copy "
+              "it also fetches the old redirected paths under `wp-content/` (step 2); those are placed in `sync.web-root` "
+              "instead, so drop them from the file for this run if the decision is not made yet. Files the source does not "
+              "serve publicly (a folder behind a password, PHP) need a person with SFTP access to both sites: the agent "
+              "does not handle SFTP passwords.\n"
+              "2. **Redirect rules from file paths** (`webroot.static-redirects`): paths under `/wp-content/` are served on "
+              "WordPress.com without WordPress, so those rules never run. Decide, per group, whether to keep the old URLs "
+              "working by placing a copy of each target file at its old path (done in `sync.web-root`, after the copy, "
+              "as on eagleman.com) or to let them break, and record it: `state.py decide static_redirects \"<decision>\"`.\n"
+              "3. **Code that writes outside wp-content** (`webroot.code`): read it. Whatever it adds before the freeze is "
+              "copied in `sync.web-root`. After cutover it keeps writing to `/srv/htdocs`, outside wp-content: note that in "
+              "the Linear issue, and raise moving those files into uploads with whoever owns the code. Whether it still "
+              "works on WordPress.com is a test for after cutover (`verify.web-root`): on eagleman.com nobody uploaded a "
+              "paper during the window, so it was left to the partner's first upload.\n"
+              "4. **Uploads configured elsewhere** (`webroot.uploads-location`): agree where the files go and how their URLs "
+              "keep working before the window is booked.",
+         verify="```bash\n{scripts}/wp_eval.sh wpcom {target} {scripts}/web_root.php > {dir}/webroot-target.json\n"
+                "python3 {scripts}/web_root_compare.py {dir}/webroot.json {dir}/webroot-target.json\n```\n"
+                "Every line reads `ok`, and any redirect decision is recorded."),
     dict(id="platform.custom-code", phase="platform", actor="agent", title="Review custom code for Pressable-specific logic", when=has("platform.custom-code"),
          body="Search the site's repo and mu-plugins, and any database-stored snippets, for host-specific code:\n\n"
-              "```bash\ngrep -rnI -i -E 'IS_PRESSABLE|pressable|batcache|pcm_|edge.?cache|mystagingwebsite|openhostingservice' .\n```",
+              "```bash\ngrep -rnI -i -E 'IS_PRESSABLE|pressable|batcache|pcm_|edge.?cache|mystagingwebsite|openhostingservice|DOCUMENT_ROOT|get_home_path|dirname\\( ?WP_CONTENT_DIR' .\n```\n\nThe last three find code that reads or writes outside wp-content: see `platform.web-root`.",
          verify="Each hit is either harmless or has a change planned."),
     dict(id="post.deploy-allowlist", phase="post", actor="both", title="Remove the Pressable deploy allowlist from .deployignore", when=has("post.deploy-allowlist"),
          body="Before connecting WordPress.com deploys. Repos that used Pressable's own Git deployments carry a block in "
@@ -450,8 +512,10 @@ STEPS = [
               "is still connected wipes that site's uploads and plugins.\n"
               "2. **Open a pull request** that deletes the block, markers included. The check lists what the block was keeping "
               "out that would now deploy (`newly_deployed_without_block`). Add a plain line for each that must not reach the "
-              "server, such as `/tests/` in #298. Never use `!` lines: WordPress.com ignores them. Do the same on any other "
-              "branch a WordPress.com deployment uses.\n"
+              "server, such as `/tests/` in #298, and every line in `exclude_lines`: repo tooling at the root (README, LICENSE, "
+              "composer files, dotfiles), which nothing confirms a WordPress.com deploy leaves out, and which the copy had "
+              "already put in eagleman.com's wp-content (eagleman#331). Never use `!` lines: WordPress.com ignores them. Do "
+              "the same on any other branch a WordPress.com deployment uses.\n"
               "3. Merge it only after step 1 is confirmed. Opening and merging the pull request writes to the repo, so state "
               "both and get a yes.",
          verify="`deploy_check.py allowlist` on the branch reports `present: false`, and the person confirmed no Pressable site "
@@ -539,9 +603,15 @@ STEPS = [
               "in place of the existing `atomic-domain-…` TXT at that name (apex and `www`), in WordPress.com DNS or at the "
               "partner's DNS host. Replace the old values rather than adding beside them. On 2026-10-16 this was needed "
               "even after `cut.release-pressable`.\n"
+              "   **In a Pressable zone this cannot be done.** Pressable creates one `atomic-domain` TXT for each domain on the "
+              "site and hides it from the DNS editor, so it cannot be replaced, and adding the new value beside it makes "
+              "step 3 fail with \"Domain has multiple domain verification TXT records\" (eagleman.com, 2026-11-06). There "
+              "the new values go only in the WordPress.com zone, and primary is set once the name servers point at it "
+              "(`dig NS {apex} +short`), or after `cut.release-pressable` removes the old record.\n"
               "3. Set `{domain}` as **primary**, in the dashboard or DARC. `www` cannot be primary on WordPress.com; it "
               "redirects to the apex. If it is refused with \"already used on a different site … TXT record verification is "
-              "required\", step 2 is not in place yet (or has not propagated).\n\n"
+              "required\", step 2 is not in place yet (or has not propagated). \"Multiple domain verification TXT records\" "
+              "means the old value is still served: see the Pressable zone note in step 2.\n\n"
               "Setting primary rewrites the temporary address in content itself, including JSON-escaped links in blocks: on "
               "2026-10-16 the search-replace below then changed only `wp_users.user_url`. Run it anyway, by blog ID: until "
               "DNS points here, commands addressed by domain can fail with `host_not_found`.\n\n"
@@ -559,10 +629,16 @@ STEPS = [
               "records, then CNAMEs and anything else. Leave out the old `atomic-domain-…` TXT. Add `www` as a CNAME to "
               "`{apex}.` if it is missing: on 2026-10-16 neither zone had one, so `www` did not resolve until it was added. "
               "(**Import BIND file** in the DNS records menu takes the export in one go, but errors on records that already "
-              "exist.)",
+              "exist, and rejects a TXT value split into several quoted strings: see `dns.export`.)\n\n"
+              "Connecting the domain adds WordPress.com's default `v=DMARC1;p=none;` at `_dmarc` and "
+              "`v=spf1 include:_spf.wpcloud.com ~all` at the apex (eagleman.com, 2026-11-06). Next to the imported "
+              "records that makes two DMARC records, which receivers ignore, and two SPF records, which fail SPF. Delete "
+              "both defaults, and add `include:_spf.wpcloud.com` to the imported SPF if the site sends mail from "
+              "WordPress.com (keep it within 10 DNS lookups).",
          verify="```bash\npython3 {scripts}/dns_compare.py {apex} --old ns1.openhostingservice.com --new ns1.wordpress.com --names-from {dir}\n```\n\n"
                 "Pressable no longer answers, so compare against the export: every name in it resolves on "
-                "`ns1.wordpress.com` with the same values, and `dig +short www.{apex} @1.1.1.1` answers."),
+                "`ns1.wordpress.com` with the same values, no name has two SPF or two DMARC records (the comparison "
+                "flags them), and `dig +short www.{apex} @1.1.1.1` answers."),
     dict(id="cut.dns", phase="cut", actor="human", title="Point the site records at WordPress.com", when=lambda m, on: not wpcom_registered(m, on),
          body="In the CURRENT DNS host, change only the site's own records (apex and `www`) to the values WordPress.com shows for "
               "the connected domain. Leave name servers and every other record alone; the zone move is a separate, later phase.\n\n"
@@ -687,7 +763,9 @@ STEPS = [
               "- Previous (source) blog ID: `{source_blog_id}`\n- Current (destination) blog ID: `{target_blog_id}`\n\n"
               "Click **Show existing merges for a blog** for the source first. Post IDs match because the database was copied, "
               "which is what the merge needs.",
-         verify="The tool confirms the merge. Stats on the new site show history."),
+         verify="The tool confirms the merge, and **Show existing merges** lists it with `report_blog_id` = "
+                "`{target_blog_id}` (new) and `include_blog_id` = `{source_blog_id}` (old). The other way round the new blog "
+                "shows no history (eagleman.com, 2026-11-06): unmerge and merge again. Stats on the new site show history."),
     dict(id="post.subscribers", phase="post", actor="human", title="Migrate subscribers to the new blog ID", when=has("post.subscribers"),
          body="Done on every migrated site, including one that reports no subscribers: the count can lag.\n\n"
               "Blog Subscription Migration, a section of the Jetpack tools page: https://mc.a8c.com/jetpack-tools/\n\n"
@@ -709,19 +787,25 @@ STEPS = [
               "servers refuse zone transfers.\n\n"
               "Leave out the `atomic-domain-…` TXT record: it verifies the old Pressable site, and WordPress.com adds its own "
               "for the new one.\n\n"
+              "Write each TXT value as one quoted string, even over 255 characters (DKIM keys). WordPress.com's **Import "
+              "BIND file** rejects the standard split form (`\"...\" \"...\"`) with \"TXT record is not in expected "
+              "format\" and imports nothing; one 489-character string imported fine on eagleman.com. Strict BIND parsers "
+              "such as dnspython reject that form, so do not validate the file with one.\n\n"
               "Do it before the window. For a domain registered at WordPress.com it cannot wait: moving the domain in the "
               "window switches its name servers at once, and the Pressable zone is no longer reachable (step "
               "`cut.domain-move`). Check the export again just before the window if anyone has edited the zone.",
-         verify="The export contains every name in the audit's DNS findings, plus any DKIM selectors."),
+         verify="The export contains every name in the audit's DNS findings, plus any DKIM selectors, and no TXT value is "
+                "split into several quoted strings."),
     dict(id="dns.zone-move", phase="dns", actor="human", title="Recreate the zone in WordPress.com DNS and switch name servers", when=zone_moves_later,
          body=UNTESTED +
               "1. In the WordPress.com dashboard, Domains → the domain → DNS records → menu → **Import BIND file**. It imports A, "
-              "AAAA, CNAME, MX, SRV, TXT and NS, and errors on conflicts with existing records.\n"
+              "AAAA, CNAME, MX, SRV, TXT and NS, and errors on conflicts with existing records. Then delete the default DMARC and "
+              "SPF records WordPress.com added when the domain was connected, as in `cut.zone-records`.\n"
               "2. Compare the new zone with the old before touching name servers:\n\n"
               "```bash\npython3 {scripts}/dns_compare.py {apex} --old ns1.openhostingservice.com --new ns1.wordpress.com --names-from {dir}\n```\n\n"
               "3. When they match, change the name servers at the registrar to WordPress.com's. For third-party registrars this "
               "is the partner's login.",
-         verify="`dns_compare.py` reports no differences. After the switch, `dig NS {apex}` returns WordPress.com name servers and "
+         verify="`dns_compare.py` reports no differences and no duplicate SPF or DMARC. After the switch, `dig NS {apex}` returns WordPress.com name servers and "
                 "the partner confirms email is flowing."),
 
     # ----------------------------------------------------------------- decom

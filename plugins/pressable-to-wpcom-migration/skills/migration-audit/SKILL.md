@@ -143,7 +143,7 @@ gh api --paginate 'orgs/a8cteam51/properties/values?per_page=100' \
 No match is a finding in itself: the site may have no repo, or one that was
 never linked.
 
-### 2. Site inventory → `site.json`
+### 2. Site inventory → `site.json`, `webroot.json`
 
 ```bash
 "$S/wp_eval.sh" pressable <domain or id> "$S/site_audit.php" > "$D/site.json"
@@ -151,6 +151,18 @@ never linked.
 
 About 20 seconds. If it prints "No result markers", read the CLI output it
 shows: usually 1Password, or a plugin fataling under WP-CLI.
+
+Then what the site serves from outside wp-content, which the copy does not
+bring:
+
+```bash
+"$S/wp_eval.sh" pressable <domain or id> "$S/web_root.php" > "$D/webroot.json"
+```
+
+It lists folders and files in the web root, content links and attachments
+that point there, redirect rules from file paths, and theme or mu-plugin code
+that builds paths outside wp-content. About 15 seconds; longer on sites with
+many posts (it reads up to 50,000).
 
 ### 3. Related sites → `related.json`
 
