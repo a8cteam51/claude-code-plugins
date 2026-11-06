@@ -217,6 +217,27 @@
       ]
     },
     {
+      "name": "pressable-to-wpcom-migration",
+      "source": "./plugins/pressable-to-wpcom-migration",
+      "description": "Migrate Team 51 sites from Pressable to WordPress.com: a read-only audit that reports blockers, decisions and manual work and generates a per-site runbook, then guided execution and verification through the copy, cutover, DNS, post-cutover tasks and decommission, tracked in a shared Team 51 migrations space.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Automattic Special Projects"
+      },
+      "repository": "https://github.com/a8cteam51/claude-code-plugins",
+      "license": "MIT",
+      "keywords": ["wordpress", "migration", "pressable", "wordpress-com", "reprint", "team51", "dns", "woocommerce", "jetpack", "audit"],
+      "category": "development-tools",
+      "strict": true,
+      "skills": [
+        "./skills/migration-audit",
+        "./skills/migration-run",
+        "./skills/migration-verify",
+        "./skills/migration-dns",
+        "./skills/migration-status"
+      ]
+    },
+    {
       "name": "fresh-eyes-review",
       "source": "./plugins/fresh-eyes-review",
       "description": "Re-examine a change Claude just made, catch the bugs, missed callers, unverified assumptions and regressions that survived the first pass, and fix them.",
