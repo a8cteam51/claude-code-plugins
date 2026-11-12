@@ -65,6 +65,9 @@ Link styling in prose must be distinguishable without color alone.
 
 - Page title as the only `h1`. An optional lede paragraph if the homepage has
   a lede style.
+- Sample content that isn't one of the sitemap's pages. A sample About on
+  `page.html` duplicates `about.html`, and its facts (hours, credentials)
+  get invented to fill the prose system.
 - The full prose system above.
 - No post meta, no comments, no featured image unless the homepage's
   language calls for a page hero (if so, a restrained version, and say why in

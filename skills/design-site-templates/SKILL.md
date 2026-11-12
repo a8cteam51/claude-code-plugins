@@ -83,7 +83,10 @@ build must decide how the listing is produced.
 **Facts the pages need.** List every fact a visitor would act on that the
 pages will show (view-specs § Everywhere): hours, phones, addresses,
 prices, staff names and credentials, claims in FAQ answers. Any the brief
-doesn't give goes into the Step 0 question.
+doesn't give goes into the Step 0 question. The homepage and its header and
+footer count too: a credential after a name in a caption, or a ZIP code in
+the footer's address, came from the homepage in one run and wasn't in the
+brief.
 
 ## Step 1 — Read the system
 
@@ -148,6 +151,8 @@ and redo it when the rules arrive.
      (`font-weight: 340 480`) rather than one per weight.
    - Remove the CDN `<link>`s, `preconnect`s and `@import`s from
      `home.html`.
+   - If DESIGN.md names the CDN as the fonts' source, change it to the
+     local files, so the handoff doesn't say two things.
 
    A licensed family follows the licence gate in
    `../create-design/references/typography.md` § Embedding: one without a
@@ -303,7 +308,8 @@ The notes file has these sections, in order:
    finished on the built site. Items the chrome repeats on every page (the
    Book button's `#`, social `#` links, the newsletter form's `action`) may
    be listed once under "On every page", with each page's entry listing only
-   what differs on it.
+   what differs on it. A state file lists its own `#` links too, not "as
+   `single.html`": the package check reads each entry on its own.
 7. **Assumptions**: defaults used in Step 0 without confirmation.
 8. **Fixes to the homepage**: anything changed in `home.html` beyond the
    stylesheet move, asset paths and local fonts (real nav, a skip link),

@@ -78,6 +78,13 @@ Two rules the draft must carry, because the first test run got them wrong:
 - **Form states never change a field's size.** Hover, focus and error change
   colour or add an outline or inset ring; they never change border width,
   or the layout jumps. Write error and focus states that way.
+- **Error states only where the theme owns the messages.** WordPress core's
+  comment form has none to design: its fields are `required`, so the
+  browser stops an empty submit, and a rejected one ends on `wp_die`. A
+  plugin's form (a newsletter, a contact form) shows the plugin's messages,
+  which the theme styles. So the error criterion in Step 3 passes with that
+  stated, not with "the build must implement it"; a state the built site
+  can't show is one the design shouldn't ask for.
 
 ### Step 2 — Gap-fill against team standards
 
