@@ -467,6 +467,16 @@ packaged index, with `{{OPTIONS}}` hrefs pointing at the sibling
 Same template either way — the point is that a teammate opening this folder
 and a partner opening the published link see an identical page.
 
+With two to four directions, also write `directions/compare.html`, the side-by-
+side page: fill the template's companion (`design-options-compare.html`, see
+`MANIFEST.md`) as `/publish-design-options` step 9 describes, with each "Open"
+link pointing at the sibling `NN-<slug>.html`, and add it as the index's last
+item. Its captures go in `directions/compare/`, one desktop
+(`NN-<slug>-desktop.webp`, 1440 wide) and one mobile (`NN-<slug>-mobile.webp`,
+390 wide) full-page screenshot per direction, taken after the final polish
+pass so they show what shipped. Look at each one before writing the page.
+Recapture any direction `/iterate` changes, or the comparison goes stale.
+
 When the run produced options for side-by-side review, offer
 `/publish-design-options` — it packages them behind one private shareable link.
 Do not publish without being asked.

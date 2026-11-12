@@ -12,6 +12,21 @@ opening the project folder locally see the same page.
 |---|---|---|
 | `deck` | `design-options-index.html` | Full-bleed blue cover with the Automattic wordmark and an oversized tight-tracked headline, then a numbered table of contents in black on white, then a provenance footer. Matches the team's Figma presentation-deck cover. **Default — use this unless asked for another.** |
 
+### Companion pages
+
+A template can ship companion pages that share its look. The `deck` template
+has one:
+
+| page | file | description |
+|---|---|---|
+| side by side | `design-options-compare.html` | Blue cover band with the Automattic wordmark, then one column per option (two to four) showing its full Home page in a scrolling window, with a "Scroll together" toggle. Written as `compare.html` next to the index and linked as the index's last item. Not used in a site preview. |
+
+Its tokens are the index's (`{{PROJECT}}`, `{{TITLE_LOWER}}`, `{{NOUN}}`,
+`{{VERSION}}`, `{{DATE}}`, `{{COUNT}}`) plus `{{COLUMNS}}`, one `<section>` per
+option. `/publish-design-options` step 9 has the markup and the capture steps.
+A new template without a companion can leave the comparison out; the index
+link to it is just the last `{{OPTIONS}}` item.
+
 ## Choosing a template
 
 This is a PM-facing choice, not a silent default — present it every time,

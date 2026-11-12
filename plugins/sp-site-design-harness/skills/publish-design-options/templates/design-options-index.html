@@ -92,9 +92,13 @@
     font-size:clamp(.95rem,1.5vw,1.125rem);line-height:1.4;
     letter-spacing:-.01em;color:var(--quiet);
   }
+  /* The side-by-side page, when there is one, is the last item: a glyph in place of a numeral */
+  .toc li.toc__all{counter-increment:none}
+  .toc__all a::before{content:none}
+  .toc__glyph{display:block;width:clamp(2rem,6vw,4.75rem);height:auto;align-self:center;color:var(--ink)}
   @media (hover:hover){
     .toc a:hover{background:var(--blue);padding-inline:clamp(.75rem,2vw,1.5rem)}
-    .toc a:hover::before,.toc a:hover .toc__name{color:#fff}
+    .toc a:hover::before,.toc a:hover .toc__name,.toc a:hover .toc__glyph{color:#fff}
     .toc a:hover .toc__note{color:rgba(255,255,255,.9)}
   }
 

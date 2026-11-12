@@ -139,6 +139,9 @@ validation — is unchanged.**
   `skills/publish-design-options/templates/MANIFEST.md`) — required output of
   every run, same template `/publish-design-options` fills for the packaged
   version
+- `compare.html` + `compare/` — every direction side by side, filling the
+  template's companion page, with a desktop and mobile capture per direction;
+  linked as the index's last item
 
 **Exit condition:** N directions built, validated in-browser, presented to the
 user. The user (outside the harness, in conversation) picks one to carry
@@ -260,6 +263,8 @@ projects/<slug>/
     01-<slug>.tokens.md … NN-<slug>.tokens.md
     NN-<slug>.changes.md  /iterate change log, pre-handoff (created on first change)
     index.html
+    compare.html          every direction side by side (two to four directions)
+    compare/              a desktop and a mobile full-page capture per direction
   handoff/
     DESIGN.md
     decisions.md
@@ -328,6 +333,7 @@ sp-site-design-harness/
       SKILL.md
       templates/
         design-options-index.html  the `deck` template, shared by create-design and publish-design-options
+        design-options-compare.html  the `deck` template's side-by-side companion page
         MANIFEST.md                 template registry + token contract
     iterate/                    fast revisions: directions, site views, theme
       SKILL.md
