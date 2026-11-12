@@ -144,7 +144,8 @@ Sections, in this order.
 - ✓ `DESIGN.md`'s colours equal `--color-<slug>` in `site.css`, and every pairing under `pairs` reaches its contrast.
 - ✓ `decisions.md` has its content status, designer's notes and Standards sections.
 - ✓ Nothing visible on any page says "placeholder".
-- ✓ The type-rendering baseline, a reduced-motion rule and a focus style are in `site.css`.
+- ✓ The type-rendering baseline, a reduced-motion rule and a focus style are in `site.css`, and it never uses the `text-wrap` shorthand.
+- ✓ No palette slug is `border`, `text` or `link`.
 - ✓ Each page has one `h1`, no skipped heading level, its landmarks, a skip link, `lang`, a viewport that allows zoom, alt text and labelled fields.
 - `page-audit.js` returns no sideways scroll at any width, and every small target, small text and tight line it lists is fixed or recorded for the designer.
 - Everything that moves can be paused, by keyboard and by touch.

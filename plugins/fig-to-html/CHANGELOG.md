@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1] - 2026-11-12
+
+Two places where 0.3.0 disagreed with html-to-block-theme's own standards.
+
+### Fixed
+- **The type-rendering baseline writes `text-wrap-style: pretty`**, not the `text-wrap` shorthand, with `balance` on headings where a browser has no `pretty`. The shorthand also sets `text-wrap-mode` and undid an inherited `nowrap` in one html-to-block-theme build. `check-package.mjs` fails a stylesheet that uses the shorthand.
+- **No palette slug is `border`, `text` or `link`**: core already uses `has-border-color`, `has-text-color` and `has-link-color` as classes on blocks. `check-package.mjs` fails a `DESIGN.md` that has one.
+
 ## [0.3.0] - 2026-11-12
 
 The team's standards, taken from `sp-site-design-harness` and cut down to what applies to converting a designer's file. Tried on the homepage converted for 0.1.0: the new checks found a focus outline that could not be seen on the footer, two rows that moved with no way to stop them, five kinds of target under 44px, a missing type-rendering baseline and a name that wrapped at 320px, all now fixed; and an open-menu frame and a 404 in the file that had been reported as missing. An independent reviewer then found three more differences from the exports, also fixed. The page is now 1px from its desktop export in height and 4px from its mobile one, and has no sideways scroll at ten widths from 320 to 1920.
