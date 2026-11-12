@@ -80,7 +80,13 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6, p, blockquote, caption, figcaption, li {
-	text-wrap: pretty;
+	text-wrap-style: pretty;
+}
+
+@supports not (text-wrap-style: pretty) {
+	h1, h2, h3, h4, h5, h6 {
+		text-wrap-style: balance;
+	}
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -92,7 +98,9 @@ h1, h2, h3, h4, h5, h6, p, blockquote, caption, figcaption, li {
 
 `font-synthesis: none` means a weight or style with no font file renders in the nearest real one, not a faked bold or italic. So every weight and style the pages use needs its file in `assets/fonts/`.
 
-`text-wrap: pretty` moves a line break wherever a paragraph would end on one word, so a page built with it differs from the export by a word here and there, with no change in height. Keep the baseline and record the differences: the theme built from the package will set text the same way.
+Write `text-wrap-style`, never the `text-wrap` shorthand, here or anywhere in `site.css`. The shorthand also sets `text-wrap-mode`, so on a paragraph it undoes a `nowrap` the paragraph inherited: in one build a marquee's text wrapped because of it. This is the same rule html-to-block-theme's standards give the theme.
+
+`text-wrap-style: pretty` moves a line break wherever a paragraph would end on one word, so a page built with it differs from the export by a word here and there, with no change in height. Keep the baseline and record the differences: the theme built from the package will set text the same way. Where a browser has no `pretty`, headings are balanced instead, which can move a heading's break further.
 
 ## Design criteria: check what was drawn
 
@@ -175,6 +183,7 @@ Names for the palette follow the team's project template, so a theme built from 
 - Every other colour keeps a slug from its Figma name: the last part of the variable's path, lower case with hyphens (`Background Colors/yellow-2` → `yellow-2`), with the part before it added when two would collide.
 - Colours with the same value are one token. List every Figma variable that holds it.
 - A colour the pages use that has no variable gets a plain name for what it does (`button-gradient-shade`).
+- Never `border`, `text` or `link` as a slug. WordPress prints `.has-<slug>-color` for every palette entry, and `has-border-color`, `has-text-color` and `has-link-color` are classes core already puts on blocks, so a colour with one of those names would recolour them. Name such a colour by its role (`hairline`, `body`) and keep the Figma name beside it.
 
 In `site.css` a palette token is `--color-<slug>`. In `DESIGN.md` the colour key is the slug, with the Figma variable beside it, so the name can always be traced to the designer's file.
 

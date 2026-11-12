@@ -94,6 +94,7 @@ Checked on WordPress 7.1.3, on the front end and through the validator. The skil
 - **What prints nothing per viewport,** checked on 7.1.3:
   - **`position`.** `style["@tablet"].position` prints nothing. A band sticky above a width uses the block support, plus a rule that sets `position: static` on core's `.is-position-sticky` below that width, which keeps the editor's Position control truthful.
   - **A Buttons row's `flexWrap`** prints nothing, and a per-viewport `justifyContent` loses to core's `is-content-justification-<x>` class: a buttons row can only switch its orientation at a viewport state.
+  - **A group's `flexWrap` turned back on.** Per viewport a flex group's `flexWrap` prints only `nowrap`: `"nowrap"` under `@mobile` over a wrapping row prints `flex-wrap: nowrap` in the range query, while `"wrap"` over a `nowrap` row prints nothing, because `wrap` is the default. A row that has to wrap on phones only switches its `orientation` to vertical under `@mobile` instead, and a child whose width it then must cap sits in a constrained group with a per-viewport `contentSize`. Checked with `render-probe.sh` on 7.1.4, both directions, on a vertical and a horizontal group.
 - **Visibility.** `metadata.blockVisibility` hides a block: `false` hides it everywhere, `{"viewport":{"mobile":false}}` per viewport (`mobile`, `tablet`, `desktop`). Hidden everywhere, the block prints nothing at all, so it is not in the page for a crawler or a screen reader either; per viewport it prints and is hidden by a media query.
 - **States.** `style[":hover"]` (also `:focus`, `:focus-visible`, `:active`) works per instance on `core/button` and `core/navigation-link` only. It accepts a gradient (`style[":hover"].color.gradient` prints the background on the link). A `filter: brightness(n)` hover on a filled button is the same fill with each channel multiplied by n, so it is a hover colour and not a rule. Transforms and filters themselves have no support.
 - **The two breakpoints** come from `theme.json` `settings.viewport` (`theme-json-guide.md`). `@mobile` is `width <= mobile`. `@tablet` is the **range** between the two, so a value wanted everywhere below the tablet breakpoint is written in both states.
@@ -187,6 +188,8 @@ WordPress applies a default 24px flow gap wherever `blockGap` is unset; at page 
 - **Stacked columns:** `core/columns` stacked at ≤781px inherit a 24px vertical gap. Set `blockGap.top` explicitly — a literal px value when the design's mobile gap differs from the preset's mobile remap.
 - **Constrained-layout clamp:** a constrained parent clamps an oversized absolutely-positioned child (e.g. a decorative backdrop image wider than the content column) to content width, and the parent's `overflow: hidden` then crops it — give that child's figure `max-width: none`.
 - **Wide and full alignment:** in a constrained group with a custom `contentSize` and no `wideSize`, `alignwide` resolves to the content size. `alignfull` inside a padded constrained group bleeds through the padding with negative margins.
+- **A full-width cover loses the page gutter.** A `core/cover`'s layout classes, `has-global-padding` included, land on `.wp-block-cover__inner-container`, and core's nested-padding rule zeroes that container's padding because its parent is not `.alignfull.is-layout-flow`. An `alignfull` cover with a constrained layout therefore keeps only its own 1em padding: give it the root padding (`var(--wp--style--root--padding-left)` and `-right`) from its own style. Core also zeroes the margins of an `.alignfull` child inside such a nested container, so a cover style that pads with the root padding needs its own bleed rule for full-width children. Seen on 7.1.4.
+- **A cover clips what hangs past its edge.** `core/cover` sets `overflow: clip`, so a seam guard drawn 1px below its bottom (a source's `bottom: -1px`) is clipped, and the hairline comes back at fractional scales. `overflow-clip-margin: 1px` on the cover lets the guard paint. Seen at a 0.83 stage scale on 7.1.4.
 - **Flex children:** a child's `flexSize` sets `flex-basis`, not width. Nowrap content wider than it widens the child unless `min-width` is 0. An image block in a nowrap flex row shrinks, because its `<img>` has `max-width: 100%` (use `fixedNoShrink`, above).
 - **A control with a minimum width** inside a shrink-wrapped flex item is a floor for its whole column. Sweep every such view below that minimum plus its paddings, and decide explicitly whether to copy the overflow or fix it.
 - **Scroll-driven entrances:** `animation-timeline: view()` measures against the nearest scroll container, which any ancestor with `overflow` set is. An entrance animation inside such an ancestor never runs.
@@ -275,6 +278,10 @@ Checked on WordPress 7.1.3.
   - The appended blocks inherit the navigation's typography: set their font weight on them. Seen in the browser.
   - Their images count towards the lazy-loading threshold on every page (§ Images).
 - **A cover in the overlay drops its content under its background.** While any modal is open, and the overlay is one, core's cover stylesheet sets `z-index: auto` on the inner container of a cover whose background is not directly followed by that container. A cover with a featured image is one. A cover shown in the overlay needs `z-index: 1 !important` on `.wp-block-cover__inner-container`, from the navigation's stylesheet. Read in core's cover stylesheet on 7.1.4, and seen on product tiles in the overlay.
+- **A custom overlay is a template part with the `navigation-overlay` area** (WordPress 7.1), closed by `core/navigation-overlay-close`. Three things differ from the native overlay, all seen on 7.1.4:
+  - **Every `core/navigation-submenu` in it renders open and cannot be collapsed:** a submenu is open when the overlay is open (`isSubmenuOpen` is `overlayOpenedBy` or its own state, and the submenu's context inherits `overlayOpenedBy`). A designed disclosure in the overlay is a `core/details`, not a submenu.
+  - **The Site Editor rewrites every `core/navigation` inside the part on its first save:** it forces `submenuVisibility: "always"`, `showSubmenuIcon: false` and `orientation: "vertical"`. Write those attributes into the part yourself, so that a save changes nothing, and build a horizontal row of links there as a flex group of one-link navigations.
+  - **Blocks in the part inherit the parent navigation's typography** (weight, size, line height) through the responsive container: give each its own font weight, as for blocks appended to the native overlay (above).
 
 ## Query loops, archives and pagination
 
@@ -288,60 +295,11 @@ Checked on WordPress 7.1.3.
 
 ## Forms (Jetpack)
 
-When the design includes a contact or newsletter form and Jetpack is available, `jetpack/contact-form` is the mapping (a one-field form covers newsletter signups):
-
-- On local Studio sites the `contact-form` module works offline; the `subscriptions` module cannot activate without a WordPress.com connection — do not map newsletter signups to subscription blocks locally.
-- Field blocks are **composed** (Jetpack Forms 16.x): a self-closing `<!-- wp:jetpack/field-email /-->` fails validation. The required shape is the field's wrapping `<div>` + `wp:jetpack/label` + `wp:jetpack/input` inner blocks.
-- Any non-default `is-style-*` on `jetpack/contact-form` suppresses field labels (16.0.1) — apply `"className":"is-style-default is-style-<custom>"` together.
-- **A form in a template part takes the page's title as its accessible name** unless `formTitle` is set: set it to what the form is. Read in Jetpack Forms 16.3.1.
-- **The submit button is a `core/button`** with `"tagName":"button"` and `"type":"submit"`, inside the form, as the editor writes it. The form prints a button of its own, labelled "Submit", whenever its rendered content holds neither a `wp-block-button` nor a `wp-block-jetpack-button` class. A button block that validates and renders nothing is therefore replaced without a word: compare the button's label with the design's after the write. Read in Jetpack Forms 16.1.2.
+A contact or newsletter form maps to `jetpack/contact-form` when Jetpack is available. Its markup, the attributes the editor adds, its styling hooks and what the validator misses are in `jetpack-forms-guide.md`: read it before writing a form.
 
 ## WooCommerce
 
-Checked with WooCommerce 11.2.1 and WooCommerce Subscriptions 9.3.0 on WordPress 7.1.3.
-
-- **WooCommerce's checkout template does not use the theme's header or footer.** Its `page-checkout` template puts WooCommerce's own `checkout-header` part at the top (the site title and a cart link) and has no footer; its cart and order-confirmation templates use the theme's `header` and `footer`. A store theme carries `templates/page-checkout.html`, WooCommerce's checkout body between the theme's parts:
-
-  ```html
-  <!-- wp:template-part {"slug":"header","tagName":"header"} /-->
-
-  <!-- wp:woocommerce/page-content-wrapper {"page":"checkout"} -->
-  <!-- wp:group {"metadata":{"name":"Main"},"tagName":"main","layout":{"type":"constrained"}} -->
-  <main class="wp-block-group"><!-- wp:woocommerce/store-notices /-->
-
-  <!-- wp:post-content {"align":"wide"} /--></main>
-  <!-- /wp:group -->
-  <!-- /wp:woocommerce/page-content-wrapper -->
-
-  <!-- wp:template-part {"slug":"footer","tagName":"footer"} /-->
-  ```
-
-  A design that shows a cut-down checkout header gets a part of the theme's for it.
-- **Subscriptions' plan options need the classic add-to-cart form on a product with variations.** In `woocommerce/add-to-cart-with-options` Subscriptions prints no plan options for such a product: they travel in each variation's price HTML, which only the classic variation script swaps in. `woocommerce/add-to-cart-form` prints them. Its default layout puts a one-time/subscribe choice with neither radio checked above the plans; four filters give one list:
-  - `wcsatt_subscription_options_layout` returning `'flat'`;
-  - `wcsatt_single_product_options` to order the options;
-  - `wcsatt_get_default_subscription_scheme_id` to preselect a plan;
-  - `wcsatt_single_product_one_time_option_has_price` to show the one-time price.
-
-  For a simple product the block form prints the options; whether its add-to-cart submits the chosen plan was not checked.
-- **Make the variation area a polite live region.** WooCommerce prints it as `<div class="woocommerce-variation single_variation" role="alert">`, and Subscriptions draws its plan options inside it, so every change of variation announced the whole list of options. Make it `role="status"`, with a `render_block_woocommerce/add-to-cart-form` filter and `WP_HTML_Tag_Processor`. Found in an accessibility review; not checked with a screen reader.
-- **A script that reads the variation form can read the previous variation.** WooCommerce shows a chosen variation's options about 300ms after the choice, and Subscriptions then redraws the options and the button's label, so for that moment the form still holds the previous variation's price. Take the price from the `found_variation` event's data, and check that its `variation_id` still matches the form's. Seen in the browser, with quick changes of variation.
-- **A product collection lays itself out.** `woocommerce/product-collection` takes a grid layout of its own, with per-viewport `columnCount` and `blockGap`, so a card grid that changes its columns at a breakpoint needs no CSS.
-- **A product collection in a template or a part picks its products by a property, never by hand.** A hand-picked collection stores product ids, and ids differ per environment. One by a property editors control, such as Featured (`woocommerce/product-collection/featured`) ordered by `menu_order`, needs no ids. It shows the first N products that match. Rendered with 0, 1, 2, 3 and 4 Featured products:
-  - with fewer than N, a fixed grid shows empty columns;
-  - with none, the block prints nothing;
-  - with more than N, the product order decides which show.
-
-  Ties in the product order are broken by title, though the markup names only `menu_order`: the collection's query sorts by `menu_order ASC, post_title ASC`, or both descending (`ProductCollection\QueryBuilder`). Products that were never sorted all have `menu_order` 0, so among them the title order alone decides which N show. A review that reads only the markup reports the order as undefined; it is not. Read in WooCommerce 11.2.1's source.
-
-  Out-of-stock products stay in the collection unless `woocommerceStockStatus` leaves out `outofstock`. The Featured flags are data: each environment needs them set, and the pull request says which.
-- **One block without interactivity support in a product collection turns client-side navigation off for the whole page** (`ProductCollection\Controller::is_block_compatible()`): a block counts when its `block.json` has `supports.interactivity` set to `true`, or `clientNavigation: true`. Check each block type you put in a collection; filters and pagination then reload the page instead.
-- **Product images are lazy, the first row included.** `woocommerce/product-image` prints `loading="lazy"` unless `woocommerce_product_image_loading_attr` returns `eager` or `auto` (WooCommerce 10.6 and later). A shop's first screen is then lazy whatever WordPress's threshold says: report it (`standards.md`).
-- **A product image tile with text over it needs no custom block.** Inside `woocommerce/product-template`, a `core/cover` with `useFeaturedImage` renders each product's own featured image as its background.
-- **`woocommerce_price_trim_zeros` reaches only prices WooCommerce formats in PHP.** The block cart and checkout format prices in the browser, so a product card's "$90" is "$90.00" there.
-- **Sample products are looked up by post type.** `get_page_by_path( $slug, OBJECT, 'product' )` also searches attachments (core adds them when the post type is a string), and a product named like its image ("Lavender Oil", `lavender-oil.png`) resolves to the image. Pass `array( 'product' )`, or use `get_posts( array( 'post_type' => 'product', 'name' => $slug ) )`.
-- **The closed Mini-Cart drawer leaves Tab stops.** WooCommerce prints the drawer in `wp_footer`, hidden with `aria-hidden` only, so its buttons stay in the Tab order. Bind `inert` to its open state with `data-wp-bind--inert="!state.isOpen"` on `.wc-block-mini-cart__drawer`, and print `inert` on the closed drawer so that it holds before the page hydrates. Add both to the footer's output with `WP_HTML_Tag_Processor`. Checked with the keyboard.
-- **The Mini-Cart's store has no state on the cart and checkout pages.** There `MiniCart::render()` returns a hidden, disabled button, or nothing, before it loads the cart state. Markup that reads `woocommerce/mini-cart` elsewhere, such as a cart count in the header, needs a static fallback on those two pages (`custom-blocks-guide.md` § What a block can know). Read in WooCommerce 11.2.1's source.
+A store follows `woocommerce-guide.md`: the checkout template, stylesheet order and specificity, product, cart, checkout, account and Mini-Cart behaviour, and what the validator and the harness cannot see on store pages. Read it before writing any WooCommerce block, template or filter.
 
 ## File classification: template vs part vs page
 
@@ -369,7 +327,7 @@ Put this in the blueprint as a decision the user confirms, because two kinds of 
 - **Text in the chrome must be translatable**, or a part needs a theme-relative URL in its markup. That is what a PHP pattern is for: the part holds a `core/pattern` reference and the pattern file holds the markup. Say what it costs: that text is then edited in PHP, not in the Site Editor.
 - **The user wants starter patterns** offered in the inserter. Register those as well as, never in place of, the content. Copy each from a section the site already has, in a page as `export-pages.sh` writes it or in a template, so that it starts from markup the editor accepts. Then make it a theme file. A pattern file ships with the code, while a page's ids and URLs come from the database it was built in, so those come out, and its strings and its category become the theme's:
   - A media-library image (its `id`, the `wp-image-<id>` class, the attachment URL) becomes an image the theme ships, `esc_url( get_theme_file_uri( 'assets/images/<file>' ) )`, or is left empty, `<img alt=""/>`, for an editor to fill. An image block with no `src` prints nothing on the front end (`render_block_core_image()`) and shows its placeholder in the editor. A cover with inner blocks shows no media placeholder, because the editor draws one only for a cover with no inner blocks, no background and no featured image: its media is added from the block toolbar, and the pull request says so.
-  - A hand-picked product collection, or a query filtered by a term id, picks by a property or by order instead (§ WooCommerce).
+  - A hand-picked product collection, or a query filtered by a term id, picks by a property or by order instead (`woocommerce-guide.md` § Products).
   - A link into the site is `esc_url( home_url( '/<path>/' ) )`, not the page's root-relative `href`, which breaks on a site served from a subdirectory.
   - Every visible string goes through the theme's text domain: `esc_html_e()`, or `wp_kses_post( __() )` for a string with inline markup. The `Title` and `Description` headers stay plain: core translates them with the theme's `TextDomain` header.
   - The theme registers the category its patterns name. A `Categories:` header only names a category, and core registers none from it (`WP_Theme::get_block_patterns()`). The inserter lists a pattern under Uncategorized when none of its categories is registered. Register `<theme_slug>` on `init` with `register_block_pattern_category()` and a translated `label`. Write the slug as the literal the headers carry, not through a helper that returns `get_stylesheet()`, such as the project template's `<prefix>theme_get_slug()`: under a child theme that returns the child's slug, while the headers keep the theme's.

@@ -89,7 +89,7 @@
       "name": "html-to-block-theme",
       "source": "./plugins/html-to-block-theme",
       "description": "Convert a set of static HTML/CSS/JS design files (a handoff from sp-site-design-harness or fig-to-html, or Claude Design files), or the pages of an existing site, into a standards-driven WordPress block theme on a local Studio site, using theme.json, block styles, editable page content, and blocks from the A8C Special Projects blocks monorepo, refined to match in the browser via Claude in Chrome. Builds into A8C Special Projects project-template repositories under their conventions and CI gates. A second skill holds later changes to a theme it built to the same standards, and ends each with the standards audit.",
-      "version": "0.10.2",
+      "version": "0.11.0",
       "author": {
         "name": "Automattic Special Projects"
       },
@@ -127,7 +127,7 @@
       "name": "fig-to-html",
       "source": "./plugins/fig-to-html",
       "description": "Read a Figma .fig export directly, with no Figma app, account or API, and convert the frames you name into responsive vanilla HTML/CSS/JS. Extracts structure, text, tokens, images, vector artwork and the designer's annotations; checks the result against 1:1 PNG exports; writes the same handoff package as sp-site-design-harness (DESIGN.md, decisions.md, views.md and a source/ folder), which html-to-block-theme builds from.",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "author": {
         "name": "Automattic Special Projects"
       },

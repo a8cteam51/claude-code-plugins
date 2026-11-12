@@ -193,6 +193,7 @@ check(
 	colours.size ? [...colours].filter(([slug, value]) => (cssVar(`color-${slug}`) || '').toLowerCase() !== value.toLowerCase()).map(([slug, value]) => `${slug}: DESIGN.md ${value}, site.css ${cssVar(`color-${slug}`) || 'has no --color-' + slug}`) : ['DESIGN.md has no colours in its frontmatter'],
 	`${colours.size} colours`,
 );
+check('No palette slug collides with a class WordPress core uses', [...colours.keys()].filter((slug) => ['border', 'text', 'link'].includes(slug)).map((slug) => `${slug}: core puts has-${slug}-color on blocks, so name this colour by its role`));
 
 // Contrast of the pairings DESIGN.md lists: `- [ink, canvas]`, with `large` or `ui` as a third item for the 3:1 cases.
 const parse = (value) => {
@@ -235,8 +236,9 @@ else {
 
 check(
 	'The type-rendering baseline is in site.css',
-	['font-synthesis: none', 'text-rendering: geometricPrecision', '-webkit-font-smoothing: antialiased', '-moz-osx-font-smoothing: grayscale', 'text-wrap: pretty', 'scroll-behavior: smooth'].filter((rule) => !css.replace(/\s+/g, ' ').includes(rule)).map((rule) => `missing ${rule}`),
+	['font-synthesis: none', 'text-rendering: geometricPrecision', '-webkit-font-smoothing: antialiased', '-moz-osx-font-smoothing: grayscale', 'text-wrap-style: pretty', 'scroll-behavior: smooth'].filter((rule) => !css.replace(/\s+/g, ' ').includes(rule)).map((rule) => `missing ${rule}`),
 );
+check('site.css writes text-wrap-style, never the text-wrap shorthand', /(^|[\s;{])text-wrap\s*:/.test(css) ? ['the text-wrap shorthand also sets text-wrap-mode and undoes an inherited nowrap: write text-wrap-style'] : []);
 check('Motion stops for prefers-reduced-motion', /animation|transition/.test(css) && !/prefers-reduced-motion:\s*reduce/.test(css) ? ['site.css animates and has no prefers-reduced-motion rule'] : []);
 check('A focus indicator is styled', /:focus-visible/.test(css) ? [] : ['site.css has no :focus-visible rule']);
 

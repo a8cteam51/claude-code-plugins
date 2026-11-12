@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.11.0] - 2026-11-12
+
+From a run that built a block theme with a WooCommerce store, a Jetpack form and three blocks-collection plugins in a project-template repository, on WordPress 7.1.4 with WooCommerce 11.2.1, Jetpack 16.4, override-post-links 0.1.2, carousel 1.1.2 and marquee 0.1.9. The builders' findings are carried over as they reported them: each passage says what it was seen in, and passages marked **(7.1.4)** or **(16.4)** were not checked a second time. Checked again for this release: the per-viewport `flexWrap` behaviour, by render probe on 7.1.4; the harness changes, in Chrome against two test pages, side by side and in a strip. Not checked:
+- any of the WooCommerce or Jetpack passages on another version;
+- a submitted Jetpack form, a placed order, or shipping;
+- any of it in Safari or Firefox.
+
+### Added
+- **`woocommerce-guide.md`,** a reference of its own for stores, which the skill, the builder and `change-built-theme` load when a view holds a WooCommerce block. It takes `mapping-guide.md` § WooCommerce as it was and adds what the run found:
+  - WooCommerce's stylesheets print after the theme's on-demand block stylesheets, with selectors up to 0,4,1, so a tie loses; `woocommerce-smallscreen.css` is left off restyled pages through `woocommerce_enqueue_styles`; the classic clearfix pseudo-elements become flex items; `woocommerce-blocktheme.css` caps the post title at 1000px;
+  - the product button's label is two filters, its text and its `aria-label` (WCAG 2.5.3), and its stylesheet drops the theme's button border and line height; `woocommerce/single-product` holds core blocks;
+  - the cart's totals wrapper, its attributes stored only in the block comment, and its sticky Check Out button;
+  - the checkout's renamed billing step, its order summary drawn twice below a 920px container, its address form that is a flex container only from 400px, and its labels printed after the inputs;
+  - the account pages' hooks, the guest-order prompt on a reused orders table, the "Show password" button, a scoped `the_title` filter;
+  - `page-content-wrapper` opening a template with unsaved edits, the empty store-notices wrapper, the Mini-Cart drawer's spacing, and PHPStan's missing WooCommerce stubs.
+- **`jetpack-forms-guide.md`,** the same for Jetpack Forms. It takes `mapping-guide.md` § Forms (Jetpack) as it was and adds: the attributes Jetpack's editor adds when a form loads, without which the page opens with unsaved changes; the submit button sized from the first input's height through two custom properties; the confirmation printed outside the form's block; one custom property for the whole invalid state; no `autocomplete` on any field.
+- **A reused block's open issues are read before relying on it** (`custom-blocks-guide.md` § Reusing a monorepo block), and a known one is worked around from the project, guarded so that the workaround goes inert once the block is fixed. The run met bugs in three blocks-collection plugins; they are reported in the monorepo, not listed in the guide.
+
+### Changed
+- **The validator's count is checked against the markup** (`agents/section-builder.md` § Validate). Studio's validator does not register WooCommerce's blocks, Jetpack's form blocks or blocks-collection blocks: it skipped them with everything inside them and reported the rest as all valid, `0/0` for a cart page. Three builders found it on their own. A short count is now checked in the site's own block editor, and so is whether the page opens with unsaved changes.
+- **The comparison harness** (`scripts/viewport.html`, `visual-refinement.md`):
+  - `'a'` and `'b'` name the first pane of each page wherever an index is taken. In a strip, pane 1 is the original's second screenful, and `compareText()`, which paired panes 0 and 1, compared the original with itself there; it now pairs `a` with `b` in either layout;
+  - `texts()` and `compareText()` leave out screen-reader-only text, which shifted every later pair when the build carried it as an image's `alt`; `hidden: true` includes it;
+  - what it cannot show: pages that refuse to be framed from another origin (WooCommerce's account and checkout), and scripts that wait for `transitionend` once transitions are off. The Chrome DevTools route keeps files only inside its workspace roots.
+- **Navigation** (`mapping-guide.md` § core/navigation notes): a custom overlay part (WordPress 7.1) shows every submenu open, the Site Editor rewrites each navigation in it on the first save, and its blocks inherit the navigation's typography.
+- **Per-viewport `flexWrap`** (`mapping-guide.md` § Per-viewport values): it prints only `nowrap`. A builder reported that it prints nothing; a render probe on 7.1.4 showed that turning wrapping off prints and turning it back on does not.
+- **Covers** (`mapping-guide.md` § Layout traps): a full-width cover with a constrained layout loses the root gutter to core's nested-padding rule, and its `overflow: clip` cuts off a 1px seam guard.
+- **Defects of a design** (`SKILL.md` Phase 1, step 5; `live-site-guide.md`): `defects` was for live sites only. A generated design had a decoration wider than the page and an empty band where its columns stacked; the blueprint now asks the same question when a design shows defects of its own. What a `fig-to-html` package records in `decisions.md` § Standards as the designer's to change (0.10.2) is outside the question: it was built as drawn on purpose, and is reported, not fixed.
+- **Palette slugs** (`SKILL.md` Phase 1, step 5): the colour keys in `DESIGN.md` are the palette slugs for a package from either plugin, used as written. 0.10.2 said so for a `fig-to-html` package only. A key that is a reserved slug is renamed by its role.
+- **The browser tools** (`SKILL.md` § Tooling, `visual-refinement.md`): the harness has no substitute, where the guides said the extension had none while also describing the Chrome DevTools route.
+- **Briefs that change content** (`SKILL.md` Phase 3): checked against the handoff's images first. The run had a paragraph dropped as a duplicate that the design showed.
+- **Project repositories** (`project-template-guide.md`): a post type key is at most 20 characters, and a long PHP prefix leaves room for four letters; a directory a plugin writes into `wp-content` at runtime (`jetpack-waf/`) gets a `.gitignore` line; example features are deleted without staging the deletions, after a builder recreated a deleted file and the index contradicted the tree.
+
 ## [0.10.2] - 2026-11-12
 
 ### Changed

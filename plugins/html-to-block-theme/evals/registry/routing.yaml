@@ -19,3 +19,17 @@
     Our Studio site's wp-content is a git clone of a repository generated from a8cteam51/a8csp-project-template. An engineering lead approved keeping one bespoke block in this project instead of the blocks monorepo, and the design also needs custom CSS for a core/group block style. Where does each go in the repository, how is the block registered, and what else must change so the repository's CI passes?
   grade:
     - answer_matches: ['blocks-allowlist', '[Ff]eatures (mu-)?plugin', 'exclusion-approved', 'assets/sass/blocks/']
+
+- id: store-opens-woocommerce-guide
+  opens: woocommerce-guide.md
+  task: |
+    The design restyles WooCommerce's block checkout with the labels above the fields, and relabels the product cards' add-to-cart buttons "Purchase". The theme's block stylesheet rules for the checkout fields are not taking effect. Why not, how do you put the labels above the fields, and what exactly do you filter to relabel the button?
+  grade:
+    - answer_matches: ['specificit', 'order: ?-1', 'woocommerce_product_add_to_cart_description']
+
+- id: form-opens-jetpack-forms-guide
+  opens: jetpack-forms-guide.md
+  task: |
+    A contact page built with a Jetpack form opens in the block editor with unsaved changes every time, and its submit button lost its vertical padding after the form style set the inputs' vertical padding to 0. Why does each happen, and what do you change in the page source and in the form style?
+  grade:
+    - answer_matches: ['jetpackCRM|fieldVariant|salesforceData', '--jetpack--contact-form--input-height']

@@ -56,6 +56,7 @@ The template's CI, tests and wp-env configuration depend on these. Read them fro
 | Block namespace, pattern slugs | `<theme_slug>/<name>`. |
 | Pattern category | `<theme_slug>`, which the theme registers (`mapping-guide.md` § Where content lives). |
 | CSS classes, keyframes, custom properties, data attributes, handles | Prefixed `<theme_slug>-` (for example `<theme_slug>-block-core-image`). |
+| Post type keys | Prefixed `<prefix>` and **at most 20 characters**: WordPress refuses a longer key, and PHPCS fails it (`WordPress.NamingConventions.ValidPostTypeSlug.TooLong`). A long prefix leaves room for a few letters only (`examplesite_202_` leaves four), so agree a shorter key with the user before content exists: every post stores it. |
 
 ## The theme contract the template's tests encode
 
@@ -79,6 +80,7 @@ The template's CI, tests and wp-env configuration depend on these. Read them fro
 | Custom behaviour | The same as standalone (`custom-blocks-guide.md`): core features first, then blocks from the A8C Special Projects blocks monorepo, installed as plugins and never tracked here. Only an approved exclusion is scaffolded into the features plugin (`blocks/src/<slug>/`, `scaffold-custom-block.sh --exclusion-approved`), because page content stores it and a theme swap must not unregister it. Project-side filters that adapt a monorepo block go in `<features-dir>/includes/<concern>.php`. |
 | Site-config mu-plugins (redirects and the like) | `<features-dir>/includes/<feature>.php`. The features plugin has to be enabled for it to load (§ Template example features). |
 | Local-only shims (for example `jetpack_offline_mode`) | Untracked `mu-plugins/<file>.php`. Never commit them. |
+| A directory a plugin writes into `wp-content` at runtime (for example Jetpack's `jetpack-waf/`) | A `.gitignore` line in the repository's own section (`/jetpack-waf/`), added when the plugin is installed. Check `git status` after each install: the template's WordPress rules cover only `plugins/`, `mu-plugins/`, `themes/`, `languages/`, `uploads/` and `upgrade/`, past its tracked entries. |
 | `templates/`, `parts/`, fonts | Same paths. Parts and templates are plain block markup. |
 | `patterns/` | Only when the blueprint calls for patterns (`mapping-guide.md` § Where content lives). They keep `Slug: <theme_slug>/…` and `Categories: <theme_slug>`. |
 | A dynamic year or other theme-owned text | A block-bindings source in `includes/theme-dynamic-content.php`, following the template's own. |
@@ -110,6 +112,7 @@ The features-plugin block wiring below applies only to approved exclusions. Mono
 Detection lists what generation left behind. **The examples are there to show how a feature is built in this repository. Read them for that, then strip them:** every example the build does not itself use is removed as part of the run, along with the theme's example content. The conversion writes no tests (§ Checks): what a removal deletes under `tests/` is the example's own tests, as its recipe names them.
 
 - **`book-cpt`, `book-cover-reminder`, the Book Count block, `woocommerce-cart`: remove each one the build does not use,** during the foundation. A build uses an example only when it ships that very feature, such as the cart stylesheet on a site that runs WooCommerce and whose design styles the cart. A build that needs a post type or a block of its own writes it after the example's pattern, and still removes the example. Say in the report which were stripped, and which were kept and why.
+- **Delete the files, and leave the index alone.** Remove them with `rm`, not `git rm`: the run commits in Phase 4, and a builder may write a file of the same name before then. One did, and the index then recorded a deletion while the tree held the new file, so a commit of what was staged would have dropped the new file.
 - **Follow the recipe at the top of the example's own file, whole:** the files, the built files, the npm scripts, the allowlist lines, the tests it names and the prose it leaves false. Then run `npm run build`. A recipe applied in part fails the suite: one of the template's tests asserts that the example block's built files exist.
 - **One step of the `woocommerce-cart` recipe is wrong for a build.** It has the `build:theme:css` and `start:theme:css` scripts deleted, as building only the cart stylesheet. They build the block stylesheets from `assets/sass/blocks/` (§ Build pipeline): keep both.
 - **`<features-dir>/.disabled`:** generation creates it. Delete it once the features plugin carries real features, or the build's blocks and redirects never load. The plugin's examples are stripped by then: enabling it with one in place publishes the example post type on the site.
