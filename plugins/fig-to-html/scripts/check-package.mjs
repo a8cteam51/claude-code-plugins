@@ -30,6 +30,21 @@ const docs = Object.fromEntries(['DESIGN.md', 'decisions.md', 'views.md'].map((d
 // ---------------------------------------------------------------- files
 
 check('The three documents exist beside source/', Object.entries(docs).filter(([, text]) => text === null).map(([name]) => `${name} is missing`));
+// The log of annotations is written by `fig.mjs annotations` from the reader's output, which sits beside the package.
+const annotations = read(path.join(root, 'annotations.md'));
+const extractDir = path.join(root, '..', 'extract');
+const extracted = fs.existsSync(extractDir) ? fs.readdirSync(extractDir).map((folder) => read(path.join(extractDir, folder, 'notes.json'))).filter(Boolean).map((text) => JSON.parse(text)) : [];
+const sameText = (text) => text.replace(/[ \t]+$/gm, '');
+check(
+	'annotations.md logs every annotation the reader found',
+	annotations === null
+		? ['annotations.md is missing: run fig.mjs annotations <out>/extract --out <out>/handoff/annotations.md']
+		: extracted.flatMap((frame) => [
+			...(annotations.includes(`\`${frame.node.id}\``) ? [] : [`${frame.node.name} (${frame.node.id}) was extracted and is not listed`]),
+			...frame.annotations.filter((a) => a.text && !sameText(annotations).includes(sameText(a.text))).map((a) => `a note on ${frame.node.name} is not in it: "${a.text.split('\n')[0].slice(0, 50)}"`),
+		]).map((problem, i) => (i ? problem : `${problem}. Run fig.mjs annotations again`)),
+	extracted.length ? `${extracted.length} extracted frame${extracted.length === 1 ? '' : 's'}, ${extracted.reduce((sum, frame) => sum + frame.annotations.length, 0)} notes on them` : 'no extract/ folder beside the package to compare it with',
+);
 check('source/ holds at least one page', pages.length ? [] : ['no .html file in source/'], `${pages.length} page${pages.length === 1 ? '' : 's'}`);
 check('assets/site.css exists', css ? [] : ['source/assets/site.css is missing']);
 

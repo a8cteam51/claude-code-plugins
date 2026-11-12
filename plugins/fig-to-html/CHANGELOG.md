@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0] - 2026-11-12
+
+The designer's annotations, logged by the reader as a file of the package. Until now they reached the build only as the section of `decisions.md` the converting agent wrote, so the build had no record to check that section against. Tried on a file with twelve extracted frames: 17 annotations on 28 layers, every one found in the log by the package check. For the eleven of those frames also extracted with 0.3.1, `notes.md`, `layers.txt` and `node.json` came out the same.
+
+### Added
+- **`annotations.md`** in the handoff package: every annotation in the frames that were extracted, each once and exactly as written, with its category and pinned properties, and every frame and layer it is on; then note layers, component and style descriptions, and a table of the frames read with how many annotations each has. A frame with none is still listed, so "no notes" can be told from "not read".
+- **`fig.mjs annotations <folder of extracts> --out <file>`** writes it. It stops, naming the folders, when one was extracted before `notes.json` existed, so that the log is never silently short.
+- **`notes.json`** beside each extract's `notes.md`: the same notes as data, with the id of the layer each annotation is on.
+- `check-package.mjs` fails a package with no `annotations.md`, or one whose log lacks a frame or an annotation that is in `extract/`.
+
+### Changed
+- `decisions.md` § The designer's notes is unchanged: it still groups the notes by view and says what was done with each. The log is the complete record beside it.
+- html-to-block-theme 0.11.1 reads the log when a package has one.
+
 ## [0.3.1] - 2026-11-12
 
 Two places where 0.3.0 disagreed with html-to-block-theme's own standards.

@@ -28,12 +28,15 @@ The skill starts by asking for whatever the request leaves out of these:
 ├── handoff/
 │   ├── DESIGN.md      rules, tokens, reasoning
 │   ├── decisions.md   what the build must do that the HTML does not show, and the designer's notes
+│   ├── annotations.md every annotation in the frames read, as the reader found it
 │   ├── views.md       sitemap, each view, what it builds as, content status
 │   └── source/        home.html, <slug>.html …, assets/site.css, assets/fonts/, assets/…
 └── extract/           what was read from the file, per frame
 ```
 
 `handoff/` is the same package `sp-site-design-harness` writes with `/prep-handoff`, so `html-to-block-theme` (0.10.0 or later) builds from either: run it on `handoff/source/`. The file names, the single stylesheet, local fonts and the sections of the three documents are specified in `skills/fig-to-html/references/handoff-package.md`.
+
+`annotations.md` is this plugin's own addition to that package: every annotation the designer left on the frames that were read, each once and exactly as written, with the frames and layers it is on. The reader writes it, so nothing in it is paraphrased. `html-to-block-theme` 0.11.1 or later reads it beside `decisions.md`.
 
 Two things differ from a harness package. It can be partial: it holds the frames converted so far, `views.md` lists the pages still to come, and a later run adds to it. And nothing is designed that the file lacks: a gap is recorded as inferred or as an open item.
 
@@ -61,13 +64,17 @@ Two tools do the checking: `scripts/check-package.mjs <handoff folder>` reads th
 node scripts/fig.mjs pages   Client.fig
 node scripts/fig.mjs frames  Client.fig --page "Mockups"
 node scripts/fig.mjs find    Client.fig "homepage"
-node scripts/fig.mjs extract Client.fig --node 7311:4776 --out ./home-desktop
+node scripts/fig.mjs extract Client.fig --node 7311:4776 --out ./extract/home-desktop
+node scripts/fig.mjs annotations ./extract --out ./annotations.md
 ```
 
 `extract` writes `node.json` (the tree as drawn, with component instances
 expanded), `outline.txt`, `layers.txt` (the tree as text, one line per layer
-with its values), `tokens.json`, `notes.md`, `assets.json` and `assets/`. Only
-the images the node draws are copied out of the file.
+with its values), `tokens.json`, `notes.md`, `notes.json`, `assets.json` and
+`assets/`. Only the images the node draws are copied out of the file.
+
+`annotations` reads every extract in a folder and writes one log of the
+designer's annotations.
 
 ## Limits
 

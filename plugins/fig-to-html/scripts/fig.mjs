@@ -832,14 +832,14 @@ function createExtractor(fig, outDir) {
 		return out;
 	};
 
-	const annotate = (v, trail) => {
+	const annotate = (v, trail, id) => {
 		for (const a of v.annotations || []) {
 			const label = htmlToText(a.labelV2 || a.label);
 			const props = (a.properties || []).map((p) => titleCase(p.type)).join(', ');
 			if (!label && !props) continue;
 			const key = `${gid(a.categoryId) || ''}|${label}|${props}`;
 			if (!notes.annotations.has(key)) notes.annotations.set(key, { category: fig.categories.get(gid(a.categoryId)) || null, label, props, on: [] });
-			notes.annotations.get(key).on.push(trail);
+			notes.annotations.get(key).on.push({ path: trail, id });
 		}
 	};
 
@@ -847,7 +847,7 @@ function createExtractor(fig, outDir) {
 		const v = t.v;
 		counts.nodes++;
 		const here = [...trail, v.name];
-		annotate(v, here.slice(-4).join(' > '));
+		annotate(v, here.slice(-4).join(' > '), t.id);
 		const node = { id: t.id, name: v.name, type: v.type };
 		if (t.component) {
 			node.component = t.component;
@@ -1085,7 +1085,7 @@ function notesMarkdown(fig, root, notes, context) {
 	lines.push('## Annotations', '');
 	if (notes.annotations.size) {
 		for (const a of notes.annotations.values()) {
-			const where = [...new Set(a.on)];
+			const where = [...new Set(a.on.map((o) => o.path))];
 			const shown = where.slice(0, 3).map((w) => `\`${w}\``).join('; ');
 			const head = `${a.category ? `**${a.category}.** ` : ''}${a.label}${a.props ? `${a.label ? ' ' : ''}[pins: ${a.props}]` : ''}`;
 			lines.push(bullet(`${head}\nOn ${shown}${where.length > 3 ? ` and ${where.length - 3} more` : ''}${a.on.length > where.length ? ` (${a.on.length} places)` : ''}.`));
@@ -1117,6 +1117,87 @@ function notesMarkdown(fig, root, notes, context) {
 	}
 	lines.push('## Not in the file', '', 'Figma comment threads are kept on Figma\'s servers and are not part of a `.fig` export, so none appear here. Ask the designer for any that matter.', '');
 	return lines.join('\n');
+}
+
+// The same notes as data. `annotations` reads these to write the package's log.
+function notesData(header, notes, context) {
+	return {
+		...header,
+		annotations: [...notes.annotations.values()].map((a) => ({ category: a.category, text: a.label, pins: a.props || null, on: a.on })),
+		noteLayers: notes.flagged,
+		descriptions: [...notes.descriptions.values()],
+		presented: context.presented,
+		beside: context.loose,
+	};
+}
+
+// One document from every extract's notes: each annotation once, in the designer's words, with every
+// frame and layer it is on.
+function annotationsMarkdown(frames) {
+	const first = frames[0];
+	const file = first.source?.file || 'the Figma file';
+	const size = (n) => `${Math.round(n.width)} × ${Math.round(n.height)}`;
+	// A fence longer than any run of backticks in the text, so the text is shown exactly as written.
+	const fenced = (text) => {
+		const fence = '`'.repeat(Math.max(3, ...[...text.matchAll(/`+/g)].map((m) => m[0].length + 1)));
+		return [`${fence}text`, text, fence];
+	};
+
+	const merged = new Map();
+	for (const frame of frames) {
+		for (const a of frame.annotations || []) {
+			// The same note on two layers can differ by a space at the end of a line.
+			const key = `${a.category || ''}|${a.text.replace(/[ \t]+$/gm, '')}|${a.pins || ''}`;
+			if (!merged.has(key)) merged.set(key, { ...a, places: new Map() });
+			const places = merged.get(key).places;
+			if (!places.has(frame)) places.set(frame, new Map());
+			for (const o of a.on) places.get(frame).set(o.id || o.path, o.path);
+		}
+	}
+	const layerCount = [...merged.values()].reduce((sum, a) => sum + [...a.places.values()].reduce((n, layers) => n + layers.size, 0), 0);
+
+	const lines = [`# Annotations: ${file.replace(/\.fig$/i, '')}`, ''];
+	lines.push(`Every annotation the Figma reader found in the frames extracted from \`${file}\`${first.source?.exported ? ` (exported ${first.source.exported.slice(0, 10)})` : ''}, in the designer's words, with each frame and layer it is on. Written by \`fig.mjs annotations\`, not by hand: run it again after extracting another frame.`, '');
+	lines.push('It covers the frames listed under Frames read and no others. Figma\'s comment threads are kept on Figma\'s servers and are not part of a `.fig` export, so none appear here.', '');
+
+	lines.push('## Annotations', '');
+	if (merged.size) {
+		lines.push(`${merged.size} annotation${merged.size === 1 ? '' : 's'}, on ${layerCount} layer${layerCount === 1 ? '' : 's'}, in ${frames.filter((f) => f.annotations?.length).length} of ${frames.length} frames. One that is on several frames or layers is listed once.`, '');
+		let i = 0;
+		for (const a of merged.values()) {
+			const title = (a.text || `Pinned properties: ${a.pins}`).split('\n')[0].replace(/\s+/g, ' ').trim();
+			lines.push(`### ${++i}. ${title.length > 80 ? `${title.slice(0, 80).trimEnd()}…` : title}`, '');
+			if (a.text) lines.push(...fenced(a.text), '');
+			const facts = [a.category ? `Category: ${a.category}.` : '', a.pins ? `Pinned properties: ${a.pins}.` : ''].filter(Boolean);
+			if (facts.length) lines.push(facts.join(' '), '');
+			lines.push('On:', '');
+			for (const [frame, layers] of a.places) {
+				const paths = [...new Set(layers.values())];
+				const shown = paths.slice(0, 3).map((p) => `\`${p}\``).join('; ');
+				lines.push(`- "${frame.node.name}" (\`${frame.node.id}\`, ${size(frame.node)}): ${shown}${paths.length > 3 ? `; and ${paths.length - 3} more` : ''}${layers.size > paths.length ? ` (${layers.size} layers)` : ''}`);
+			}
+			lines.push('');
+		}
+	} else lines.push('None in the frames read.', '');
+
+	const noteLayers = frames.flatMap((f) => (f.noteLayers || []).map((n) => ({ ...n, frame: f })));
+	if (noteLayers.length) {
+		lines.push('## Note layers inside the design', '', 'Layers the designer used as notes. They are not content and are not built.', '');
+		for (const n of noteLayers) lines.push(`"${n.frame.node.name}" (\`${n.frame.node.id}\`), \`${n.on}\`:`, '', ...fenced(n.text || '(no text)'), '');
+	}
+
+	const descriptions = new Map();
+	for (const f of frames) for (const d of f.descriptions || []) descriptions.set(`${d.kind}|${d.name}|${d.text}`, d);
+	if (descriptions.size) {
+		lines.push('## Component and style descriptions', '', 'What the designer wrote in a component\'s or a style\'s description field.', '');
+		for (const d of descriptions.values()) lines.push(`${d.kind} \`${d.name}\`:`, '', ...fenced(d.text), '');
+	}
+
+	lines.push('## Frames read', '', '| Folder in `extract/` | Frame | Node | Page | Size | Annotations |', '|---|---|---|---|---|---|');
+	const cell = (text) => String(text ?? '').replace(/\|/g, '\\|');
+	for (const f of frames) lines.push(`| \`${cell(f.folder)}\` | ${cell(f.node.name)} | \`${f.node.id}\` | ${cell(f.node.page)} | ${size(f.node)} | ${f.annotations?.length || 0} |`);
+	lines.push('', 'Not logged here: text the designer placed on the page around a frame, or on a slide that presents it. That is in each frame\'s `notes.md` in `extract/`.', '');
+	return { markdown: lines.join('\n'), annotations: merged.size, layers: layerCount };
 }
 
 // ---------------------------------------------------------------- commands
@@ -1246,7 +1327,9 @@ function cmdExtract(fig, opts) {
 		colors: list(tokens.colors), numbers: list(tokens.numbers), strings: list(tokens.strings),
 		textStyles: list(tokens.textStyles), fillStyles: list(tokens.fillStyles), effectStyles: list(tokens.effectStyles),
 	});
-	write('notes.md', notesMarkdown(fig, root, extractor.notes, contextNotes(fig, root)));
+	const context = contextNotes(fig, root);
+	write('notes.md', notesMarkdown(fig, root, extractor.notes, context));
+	write('notes.json', notesData(header, extractor.notes, context));
 	write('assets.json', {
 		note: 'Every file in assets/, with where it is drawn. Only what this node draws was copied; the rest of the Figma file\'s images were left behind.',
 		assets: renamed.manifest.sort((a, b) => a.file.localeCompare(b.file)),
@@ -1272,16 +1355,42 @@ function cmdExtract(fig, opts) {
 	console.log(JSON.stringify(summary, null, 1));
 }
 
+// Writes the package's log of annotations from every folder `extract` has written under one directory.
+function cmdAnnotations(dir, opts) {
+	if (!opts.out) throw new Error('annotations needs --out <file>, normally <out>/handoff/annotations.md.');
+	const extractDir = path.resolve(dir);
+	if (!fs.existsSync(extractDir) || !fs.statSync(extractDir).isDirectory()) throw new Error(`"${dir}" is not a folder. Pass the folder that holds one folder per extracted frame.`);
+	const folders = fs.readdirSync(extractDir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort((a, b) => a.localeCompare(b));
+	const frames = [];
+	const older = [];
+	for (const folder of folders) {
+		const file = path.join(extractDir, folder, 'notes.json');
+		if (fs.existsSync(file)) frames.push({ folder, ...JSON.parse(fs.readFileSync(file, 'utf8')) });
+		else if (fs.existsSync(path.join(extractDir, folder, 'notes.md'))) older.push(folder);
+	}
+	if (older.length) throw new Error(`These folders were written by an earlier version of this reader and have no notes.json, so their annotations would be left out: ${older.join(', ')}. Extract them again, then run this again.`);
+	if (!frames.length) throw new Error(`No extracted frame in "${dir}": no folder in it holds a notes.json.`);
+	const { markdown, annotations, layers } = annotationsMarkdown(frames);
+	const out = path.resolve(opts.out);
+	fs.mkdirSync(path.dirname(out), { recursive: true });
+	fs.writeFileSync(out, markdown);
+	console.log(JSON.stringify({ out, frames: frames.length, annotations, layers }, null, 1));
+}
+
 const HELP = `Read a Figma .fig export (or a folder it was unzipped into).
 
   fig.mjs pages   <fig>
   fig.mjs frames  <fig> [--page <part of a page name>]
   fig.mjs find    <fig> <part of a frame or component name>
   fig.mjs extract <fig> --node <id | exact name> --out <folder> [--split always|never]
+  fig.mjs annotations <folder of extracts> --out <file>
 
 extract writes node.json (the tree as drawn, instances expanded), outline.txt,
 layers.txt (the tree as text, a line per layer with its values), tokens.json,
-notes.md and assets/ (images, and vector artwork as SVG).`;
+notes.md, notes.json and assets/ (images, and vector artwork as SVG).
+
+annotations reads every extract in a folder and writes one log of the designer's
+annotations: each once, as written, with every frame and layer it is on.`;
 
 function main(argv) {
 	const [command, input, ...rest] = argv;
@@ -1294,6 +1403,7 @@ function main(argv) {
 		if (rest[i].startsWith('--')) opts[rest[i].slice(2)] = rest[++i];
 		else opts._.push(rest[i]);
 	}
+	if (command === 'annotations') return cmdAnnotations(input, opts);
 	const fig = load(input);
 	if (command === 'pages') cmdPages(fig);
 	else if (command === 'frames') cmdFrames(fig, opts);
