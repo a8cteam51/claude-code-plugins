@@ -177,7 +177,7 @@ Convert a WPBakery (Visual Composer) page on a local WordPress [Studio](https://
 
 ## html-to-block-theme
 
-Convert a set of static **Claude Design** HTML/CSS/JS files into a standards-driven **WordPress block theme** on a local [Studio](https://developer.wordpress.com/studio/) site. The agent maps the design to WordPress primitives — templates, template parts, block patterns, `theme.json`, block styles, and page content — rather than reproducing it with hand-written CSS. It plans a blueprint first, then builds section by section and refines against the originals in a real browser.
+Convert a set of static HTML/CSS/JS design files into a standards-driven **WordPress block theme** on a local [Studio](https://developer.wordpress.com/studio/) site. The files can be a handoff package from `sp-site-design-harness` or `fig-to-html`, or files exported from **Claude Design**. The agent maps the design to WordPress primitives — templates, template parts, block patterns, `theme.json`, block styles, and page content — rather than reproducing it with hand-written CSS. It plans a blueprint first, then builds section by section and refines against the originals in a real browser.
 
 **What's included:**
 
@@ -263,7 +263,7 @@ Convert frames of a Figma `.fig` export into responsive vanilla HTML, CSS and Ja
 
 **What it does:**
 
-Reads the frames you name: structure, text, tokens, the images each frame draws, vector artwork as SVG, and the designer's annotations. Writes one HTML file per page with the desktop frame as the source of truth and the mobile frame as the narrow end, checks each page against the 1:1 PNG exports you supply, and writes `designer-notes.md` for the WordPress builder. The output is a design directory for `html-to-block-theme`.
+Reads the frames you name: structure, text, tokens, the images each frame draws, vector artwork as SVG, and the designer's annotations. Writes one HTML file per page with the desktop frame as the source of truth and the mobile frame as the narrow end, checks each page against the 1:1 PNG exports you supply, and writes the same handoff package as `sp-site-design-harness`: `DESIGN.md`, `decisions.md` (with the designer's notes) and `views.md`, beside a `source/` folder. `html-to-block-theme` builds from it.
 
 **Requirements:** Node.js 22.15+. `unzip` when reading a `.fig` directly. A folder of 1:1 PNG exports of the frames to convert.
 

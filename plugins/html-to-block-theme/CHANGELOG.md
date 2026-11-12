@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.10.1] - 2026-11-12
+
+So that a run can take a handoff package from `fig-to-html` as well as one from `sp-site-design-harness`. The two are laid out alike, so nothing in how a run works changes. `group-designs.py` was run on a `fig-to-html` package of one page. No run has built a theme from one.
+
+### Added
+- **Where the design directory comes from** (Inputs): Claude Design files, the `source/` folder of a handoff package from either plugin, or the mirror of a live site.
+- **Which package it is** (Phase 1, step 5). A `fig-to-html` package can hold only some of a site's pages. A Sitemap row with no file is not a target and no page is made for it: it goes into the content status and the summary. The designer's quoted notes and the Interactions table go into the behaviour table, the listed differences from the designer's exports are settled, and the `extract/` folder beside the package is not read.
+
+### Changed
+- The descriptions no longer say the source is Claude Design files only.
+
 ## [0.10.0] - 2026-11-02
 
 So that a run can take a full-site handoff from `sp-site-design-harness` (a8cteam51/claude-code-plugins#19, #13). The Reading-settings and archive facts were checked over HTTP on WordPress 7.1.3, with throwaway themes and pages on the eval site. No run has built a handoff with these rules yet, and no eval probe covers them.

@@ -1,7 +1,7 @@
 {
   "name": "fig-to-html",
-  "version": "0.1.0",
-  "description": "Read a Figma .fig export directly, with no Figma app, account or API, and convert the frames you name into responsive vanilla HTML/CSS/JS. Extracts structure, text, tokens, images, vector artwork and the designer's annotations; checks the result against 1:1 PNG exports; writes a design directory html-to-block-theme can build from, with the designer's notes in a file for the WordPress builder.",
+  "version": "0.2.0",
+  "description": "Read a Figma .fig export directly, with no Figma app, account or API, and convert the frames you name into responsive vanilla HTML/CSS/JS. Extracts structure, text, tokens, images, vector artwork and the designer's annotations; checks the result against 1:1 PNG exports; writes the same handoff package as sp-site-design-harness (DESIGN.md, decisions.md, views.md and a source/ folder), which html-to-block-theme builds from.",
   "author": {
     "name": "Automattic Special Projects"
   },

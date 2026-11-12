@@ -25,12 +25,17 @@ The skill starts by asking for whatever the request leaves out of these:
 
 ```text
 <out>/
-├── source/                 *.html, css, js, assets/
-├── designer-notes.md       the designer's annotations and notes, for the WordPress builder
-└── extract/                what was read from the file, per frame
+├── handoff/
+│   ├── DESIGN.md      rules, tokens, reasoning
+│   ├── decisions.md   what the build must do that the HTML does not show, and the designer's notes
+│   ├── views.md       sitemap, each view, what it builds as, content status
+│   └── source/        home.html, <slug>.html …, assets/site.css, assets/fonts/, assets/…
+└── extract/           what was read from the file, per frame
 ```
 
-`source/` is a design directory for the `html-to-block-theme` plugin.
+`handoff/` is the same package `sp-site-design-harness` writes with `/prep-handoff`, so `html-to-block-theme` (0.10.0 or later) builds from either: run it on `handoff/source/`. The file names, the single stylesheet, local fonts and the sections of the three documents are specified in `skills/fig-to-html/references/handoff-package.md`.
+
+Two things differ from a harness package. It can be partial: it holds the frames converted so far, `views.md` lists the pages still to come, and a later run adds to it. And nothing is designed that the file lacks: a gap is recorded as inferred or as an open item.
 
 The desktop frame is treated as the source of truth and the mobile frame, when
 the design has one, as the narrow end. The widths between are decided by the
@@ -61,7 +66,8 @@ the images the node draws are copied out of the file.
   default content. The check against the PNG export is what catches that.
 - An image fill with a custom crop is reported as cropped, without the crop.
 - Figma comment threads are stored on Figma's servers, not in the file.
-- Fonts are named in the file but not included.
+- Fonts are named in the file but not included. A freely licensed family is
+  fetched and stored in the package; any other needs you to confirm its licence.
 - Radial, angular and diamond gradients inside SVG artwork fall back to their
   first colour. Masks are reported on the layer, not applied.
 

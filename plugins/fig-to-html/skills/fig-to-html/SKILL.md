@@ -1,12 +1,14 @@
 ---
 name: fig-to-html
-description: This skill should be used when the user asks to "convert this .fig to HTML", "build HTML from this Figma file", "turn these Figma frames into a page", "read this .fig", "make the design directory from the Figma export", or otherwise supplies a Figma `.fig` export (or a folder it was unzipped into) and wants one or more of its frames as responsive vanilla HTML/CSS/JS. Works from the file alone, with no Figma app, account or API, and takes 1:1 PNG exports of the frames as the picture to match. Also use it to read a `.fig` for its designer notes, tokens or assets without converting anything. The result is a design directory that html-to-block-theme can build from.
+description: This skill should be used when the user asks to "convert this .fig to HTML", "build HTML from this Figma file", "turn these Figma frames into a page", "read this .fig", "make the handoff from the Figma export", or otherwise supplies a Figma `.fig` export (or a folder it was unzipped into) and wants one or more of its frames as responsive vanilla HTML/CSS/JS. Works from the file alone, with no Figma app, account or API, and takes 1:1 PNG exports of the frames as the picture to match. Also use it to read a `.fig` for its designer notes, tokens or assets without converting anything. The result is a handoff package (DESIGN.md, decisions.md, views.md and a source/ folder), the same one sp-site-design-harness writes, which html-to-block-theme builds from.
 argument-hint: "<file.fig | unzipped folder> [frame names] [--images <folder of 1:1 PNG exports>] [--out <dir>]"
 ---
 
 # Convert frames of a Figma `.fig` export to HTML
 
 Read a Figma `.fig` export directly, and write the frames the user names as responsive vanilla HTML, CSS and JavaScript. The file supplies structure, text, tokens, images, vectors and the designer's notes. It holds no picture of a frame, so the user supplies 1:1 PNG exports, and those are what the result is checked against.
+
+What comes out is a handoff package: the pages in `source/`, and beside them `DESIGN.md`, `decisions.md` and `views.md`. It is the same package `sp-site-design-harness` writes, so html-to-block-theme builds from either. `references/handoff-package.md` is the specification of every file in it: read it before step 6.
 
 The bundled reader, `${CLAUDE_PLUGIN_ROOT}/scripts/fig.mjs`, does all the reading. Do not parse the file by hand.
 
@@ -16,7 +18,7 @@ The bundled reader, `${CLAUDE_PLUGIN_ROOT}/scripts/fig.mjs`, does all the readin
 - **Which frames to convert**: page or frame names, or a part of a page.
 - **1:1 PNG exports** of those frames (required to convert, not to read): a folder the user fills by exporting each frame from Figma at 1x. A desktop export for every page; a mobile export wherever the design has a mobile frame.
 - **What the file does not hold**: Figma comments, a brief, behaviour agreed with the designer or client.
-- **Output directory**: default `./fig-to-html/<file name>/`.
+- **Output directory**: default `./fig-to-html/<file name>/`. The package goes in its `handoff/` folder and the reader output in `extract/`. When `handoff/` already holds a package from an earlier run, this run adds to it.
 
 Whatever the request leaves out of these is asked for, not guessed: steps 1 and 2.
 
@@ -69,7 +71,7 @@ Start here, before reading the file. Take each answer below from the request whe
 2. **What is to be converted?** Whole pages or one part of a page (a header, a hero, a card), and their names as the user knows them. Everything on the file's hand-off page is a fine answer, and so is "I don't know what it's called": step 2 finds the hand-off page and lists what it holds.
 3. **Where are the 1:1 PNG exports?** A folder path. If nothing is exported yet, say that step 2 will name the exact frames to export and their sizes, and carry on to it.
 4. **What has the designer or client said that is not in the file?** A `.fig` holds annotations but not Figma's comment threads, and nothing agreed in a call or a brief. Ask the user to paste it or point at a file. "Nothing" is a fine answer.
-5. **What is the HTML for?** A block theme built with html-to-block-theme, or pages used as they are. This settles where the output goes and what the report hands over.
+5. **Is there a package from an earlier run to add to?** Its folder, when there is one. Look in the default output directory before asking.
 
 ### 2. Find the frames and confirm them
 
@@ -79,7 +81,7 @@ Run `frames` on the hand-off page and sort what it holds:
 
 - **Designs**: frames or components as tall as a page, at a desktop width (about 1280 to 1920) or a mobile one (about 360 to 430). A design drawn at two widths is two nodes with the same or nearly the same name. A design is sometimes a component shown inside another frame: `frames` prints `shows component <id>` under that frame, and the component is what to extract.
 - **Style guides**: frames named for what they document, such as Style Guide, Typography, Color, Spacing, Components. These are not pages to build. They are the reference the pages are inferred from (step 4), and need no PNG export.
-- **Theme assets**: a site icon, a social share image, a theme thumbnail. Not built here; named in `designer-notes.md` for the builder.
+- **Theme assets**: a site icon, a social share image, a theme thumbnail. Not built here; named in `views.md` for the builder.
 - **Components**: buttons, links, cards and headers drawn once with their variants, often inside a dashed purple outline. The designs use them, and the variants hold what a page frame cannot show: hover and pressed states, the mobile form. Extract the ones the designs use (step 4). A layer's `component` in the design names its component; `find` locates it.
 - **Everything else**: presentation slides, covers, loose groups. Leave it out.
 
@@ -94,7 +96,7 @@ Then put the second round of questions, together, and with `AskUserQuestion` whe
 3. **For a page with no mobile frame:** design the narrow layout from the desktop frame, or leave that page desktop only?
 4. **Exports still to make.** For every confirmed node with no PNG yet, give its name, page and exact pixel size, and ask the user to export it at 1x into the folder and say when it is there.
 
-End the round by stating the plan in a few lines: the nodes, the export each is checked against, the style guides that will be read, and the output directory. Go on without asking for a go-ahead unless one of the questions above is still open.
+End the round by stating the plan in a few lines: the nodes, the file each becomes (`references/handoff-package.md` § File names), the export each is checked against, the style guides that will be read, and the output directory. Go on without asking for a go-ahead unless one of the questions above is still open.
 
 ### 3. Match the PNG exports
 
@@ -117,31 +119,33 @@ Check `instancesUnresolved` and `missingImages` in the summary `extract` prints.
 `assets/` holds only what the node draws, but a designer's file still carries filler. Look at every image in `assets.json` before using it:
 
 - A flat colour, a plain gradient or a simple texture is CSS, not an image.
-- A screenshot or stock picture standing in for content the client will supply is a placeholder: use it, and list it as a placeholder in `designer-notes.md`.
+- A screenshot or stock picture standing in for content the client will supply is a placeholder: use it, and list it in the content status (`views.md`). Never label it on the page.
 - Photographs, illustrations, logos and icons are content. Use the SVG for artwork that has one.
 - An image far larger than it is drawn (compare `natural` with `drawn`) should be resized or flagged, not shipped as is.
 
-Copy what is used into `<out>/source/assets/`. Leave the rest in `extract/`.
+Copy what is used into `<out>/handoff/source/assets/`, under names that say what each is (`logo-salesforce.svg`, not `container-365f10f1.svg`): look at an image before naming it or writing its alt text, because layer names lie. Leave the rest in `extract/`.
 
-### 6. Write the page
+### 6. Write the pages
 
-One HTML file per page in `<out>/source/`, with shared CSS and JavaScript files beside it. Vanilla only: no framework, no build step, no CDN script.
+Read `references/handoff-package.md` § `source/` first. It fixes the file names, the one stylesheet and one script, local fonts, the shared header and footer, and how links and placeholders are written. In short: one HTML file per view in `<out>/handoff/source/`, named for what it builds as (`home.html` for the homepage, `<slug>.html` for a page, `<view>--<state>.html` for a second state), all linking `assets/site.css`. Vanilla only: no framework, no build step, nothing loaded from another host.
+
+When `<out>/handoff/source/` already holds pages, read its `site.css`, header and footer before writing: the new page uses them, and adds its own rules at the end of `site.css`.
 
 - **The desktop frame is the source of truth.** Reproduce it exactly at its own width.
 - **The mobile frame, when there is one, is the narrow end.** Reproduce it at its width. Between the two, and above the desktop width, make the decisions a careful front-end developer would: where columns stack, how type and spacing step down, what a row of cards does when it runs out of room. Variables and text styles with a desktop and a mobile mode in `tokens.json` give the two ends of a value, and the two frames give the rest: where a size, a gap, a padding or a radius differs between the frames, run it evenly from one to the other across the widths between (`clamp()`), and change layout at chosen widths.
 - **With no mobile frame**, design the narrow layout from the desktop frame's structure, and say in the report that it was inferred.
-- **The style guide settles what the frames leave open**: the widest the content gets, how type and spacing step down, hover, focus and pressed states, anything drawn at one width only. Where a style guide and a frame disagree, build the frame as drawn and record the disagreement in `designer-notes.md`.
+- **The style guide settles what the frames leave open**: the widest the content gets, how type and spacing step down, hover, focus and pressed states, anything drawn at one width only. Where a style guide and a frame disagree, build the frame as drawn and record the disagreement in `decisions.md`.
 - Shared layers are shared code: a header, footer, button or card that is one component in the file is one set of classes.
 - Tokens become CSS custom properties on `:root`, named after the Figma variable. A value with no variable stays a literal.
 - Use semantic HTML. The file gives a layer's look, not its role: decide headings, navigation, lists, buttons and links from what the layer is for.
-- Text is the file's text, character for character. A line broken by hand in both frames is a `<br>`. One broken in a single frame is usually a fix for that width: get the same break from a width or from balanced wrapping where that is cheap, leave it out where it is not, and say which in `designer-notes.md`.
+- Text is the file's text, character for character. A line broken by hand in both frames is a `<br>`. One broken in a single frame is usually a fix for that width: get the same break from a width or from balanced wrapping where that is cheap, leave it out where it is not, and say which in `decisions.md`.
 - A layer with a `component` that has a hover variant gets that hover. A link or button with no hover drawn gets a plain one, listed as inferred.
-- Fonts are named in the file but not included. Load a font that is freely available; for one that is not, use the closest available fallback and list it in the report.
-- **Use the designer's notes.** An annotation that describes behaviour (a marquee that loops, a slider that drags, a hover effect) is part of the brief: build it, in plain JavaScript where it needs script. An annotation that cannot be acted on from the file alone goes into `designer-notes.md` as an open item.
+- Fonts are named in the file but not included. Put the font files in `assets/fonts/` with their licences and load them from there (`references/handoff-package.md` § Local fonts). A family that is not freely licensed needs the user's confirmation before it goes in.
+- **Use the designer's notes.** An annotation that describes behaviour (a marquee that loops, a slider that drags, a hover effect) is part of the brief: build it, in plain JavaScript where it needs script. An annotation that cannot be acted on from the file alone goes into `decisions.md` as a deferral.
 
 ### 7. Check against the exports
 
-Serve `<out>/source/` and open each page in a browser at the width of each PNG, with reduced motion set so that anything that loops is at rest. Two checks, both needed:
+Serve `<out>/handoff/source/` and open each page in a browser at the width of each PNG, with reduced motion set so that anything that loops is at rest. Two checks, both needed:
 
 - **Measure.** Read each section's top and height from the page (`getBoundingClientRect`) and set them beside the same layers' `y` and `h` in `layers.txt`. A section more than a few pixels out has a wrong gap, padding or line count inside it: find it before looking at pictures.
 - **Look.** Screenshot the full page and put it beside the export, a screen-sized piece at a time: position, size, colour, type, wrapping, artwork. A cloud, wave or other divider that looks wrong is often mirrored (`flip`) or a different piece of artwork from the one it resembles.
@@ -152,28 +156,36 @@ Fix what differs and check again. Then check the widths between the two frames, 
 
 A difference that cannot or should not be removed goes in the report with its size and its reason: a font that is not available, a font set slightly wider or narrower than in Figma, a line break left out, a marquee caught at another point in its travel.
 
-### 8. Write the notes for the builder
+### 8. Write the three documents
 
-Write `<out>/designer-notes.md`: one file for the whole set of pages, for whoever builds the WordPress theme. Take it from each extract's `notes.md`, in the designer's own words, grouped by page and section, with duplicates merged. Then add, under separate headings:
+Write `DESIGN.md`, `views.md` and `decisions.md` in `<out>/handoff/`, each with the sections `references/handoff-package.md` gives it, in that order. Write `views.md` before `decisions.md`, which copies its content status in full.
 
-- what was built from a note, and how;
-- open items: notes that need a decision, content the client must supply, placeholders, fonts that were substituted;
-- what was inferred with no frame to go on, and what was taken from a style guide;
-- the theme assets on the hand-off page (site icon, share image, thumbnail), each with its node id.
+- **`DESIGN.md`** is the rules: the tokens from `tokens.json` and the style guide in its frontmatter, per mode, under the Figma names `site.css` uses; then what each is for, in the designer's words where the file has them.
+- **`views.md`** is the map: every destination the design links to, which have a file, what each file builds as, and the content status, which lists every placeholder and every `#` link.
+- **`decisions.md`** is what the HTML cannot show: the designer's notes as written, each behaviour and how it was built, what the file designs that is not converted yet, and what is left for someone to decide.
 
-State once that Figma comment threads are not in a `.fig` export.
+The designer's notes come from each extract's `notes.md`, with what the user supplied in step 1. They are quoted, never paraphrased.
+
+When the package already has these documents, add to them: new rows in the Sitemap and Views, new entries in the content status, new notes under their view. Change an existing line only when this run made it untrue.
+
+### 9. Check the package
+
+Run every check in `references/handoff-package.md` § Check the package, reading each result. Fix what fails and run the checks again: a package with a failing check is not handed over.
 
 ## Output
 
 ```text
 <out>/
-├── source/                 the design directory: *.html, css, js, assets/
-├── designer-notes.md       for the WordPress builder
-└── extract/                what the reader wrote, per frame
+├── handoff/
+│   ├── DESIGN.md      rules, tokens, reasoning
+│   ├── decisions.md   what the build must do that the HTML does not show, and the designer's notes
+│   ├── views.md       sitemap, each view, what it builds as, content status
+│   └── source/        home.html, <slug>.html …, assets/site.css, assets/fonts/, assets/…
+└── extract/           what the reader wrote, per frame
 ```
 
-`<out>/source/` is a design directory for the html-to-block-theme skill. That skill reads `DESIGN.md`, `decisions.md` and `views.md` beside the design directory; it does not yet read `designer-notes.md`, so name that file when handing the directory over.
+The next step is html-to-block-theme 0.10.0 or later, run on `<out>/handoff/source/`. It reads the three documents from `<out>/handoff/`, the folder above `source/`.
 
 ## Report
 
-Tell the user which pages were converted and where they are, how each compares with its export, what was inferred, which fonts were substituted, and the open items from the notes.
+Tell the user which pages were converted and the file each became, how each compares with its export, what was inferred, which fonts were substituted, what the package still lacks, the open items, and the result of the package check.

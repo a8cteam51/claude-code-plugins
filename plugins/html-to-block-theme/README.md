@@ -1,6 +1,8 @@
 # html-to-block-theme
 
-Convert a set of static **Claude Design** HTML/CSS/JS files into a standards-driven **WordPress block theme** on a local WordPress Studio site.
+Convert a set of static HTML/CSS/JS design files into a standards-driven **WordPress block theme** on a local WordPress Studio site.
+
+The files can be a handoff package from **sp-site-design-harness** (a site designed from a brief) or from **fig-to-html** (a designer's Figma file converted to HTML), or files exported from **Claude Design**. The two packages are laid out alike: `DESIGN.md`, `decisions.md` and `views.md`, with the pages in a `source/` folder beside them.
 
 The agent maps the design to WordPress primitives — templates, template parts, `theme.json`, block styles, and page content an editor can change — rather than reproducing it with hand-written CSS. It plans a blueprint first, then builds section by section and refines its output against the originals in a real browser until it matches as closely as possible.
 
@@ -66,7 +68,7 @@ The skill then:
 ## Inputs
 
 - **Design directory** (required) — a folder of static `.html` files plus their linked `.css` / `.js` / image / font assets. Or the address of a live site to rebuild, which is mirrored into one.
-- **Design documents** (optional) — `DESIGN.md`, `decisions.md` and `views.md` in the design directory or its parent. The blueprint reads them, and the report says what they asked for and which content is still placeholder.
+- **Design documents** (optional) — `DESIGN.md`, `decisions.md` and `views.md` in the design directory or its parent, as `sp-site-design-harness` and `fig-to-html` both leave them beside `source/`. The blueprint reads them, and the report says what they asked for and which content is still placeholder. A `fig-to-html` package may hold only some of a site's pages: the pages it lacks are reported, not built.
 - **Studio site** — path or name. If omitted, the skill lists your sites and asks, unless there is exactly one. It does not pick a site by its name.
 - **Project repository** (optional) — an `a8csp-project-template` repository to build into. If the site's `wp-content` isn't a clone of it yet, the skill sets that up with the [`studio-repo-clone`](../studio-repo-clone) plugin first.
 
