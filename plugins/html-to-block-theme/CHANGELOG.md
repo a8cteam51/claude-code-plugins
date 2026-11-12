@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.11.1] - 2026-11-12
+
+### Added
+- **A `fig-to-html` package's `annotations.md` is read**, when the package has one (fig-to-html 0.4.0 or later): the Figma reader's log of every annotation on the frames it read, in the designer's words. Phase 1, step 5 reads it beside `decisions.md` § The designer's notes. Not tried in a build.
+
 ## [0.11.0] - 2026-11-12
 
 From a run that built a block theme with a WooCommerce store, a Jetpack form and three blocks-collection plugins in a project-template repository, on WordPress 7.1.4 with WooCommerce 11.2.1, Jetpack 16.4, override-post-links 0.1.2, carousel 1.1.2 and marquee 0.1.9. The builders' findings are carried over as they reported them: each passage says what it was seen in, and passages marked **(7.1.4)** or **(16.4)** were not checked a second time. Checked again for this release: the per-viewport `flexWrap` behaviour, by render probe on 7.1.4; the harness changes, in Chrome against two test pages, side by side and in a strip. Not checked:

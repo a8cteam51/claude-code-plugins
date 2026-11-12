@@ -8,7 +8,7 @@ argument-hint: "<file.fig | unzipped folder> [frame names] [--images <folder of 
 
 Read a Figma `.fig` export directly, and write the frames the user names as responsive vanilla HTML, CSS and JavaScript. The file supplies structure, text, tokens, images, vectors and the designer's notes. It holds no picture of a frame, so the user supplies 1:1 PNG exports, and those are what the result is checked against.
 
-What comes out is a handoff package: the pages in `source/`, and beside them `DESIGN.md`, `decisions.md` and `views.md`. It is the same package `sp-site-design-harness` writes, so html-to-block-theme builds from either. `references/handoff-package.md` is the specification of every file in it: read it before step 6.
+What comes out is a handoff package: the pages in `source/`, and beside them `DESIGN.md`, `decisions.md` and `views.md`. It is the same package `sp-site-design-harness` writes, so html-to-block-theme builds from either. One file is this plugin's own: `annotations.md`, the reader's log of every annotation in the frames it read, for the build to refer to. `references/handoff-package.md` is the specification of every file in it: read it before step 6.
 
 Matching the designer's picture is half the job. The page must also meet the team's standards, and the file must be checked for what a hand-off should hold. `references/standards.md` has both, with what wins when the file and a standard disagree: read it before step 2.
 
@@ -33,6 +33,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/fig.mjs" pages   <fig>
 node "${CLAUDE_PLUGIN_ROOT}/scripts/fig.mjs" frames  <fig> --page "<part of a page name>"
 node "${CLAUDE_PLUGIN_ROOT}/scripts/fig.mjs" find    <fig> "<part of a frame name>"
 node "${CLAUDE_PLUGIN_ROOT}/scripts/fig.mjs" extract <fig> --node <id> --out <folder>
+node "${CLAUDE_PLUGIN_ROOT}/scripts/fig.mjs" annotations <folder of extracts> --out <file>
 ```
 
 `extract` writes, for one node:
@@ -44,7 +45,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/fig.mjs" extract <fig> --node <id> --out <fo
 | `node.json` | Everything in `layers.txt` in full, plus layer ids and the variable bound to each value. Every component instance is replaced by its contents with overrides applied, and hidden layers are left out. A large tree is split into `sections/NN-<name>.json`, listed in `node.json`. Open it for a detail `layers.txt` does not carry. |
 | `tokens.json` | The variables and styles this node uses, with values, and each variable's value per mode when it has several. A text style whose size is a variable lists that size per mode under `modes`. |
 | `assets/`, `assets.json` | The images this node draws, named and given their extension, and vector artwork as SVG. `assets.json` says where each is drawn and at what size. |
-| `notes.md` | The designer's annotations, component descriptions and the text around the design. |
+| `notes.md`, `notes.json` | The designer's annotations, component descriptions and the text around the design: to read, and the same as data. |
 
 Fields of a node, in `node.json` and on its line in `layers.txt`:
 
@@ -170,7 +171,7 @@ Fix what differs and check again. Wherever the full menu shows, every item must 
 
 A difference that cannot or should not be removed goes in the report with its size and its reason: a font that is not available, a font set slightly wider or narrower than in Figma, a line break left out, a marquee caught at another point in its travel.
 
-### 8. Write the three documents
+### 8. Write the documents
 
 Write `DESIGN.md`, `views.md` and `decisions.md` in `<out>/handoff/`, each with the sections `references/handoff-package.md` gives it, in that order. Write `views.md` before `decisions.md`, which copies its content status in full.
 
@@ -179,6 +180,14 @@ Write `DESIGN.md`, `views.md` and `decisions.md` in `<out>/handoff/`, each with 
 - **`decisions.md`** is what the HTML cannot show: the designer's notes as written, each behaviour and how it was built, what the file designs that is not converted yet, and what is left for someone to decide.
 
 The designer's notes come from each extract's `notes.md`, with what the user supplied in step 1. They are quoted, never paraphrased.
+
+**Then write the log of annotations.** It is the one document the reader writes, not you:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/fig.mjs" annotations <out>/extract --out <out>/handoff/annotations.md
+```
+
+`annotations` reads every folder in `<out>/extract/` and lists each annotation once, exactly as the designer wrote it, with every frame and layer it is on, then the frames that were read. `decisions.md` groups the same notes by view and says what was done with each; `annotations.md` is the complete record the build checks that against. Never edit it by hand, and run the command again whenever a frame is extracted, so a later run's notes are added. A folder in `extract/` from before `notes.json` existed stops the command: extract that frame again.
 
 When the package already has these documents, add to them: new rows in the Sitemap and Views, new entries in the content status, new notes under their view. Change an existing line only when this run made it untrue.
 
@@ -190,7 +199,7 @@ Run the checker, and read every line it prints:
 node "${CLAUDE_PLUGIN_ROOT}/scripts/check-package.mjs" <out>/handoff
 ```
 
-It checks the files, links, fonts, shared header and footer, the three documents, the colours and their contrast, the type-rendering baseline, and each page's structure. It exits non-zero on any failure. Then do the checks it cannot (`references/handoff-package.md` § Check the package). Fix what fails and run it again: a package with a failing check is not handed over.
+It checks the files, links, fonts, shared header and footer, the three documents, the log of annotations against what was extracted, the colours and their contrast, the type-rendering baseline, and each page's structure. It exits non-zero on any failure. Then do the checks it cannot (`references/handoff-package.md` § Check the package). Fix what fails and run it again: a package with a failing check is not handed over.
 
 ## Output
 
@@ -199,6 +208,7 @@ It checks the files, links, fonts, shared header and footer, the three documents
 ├── handoff/
 │   ├── DESIGN.md      rules, tokens, reasoning
 │   ├── decisions.md   what the build must do that the HTML does not show, and the designer's notes
+│   ├── annotations.md every annotation in the frames read, as the reader found it
 │   ├── views.md       sitemap, each view, what it builds as, content status
 │   └── source/        home.html, <slug>.html …, assets/site.css, assets/fonts/, assets/…
 └── extract/           what the reader wrote, per frame

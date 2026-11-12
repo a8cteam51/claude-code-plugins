@@ -7,6 +7,7 @@ What fig-to-html writes, file by file. It is the same package `sp-site-design-ha
   handoff/
     DESIGN.md      rules, tokens, reasoning
     decisions.md   what the build must do that the HTML does not show
+    annotations.md every annotation in the frames read, as the reader found it
     views.md       sitemap, each view, what it builds as, content status
     source/        the pages as HTML, one stylesheet, local fonts, assets
   extract/         what the reader wrote, per frame; beside the package, not in it
@@ -18,6 +19,7 @@ Where the two packages differ, and why:
 
 - **This one can be partial.** The harness designs every view of a site. fig-to-html converts the frames it was given and designs nothing the file lacks. `views.md` says which destinations have no file yet, and the next run adds to the same package.
 - **Its authority is the designer's file.** The harness fills a gap from team standards. Here a gap is recorded as inferred or as an open item, never filled by taste.
+- **It has a fourth document, `annotations.md`.** The harness has no designer's file to read notes from. html-to-block-theme reads it when a package has one.
 - **Its palette uses the team's slot names** for the colours that play those roles, and the designer's Figma names for everything else, with the Figma variable recorded beside each (`standards.md` § Token names).
 
 ## `source/`
@@ -129,6 +131,21 @@ Sections, in this order.
    - *Team defaults used*: what was filled from a named default.
 7. **Feedback applied**: changes made after a review, so the build does not "correct" them back. "None" on a first conversion.
 
+## `annotations.md`
+
+The log of what the designer wrote on the frames. `scripts/fig.mjs annotations <out>/extract --out <out>/handoff/annotations.md` writes it from each extract's `notes.json`. It is never written or edited by hand, and it is written again whenever a frame is extracted.
+
+Sections, in this order.
+
+1. **Annotations**: each annotation once, numbered, with its text in a fenced block exactly as written, its category and pinned properties when it has them, and under "On" every frame it is on (name, node id, size) with the layers. The same note on several frames or layers is one entry.
+2. **Note layers inside the design**: layers the designer used as notes, which are not built. Left out when there are none.
+3. **Component and style descriptions**: what is written in a component's or a style's description field. Left out when there are none.
+4. **Frames read**: one row per folder in `extract/`, with the frame's node id, page, size and how many annotations are on it. A frame with none is still listed, so a reader can tell "no notes" from "not read".
+
+It holds only what is in the file. Notes from outside it (Figma comments, a brief) go in `decisions.md` § The designer's notes, marked with where they came from. Text the designer placed on the page around a frame stays in that frame's `notes.md`.
+
+How it sits with `decisions.md`: § The designer's notes there groups the notes by view and § Interactions says what was done with each. `annotations.md` is the complete record. A note in the log for a frame that has no file in `source/` belongs to a page still to come.
+
 ## Check the package
 
 `scripts/check-package.mjs <out>/handoff` runs the checks marked ✓ below and exits non-zero when one fails. The rest need a browser. Read each result; assume none.
@@ -143,6 +160,7 @@ Sections, in this order.
 - ✓ The header is byte-identical in every file that uses it, and so is the footer.
 - ✓ `DESIGN.md`'s colours equal `--color-<slug>` in `site.css`, and every pairing under `pairs` reaches its contrast.
 - ✓ `decisions.md` has its content status, designer's notes and Standards sections.
+- ✓ `annotations.md` exists, lists every frame in `extract/`, and holds the text of every annotation found in them.
 - ✓ Nothing visible on any page says "placeholder".
 - ✓ The type-rendering baseline, a reduced-motion rule and a focus style are in `site.css`, and it never uses the `text-wrap` shorthand.
 - ✓ No palette slug is `border`, `text` or `link`.
