@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.10.2] - 2026-11-12
+
+### Changed
+- **Which package it is** (Phase 1, step 5). A `fig-to-html` package now names its palette with the team's `canvas`, `surface`, `ink` and `accent` and holds the colours as `--color-<slug>`, so the palette slugs come from `DESIGN.md`'s colour keys. Its `decisions.md` § Standards lists what the design fails and was built as drawn: reported in the summary, not corrected in the theme.
+
 ## [0.10.1] - 2026-11-12
 
 So that a run can take a handoff package from `fig-to-html` as well as one from `sp-site-design-harness`. The two are laid out alike, so nothing in how a run works changes. `group-designs.py` was run on a `fig-to-html` package of one page. No run has built a theme from one.

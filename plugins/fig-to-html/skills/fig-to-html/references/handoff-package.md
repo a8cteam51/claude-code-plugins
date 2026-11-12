@@ -18,7 +18,7 @@ Where the two packages differ, and why:
 
 - **This one can be partial.** The harness designs every view of a site. fig-to-html converts the frames it was given and designs nothing the file lacks. `views.md` says which destinations have no file yet, and the next run adds to the same package.
 - **Its authority is the designer's file.** The harness fills a gap from team standards. Here a gap is recorded as inferred or as an open item, never filled by taste.
-- **Its token names are the Figma variable names.** The build maps them to the theme's slugs.
+- **Its palette uses the team's slot names** for the colours that play those roles, and the designer's Figma names for everything else, with the Figma variable recorded beside each (`standards.md` § Token names).
 
 ## `source/`
 
@@ -75,9 +75,11 @@ When a run adds pages to an existing package, the header and footer already in `
 
 YAML frontmatter holding the tokens, then prose in a fixed order. The prose says what each token is for, not just its value: the build agent was not there when the design was made.
 
-**Frontmatter keys:** `name`; `source` (the file, its export date, the hand-off page, the frames read); `modes` (the width of each frame, e.g. `desktop: 1440`, `mobile: 390`); `colors`; `typography` (`families`, `styles`); `spacing`; `layout`; `elevation`; `rounded`; `omitted`.
+**Frontmatter keys:** `name`; `source` (the file, its export date, the hand-off page, the frames read); `modes` (the width of each frame, e.g. `desktop: 1440`, `mobile: 390`); `colors`; `pairs`; `typography` (`families`, `styles`); `spacing`; `layout`; `elevation`; `rounded`; `omitted`.
 
-- A key is the Figma variable or style name, lower case with hyphens (`background-colors-blue`), and is the same name `site.css` uses for its custom property.
+- **`colors`**: one line per palette token, keyed by its slug, which is the theme's palette slug and `--color-<slug>` in `site.css`: `canvas: { value: "#58d0fc", figma: ["Background Colors/blue"] }`. `figma` lists every Figma variable that holds the value; a colour with no variable has an empty list and a `from` saying where it was read. The slots and the naming rule are in `standards.md` § Token names.
+- **`pairs`**: every pairing of a text or icon colour with the background it sits on, as the pages use them, one per line: `- [ink, canvas]`. Add `large` or `ui` as a third item where the 3:1 threshold applies. `check-package.mjs` computes each ratio. A pairing used for decoration only is left out and named in the Colors prose.
+- Every other key is the Figma variable or style name, lower case with hyphens (`font-sizes-3xl`), and is the same name `site.css` uses for its custom property.
 - A value that differs between frames or variable modes is written per mode: `{ desktop: 46, mobile: 32 }`.
 - A value the page uses that has no variable or style in the file still goes in, under a plain name, with `style: none`.
 - A section with nothing to say is listed under `omitted`, not dropped.
@@ -85,7 +87,8 @@ YAML frontmatter holding the tokens, then prose in a fixed order. The prose says
 **Sections, in this order:** Overview; Colors; Typography; Layout; Elevation & Depth; Shapes; Components; Do's and Don'ts.
 
 - Take the reasoning from the designer where the file gives it: annotations, the style guide's text, presentation slides. Quote it.
-- Mark with *inferred* anything the file does not say: a breakpoint, a hover with no variant, a narrow layout with no mobile frame.
+- Mark with *inferred* anything the file does not say and no team default covers: a breakpoint, a narrow layout with no mobile frame. Mark with *team default* anything filled from `standards.md` § Named defaults: a focus indicator, a hover with no variant, a pause control.
+- Colors: say which colour took each of the four slots, and why, where two could have.
 - Components: each component the pages use, its variants and states as the file draws them.
 - Do's and Don'ts always carries these three: placeholder content is recorded and never labelled on the page; hover, focus and error states never change a control's size; reduced motion stops what moves.
 
@@ -118,22 +121,33 @@ Sections, in this order.
 3. **Interactions**: a table of each behaviour: what it is, the note or variant it comes from, how `source/` shows it, and what the build should make of it. Include what was added without a note (reduced motion) and what was not exercised.
 4. **Implied pages and templates not designed here**: first what the file designs that has no file yet, with node ids; then what a site of this kind needs that the file does not show (a blog index, a single post, search, 404).
 5. **Explicit deferrals**: each thing left for the designer, the client or the build to decide, named plainly.
-6. **Feedback applied**: changes made after a review, so the build does not "correct" them back. "None" on a first conversion.
+6. **Standards**: the result of the check against `standards.md`, under five headings.
+   - *Met in the HTML*: the Development criteria, in a few lines, saying how each was checked and what was not.
+   - *Fixed without changing the look*: a table of what the file draws and what was done.
+   - *For the designer*: a table of each Design criterion the design fails and `source/` reproduces: what, the measured value, the standard.
+   - *Is the design complete?*: the hand-off checklist as a table, with what this file holds for each row, by node id where it has one.
+   - *Team defaults used*: what was filled from a named default.
+7. **Feedback applied**: changes made after a review, so the build does not "correct" them back. "None" on a first conversion.
 
 ## Check the package
 
-Read each result; assume none.
+`scripts/check-package.mjs <out>/handoff` runs the checks marked ✓ below and exits non-zero when one fails. The rest need a browser. Read each result; assume none.
 
 - Every `.html` file in `source/` loads over loopback HTTP with no request failing and no console error.
-- No request leaves loopback. No font host, script host or image host appears in any `href`, `src`, `@import` or `url()`.
-- No path reaches outside `source/`.
-- Every file an `.html` or `site.css` refers to exists, and nothing in `assets/` is unused.
-- Every `@font-face` file exists in `assets/fonts/` with its licence beside it.
-- Every file in `source/` has a row in `views.md`'s Views, and every row's file exists.
-- Every internal link resolves to a file, or is `#` and listed. Count the `href="#"` in each file and match the count against its entry plus "On every page".
-- The header is byte-identical in every file that uses it, and so is the footer.
-- `DESIGN.md`'s colours equal `site.css`'s `:root`.
-- `decisions.md` carries the content status in full.
-- Nothing visible on any page says "placeholder".
+- ✓ Nothing is loaded from another host: no font host, script host or image host in any `href`, `src`, `@import` or `url()`.
+- ✓ No path reaches outside `source/`.
+- ✓ Every file an `.html` or `site.css` refers to exists, and nothing in `assets/` is unused.
+- ✓ Every `@font-face` file is in `assets/fonts/` with a licence beside it.
+- ✓ Every file in `source/` is named in `views.md`, and every file `views.md` names exists.
+- ✓ Every internal link resolves to a file, or is `#`. The checker prints the number of `#` links per file: match it against that file's content status entry plus "On every page".
+- ✓ The header is byte-identical in every file that uses it, and so is the footer.
+- ✓ `DESIGN.md`'s colours equal `--color-<slug>` in `site.css`, and every pairing under `pairs` reaches its contrast.
+- ✓ `decisions.md` has its content status, designer's notes and Standards sections.
+- ✓ Nothing visible on any page says "placeholder".
+- ✓ The type-rendering baseline, a reduced-motion rule and a focus style are in `site.css`.
+- ✓ Each page has one `h1`, no skipped heading level, its landmarks, a skip link, `lang`, a viewport that allows zoom, alt text and labelled fields.
+- `page-audit.js` returns no sideways scroll at any width, and every small target, small text and tight line it lists is fixed or recorded for the designer.
+- Everything that moves can be paused, by keyboard and by touch.
+- `decisions.md` carries the content status in full, not summarised.
 
 Then say what the next step is: run html-to-block-theme 0.10.0 or later on `<out>/handoff/source/`. It reads the three documents from `<out>/handoff/`, the folder above `source/`.

@@ -41,6 +41,18 @@ The desktop frame is treated as the source of truth and the mobile frame, when
 the design has one, as the narrow end. The widths between are decided by the
 model.
 
+## Standards
+
+The pages are also held to the team's accessibility and design standards (WCAG 2.1 AA), kept in `skills/fig-to-html/references/standards.md` until they move to a shared place:
+
+- What the HTML controls (structure, labels, focus, motion, the type-rendering baseline) the page must meet.
+- What the designer drew (contrast, target sizes, states) is checked. A failure is fixed where the fix cannot be seen, and otherwise built as drawn and reported for the designer with its measured value.
+- The file is checked against the team's hand-off checklist: which views, mobile frames, states and theme assets it holds.
+- A gap is filled from a named team default, and said to be one.
+- Palette colours take the team's slot names (`canvas`, `surface`, `ink`, `accent`) where they play those roles.
+
+Two tools do the checking: `scripts/check-package.mjs <handoff folder>` reads the package and exits non-zero on a failure, and `scripts/page-audit.js` is run in the page for what only a browser can measure. A reviewer that did not build the page compares it with the exports once at the end.
+
 ## The reader on its own
 
 `scripts/fig.mjs` has no dependencies and can be used without the skill:
@@ -73,4 +85,4 @@ the images the node draws are copied out of the file.
 
 ## Requirements
 
-Node.js 22.15 or later. `unzip` on `PATH` when reading a `.fig` directly.
+Node.js 22.15 or later. `unzip` on `PATH` when reading a `.fig` directly. A browser the agent can drive, for the checks.

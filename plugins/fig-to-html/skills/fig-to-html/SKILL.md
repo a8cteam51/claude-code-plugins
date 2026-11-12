@@ -10,6 +10,8 @@ Read a Figma `.fig` export directly, and write the frames the user names as resp
 
 What comes out is a handoff package: the pages in `source/`, and beside them `DESIGN.md`, `decisions.md` and `views.md`. It is the same package `sp-site-design-harness` writes, so html-to-block-theme builds from either. `references/handoff-package.md` is the specification of every file in it: read it before step 6.
 
+Matching the designer's picture is half the job. The page must also meet the team's standards, and the file must be checked for what a hand-off should hold. `references/standards.md` has both, with what wins when the file and a standard disagree: read it before step 2.
+
 The bundled reader, `${CLAUDE_PLUGIN_ROOT}/scripts/fig.mjs`, does all the reading. Do not parse the file by hand.
 
 ## Inputs
@@ -83,11 +85,14 @@ Run `frames` on the hand-off page and sort what it holds:
 - **Style guides**: frames named for what they document, such as Style Guide, Typography, Color, Spacing, Components. These are not pages to build. They are the reference the pages are inferred from (step 4), and need no PNG export.
 - **Theme assets**: a site icon, a social share image, a theme thumbnail. Not built here; named in `views.md` for the builder.
 - **Components**: buttons, links, cards and headers drawn once with their variants, often inside a dashed purple outline. The designs use them, and the variants hold what a page frame cannot show: hover and pressed states, the mobile form. Extract the ones the designs use (step 4). A layer's `component` in the design names its component; `find` locates it.
+- **States and overlays**: an open menu, a hover or focus state, an error message, a mini cart, drawn as a frame or as a component variant. They are designs of something a page frame shows only at rest. Extract the ones that belong to what is being converted (step 4).
 - **Everything else**: presentation slides, covers, loose groups. Leave it out.
 
 A mobile frame often carries a phone status bar as its first layer. Leave it out of the build, and allow for its height when comparing with the export.
 
 `find` searches every page by name, for something the user named that is not on the hand-off page.
+
+**Check the design is complete.** Go through `references/standards.md` § Is the design complete?, with `find` for each name it lists, over the whole file. Print the whole list of the hand-off page, not its first screen: a file was once reported as having no open-menu frame and no 404 when it had both further down. What the file holds is built from; what it lacks is reported in `decisions.md` § Standards and filled with a named team default, never with taste.
 
 Then put the second round of questions, together, and with `AskUserQuestion` where the answer is a choice among candidates. Show each candidate with its id, page and size.
 
@@ -108,7 +113,7 @@ Extract the style guides first, each into `<out>/extract/style-guide-<name>/`, a
 
 Then extract each design into `<out>/extract/<page>-<width>/`. Read `outline.txt`, then `notes.md`, then `tokens.json`, then `layers.txt`, which for a long page is the bulk of the reading. Read the mobile frame's files as fully as the desktop frame's: its sizes, spacing and order are the other half of the brief.
 
-Then extract each component the designs use that has variants, into `<out>/extract/component-<name>/`, for its hover state and its notes.
+Then extract each component the designs use that has variants, into `<out>/extract/component-<name>/`, for its hover state and its notes, and each state or overlay frame that belongs to the pages (the open menu, a focus state), into `<out>/extract/<name>/`.
 
 Look at each PNG export beside its outline before writing anything. A long export is easier to see cut into screen-sized pieces.
 
@@ -136,23 +141,32 @@ When `<out>/handoff/source/` already holds pages, read its `site.css`, header an
 - **With no mobile frame**, design the narrow layout from the desktop frame's structure, and say in the report that it was inferred.
 - **The style guide settles what the frames leave open**: the widest the content gets, how type and spacing step down, hover, focus and pressed states, anything drawn at one width only. Where a style guide and a frame disagree, build the frame as drawn and record the disagreement in `decisions.md`.
 - Shared layers are shared code: a header, footer, button or card that is one component in the file is one set of classes.
-- Tokens become CSS custom properties on `:root`, named after the Figma variable. A value with no variable stays a literal.
+- Tokens become CSS custom properties on `:root`. A palette colour is `--color-<slug>`: the team's four slots (`canvas`, `surface`, `ink`, `accent`) for the colours that play those roles, and a slug from the Figma name for the rest, with the Figma variable in a comment beside each (`references/standards.md` § Token names). Every other token keeps its Figma name. A value with no variable stays a literal.
+- **Meet the standards as the page is written**, not afterwards (`references/standards.md`): the Development criteria in the markup, the type-rendering baseline in `site.css`, a focus indicator on every background, a pause control beside anything that moves without end, targets of 44px.
+- **Where the file breaks a Design criterion**, fix it if the fix cannot be seen, and otherwise build what was drawn and record the measured value for the designer. Never change a designer's colour, size or spacing silently.
+- **Where the file is silent**, use the named team default and say that it is one. A state or overlay the file does draw is built from its frame.
 - Use semantic HTML. The file gives a layer's look, not its role: decide headings, navigation, lists, buttons and links from what the layer is for.
-- Text is the file's text, character for character. A line broken by hand in both frames is a `<br>`. One broken in a single frame is usually a fix for that width: get the same break from a width or from balanced wrapping where that is cheap, leave it out where it is not, and say which in `decisions.md`.
+- Text is the file's text, character for character. A line broken by hand in both frames is a `<br>`. One broken in a single frame is usually a fix for that width: get the same break from a width on the element, or from a `<br>` shown only at that frame's widths, and leave it out where it sits in content an editor will replace. Say which in `decisions.md`. Do not reach for balanced wrapping to get one break: it moves the others.
 - A layer with a `component` that has a hover variant gets that hover. A link or button with no hover drawn gets a plain one, listed as inferred.
 - Fonts are named in the file but not included. Put the font files in `assets/fonts/` with their licences and load them from there (`references/handoff-package.md` § Local fonts). A family that is not freely licensed needs the user's confirmation before it goes in.
 - **Use the designer's notes.** An annotation that describes behaviour (a marquee that loops, a slider that drags, a hover effect) is part of the brief: build it, in plain JavaScript where it needs script. An annotation that cannot be acted on from the file alone goes into `decisions.md` as a deferral.
 
 ### 7. Check against the exports
 
-Serve `<out>/handoff/source/` and open each page in a browser at the width of each PNG, with reduced motion set so that anything that loops is at rest. Two checks, both needed:
+Serve `<out>/handoff/source/` and open each page in a browser at the width of each PNG, with reduced motion set so that anything that loops is at rest. Four checks, all needed:
 
 - **Measure.** Read each section's top and height from the page (`getBoundingClientRect`) and set them beside the same layers' `y` and `h` in `layers.txt`. A section more than a few pixels out has a wrong gap, padding or line count inside it: find it before looking at pictures.
 - **Look.** Screenshot the full page and put it beside the export, a screen-sized piece at a time: position, size, colour, type, wrapping, artwork. A cloud, wave or other divider that looks wrong is often mirrored (`flip`) or a different piece of artwork from the one it resembles.
+- **Audit.** Run `${CLAUDE_PLUGIN_ROOT}/scripts/page-audit.js` in the page, at the narrowest width, each frame width and the widest: give its text to the browser tool as the script to evaluate. It returns sideways scroll, small and crowded targets, small text, tight lines, unlabelled fields and what moves. Each item is fixed, or is a Design criterion the file fails and goes in `decisions.md` § Standards with its measured value.
+- **Every width.** At each width in `references/standards.md` § Widths to check, the document is no wider than the window, nothing overlaps, and the header's controls stay on one line. Look at the narrowest one: a name or a button row that fits at the mobile frame's width can wrap below it.
 
 A headless browser may not lay out narrower than about 500px. For a mobile width, load the page in an iframe of that width and screenshot the iframe.
 
-Fix what differs and check again. Then check the widths between the two frames, and one wider than the desktop frame: the document must be no wider than the window at any of them, nothing may overlap, and every menu item must fit beside the logo wherever the full menu shows. Exercise what was built from a note: click it, and confirm the state changed.
+Fix what differs and check again. Wherever the full menu shows, every item must fit beside the logo. Exercise what was built from a note or a state frame: click it, open it, and confirm the state changed.
+
+**When the package already held pages**, measure each of them before changing `site.css` and again after: its height at each frame width must not have moved. A rule added for a new view that shifts an old one is a regression, not a refinement.
+
+**Then have it looked at by someone who did not build it** (`references/standards.md` § An independent look): one subagent, given the exports and the screenshots side by side and the list of settled differences, asked only for what differs and what looks broken. Two rounds at most.
 
 A difference that cannot or should not be removed goes in the report with its size and its reason: a font that is not available, a font set slightly wider or narrower than in Figma, a line break left out, a marquee caught at another point in its travel.
 
@@ -170,7 +184,13 @@ When the package already has these documents, add to them: new rows in the Sitem
 
 ### 9. Check the package
 
-Run every check in `references/handoff-package.md` § Check the package, reading each result. Fix what fails and run the checks again: a package with a failing check is not handed over.
+Run the checker, and read every line it prints:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/check-package.mjs" <out>/handoff
+```
+
+It checks the files, links, fonts, shared header and footer, the three documents, the colours and their contrast, the type-rendering baseline, and each page's structure. It exits non-zero on any failure. Then do the checks it cannot (`references/handoff-package.md` § Check the package). Fix what fails and run it again: a package with a failing check is not handed over.
 
 ## Output
 
@@ -188,4 +208,4 @@ The next step is html-to-block-theme 0.10.0 or later, run on `<out>/handoff/sour
 
 ## Report
 
-Tell the user which pages were converted and the file each became, how each compares with its export, what was inferred, which fonts were substituted, what the package still lacks, the open items, and the result of the package check.
+Tell the user which pages were converted and the file each became, how each compares with its export, what was inferred, which fonts were substituted, what the package still lacks, the open items, what the design fails that is the designer's to fix, what the file lacks against the hand-off checklist, and the result of the package check.
