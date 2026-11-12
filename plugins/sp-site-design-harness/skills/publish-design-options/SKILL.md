@@ -153,6 +153,48 @@ orphaned. Dereference symlinks (`cp -RL`) or reject them — the publish walker
 hard-fails on symlinks. Exclude `.DS_Store`. Print the absolute staging path in
 the final report.
 
+### Add the navigator
+
+Every page in the package gets the presentation navigator: a small control
+fixed to the lower right with previous and next, a `02 / 04` counter, and a
+Contents panel that jumps to any page. It's styled with the Automattic deck's
+colors and type, never an option's, so it looks the same in every
+presentation. It renders inside a shadow root with its host box pinned by
+inline `!important` rules, so an option's CSS can't restyle it and it can't
+restyle the option. It also lifts itself above any button-sized control of the
+page's own that it would cover, like a sticky "Book now".
+
+1. Fill `${CLAUDE_PLUGIN_ROOT}/skills/publish-design-options/templates/
+   deck-nav.js` and write it as `deck-nav.js` at the staging root. Its one
+   token, `{{SLIDES}}`, is a JSON array in reading order, hrefs relative to
+   the staging root:
+
+   ```json
+   [{"href": "index.html", "title": "Cover and contents", "group": "Overview"},
+    {"href": "01-slug/index.html", "title": "Option name", "group": "Options"},
+    {"href": "compare.html", "title": "Side by side", "group": "Compare"}]
+   ```
+
+   Titles are the option names from step 3. Include every page that exists
+   and nothing that doesn't: a package without a side-by-side page simply has
+   no `Compare` entry. In site-preview mode the slides are the overview, then
+   each view in the overview's order, grouped `Views`. Write the JSON with a
+   real serializer, and assert no `{{` remains.
+2. Add one tag right before `</body>` in every staged page (the index, each
+   option's entry file, and any other generated page), its `src` relative to
+   that page: `deck-nav.js` at the root, `../deck-nav.js` one folder down.
+
+   ```html
+   <script src="../deck-nav.js" defer></script>
+   ```
+
+This is the one change ever made to a staged option, and only to the staged
+copy. Never add it to the source files: `directions/` is the handoff
+reference, and the navigator is presentation chrome. Step 8's audit then
+checks that every tag resolves. In step 10, open the navigator on the index
+and on one option, step through with previous and next, and confirm the
+current page is highlighted, then check it at 390 wide too.
+
 ## 8. Link audit — never rewrite the options' HTML
 
 Strip HTML comments first — a commented-out link is not a real dependency and
