@@ -1,7 +1,7 @@
 {
   "name": "sp-site-design-harness",
-  "version": "0.2.0",
-  "description": "Three-phase Research → Design → Dev Handoff pipeline for WordPress block-theme site design — takes raw brand material to a developer-ready design system (DESIGN.md + decisions.md); does not build the theme itself, but /iterate can apply feedback to a built theme after handoff.",
+  "version": "0.3.0",
+  "description": "Research \u2192 Design \u2192 Prep for Handoff pipeline for WordPress block-theme site design \u2014 takes raw brand material to homepage options, then designs the chosen direction out to a full site (blog index, post, page, search, 404) and packages it with DESIGN.md + decisions.md for html-to-block-theme; does not build the theme itself, but /iterate can apply feedback to a built theme after handoff.",
   "author": {
     "name": "Automattic"
   },
@@ -9,6 +9,8 @@
     "./skills/research-intake",
     "./skills/create-design",
     "./skills/dev-handoff",
+    "./skills/design-site-templates",
+    "./skills/prep-handoff",
     "./skills/find-font",
     "./skills/scan-font-sources",
     "./skills/publish-design-options",
