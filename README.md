@@ -19,6 +19,7 @@ Add the marketplace once, then install whichever plugins you need:
 | [wpbakery-to-gutenberg](#wpbakery-to-gutenberg) | Convert WPBakery pages on a Studio site to Gutenberg block markup in place | `/wpbakery-to-gutenberg:wpbakery-batch`, natural language |
 | [html-to-block-theme](#html-to-block-theme) | Turn static HTML/CSS/JS designs into a standards-driven WordPress block theme | Natural language |
 | [figma-extract](#figma-extract) | Pull images and design context out of the current Figma selection | `/figma-extract:extract` |
+| [fig-to-html](#fig-to-html) | Convert frames of a Figma `.fig` export to responsive HTML/CSS/JS, from the file alone | Natural language |
 | [poseidon-local](#poseidon-local) | Run the Poseidon plan/implement agents locally instead of via GitHub Actions | `/poseidon-plan`, `/poseidon-implement` |
 | [ai-canvas](#ai-canvas) | Design a WordPress page locally as a full-width Custom HTML block, then move it to the site through your logged-in Chrome with no connection setup | Natural language |
 | [site-launch-comparison](#site-launch-comparison) | Screenshot two versions of a site and build a side-by-side before/after report | Natural language |
@@ -176,7 +177,7 @@ Convert a WPBakery (Visual Composer) page on a local WordPress [Studio](https://
 
 ## html-to-block-theme
 
-Convert a set of static **Claude Design** HTML/CSS/JS files into a standards-driven **WordPress block theme** on a local [Studio](https://developer.wordpress.com/studio/) site. The agent maps the design to WordPress primitives — templates, template parts, block patterns, `theme.json`, block styles, and page content — rather than reproducing it with hand-written CSS. It plans a blueprint first, then builds section by section and refines against the originals in a real browser.
+Convert a set of static HTML/CSS/JS design files into a standards-driven **WordPress block theme** on a local [Studio](https://developer.wordpress.com/studio/) site. The files can be a handoff package from `sp-site-design-harness` or `fig-to-html`, or files exported from **Claude Design**. The agent maps the design to WordPress primitives — templates, template parts, block patterns, `theme.json`, block styles, and page content — rather than reproducing it with hand-written CSS. It plans a blueprint first, then builds section by section and refines against the originals in a real browser.
 
 **What's included:**
 
@@ -249,6 +250,31 @@ It opens an MCP session to `http://127.0.0.1:3845/mcp`, calls `get_design_contex
 
 # A specific node, into a chosen directory
 /figma-extract:extract 1:23 --out ./design
+```
+
+## fig-to-html
+
+Convert frames of a Figma `.fig` export into responsive vanilla HTML, CSS and JavaScript, working from the file alone: no Figma app, account or API.
+
+**What's included:**
+
+- **fig-to-html skill** - Natural-language trigger for phrases like "convert the homepage in this .fig to HTML"
+- **scripts/fig.mjs** - Standalone reader for `.fig` files; uses only Node built-ins, so there is no npm install
+
+**What it does:**
+
+Reads the frames you name: structure, text, tokens, the images each frame draws, vector artwork as SVG, and the designer's annotations. Writes one HTML file per page with the desktop frame as the source of truth and the mobile frame as the narrow end, checks each page against the 1:1 PNG exports you supply, and writes the same handoff package as `sp-site-design-harness`: `DESIGN.md`, `decisions.md` (with the designer's notes) and `views.md`, beside a `source/` folder. `html-to-block-theme` builds from it.
+
+**Requirements:** Node.js 22.15+. `unzip` when reading a `.fig` directly. A folder of 1:1 PNG exports of the frames to convert.
+
+**Usage:**
+
+```bash
+# Install fig-to-html
+/plugin install fig-to-html@a8cteam51-claude-code-plugins
+
+# Then trigger the skill in natural language:
+# > Convert the homepage in ~/Downloads/Client.fig to HTML. The 1:1 exports are in ~/Downloads/client-exports.
 ```
 
 ## poseidon-local

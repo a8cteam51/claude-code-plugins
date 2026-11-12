@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.11.0] - 2026-11-04
+## [0.11.0] - 2026-11-12
 
 From a run that built a block theme with a WooCommerce store, a Jetpack form and three blocks-collection plugins in a project-template repository, on WordPress 7.1.4 with WooCommerce 11.2.1, Jetpack 16.4, override-post-links 0.1.2, carousel 1.1.2 and marquee 0.1.9. The builders' findings are carried over as they reported them: each passage says what it was seen in, and passages marked **(7.1.4)** or **(16.4)** were not checked a second time. Checked again for this release: the per-viewport `flexWrap` behaviour, by render probe on 7.1.4; the harness changes, in Chrome against two test pages, side by side and in a strip. Not checked:
 - any of the WooCommerce or Jetpack passages on another version;
@@ -27,10 +27,25 @@ From a run that built a block theme with a WooCommerce store, a Jetpack form and
 - **Navigation** (`mapping-guide.md` § core/navigation notes): a custom overlay part (WordPress 7.1) shows every submenu open, the Site Editor rewrites each navigation in it on the first save, and its blocks inherit the navigation's typography.
 - **Per-viewport `flexWrap`** (`mapping-guide.md` § Per-viewport values): it prints only `nowrap`. A builder reported that it prints nothing; a render probe on 7.1.4 showed that turning wrapping off prints and turning it back on does not.
 - **Covers** (`mapping-guide.md` § Layout traps): a full-width cover with a constrained layout loses the root gutter to core's nested-padding rule, and its `overflow: clip` cuts off a 1px seam guard.
-- **Defects of a design** (`SKILL.md` Phase 1, step 5; `live-site-guide.md`): `defects` was for live sites only. A generated design had a decoration wider than the page and an empty band where its columns stacked; the blueprint now asks the same question when a design shows defects of its own.
+- **Defects of a design** (`SKILL.md` Phase 1, step 5; `live-site-guide.md`): `defects` was for live sites only. A generated design had a decoration wider than the page and an empty band where its columns stacked; the blueprint now asks the same question when a design shows defects of its own. What a `fig-to-html` package records in `decisions.md` § Standards as the designer's to change (0.10.2) is outside the question: it was built as drawn on purpose, and is reported, not fixed.
 - **The browser tools** (`SKILL.md` § Tooling, `visual-refinement.md`): the harness has no substitute, where the guides said the extension had none while also describing the Chrome DevTools route.
 - **Briefs that change content** (`SKILL.md` Phase 3): checked against the handoff's images first. The run had a paragraph dropped as a duplicate that the design showed.
 - **Project repositories** (`project-template-guide.md`): a post type key is at most 20 characters, and a long PHP prefix leaves room for four letters; a directory a plugin writes into `wp-content` at runtime (`jetpack-waf/`) gets a `.gitignore` line; example features are deleted without staging the deletions, after a builder recreated a deleted file and the index contradicted the tree.
+## [0.10.2] - 2026-11-12
+
+### Changed
+- **Which package it is** (Phase 1, step 5). A `fig-to-html` package now names its palette with the team's `canvas`, `surface`, `ink` and `accent` and holds the colours as `--color-<slug>`, so the palette slugs come from `DESIGN.md`'s colour keys. Its `decisions.md` § Standards lists what the design fails and was built as drawn: reported in the summary, not corrected in the theme.
+
+## [0.10.1] - 2026-11-12
+
+So that a run can take a handoff package from `fig-to-html` as well as one from `sp-site-design-harness`. The two are laid out alike, so nothing in how a run works changes. `group-designs.py` was run on a `fig-to-html` package of one page. No run has built a theme from one.
+
+### Added
+- **Where the design directory comes from** (Inputs): Claude Design files, the `source/` folder of a handoff package from either plugin, or the mirror of a live site.
+- **Which package it is** (Phase 1, step 5). A `fig-to-html` package can hold only some of a site's pages. A Sitemap row with no file is not a target and no page is made for it: it goes into the content status and the summary. The designer's quoted notes and the Interactions table go into the behaviour table, the listed differences from the designer's exports are settled, and the `extract/` folder beside the package is not read.
+
+### Changed
+- The descriptions no longer say the source is Claude Design files only.
 
 ## [0.10.0] - 2026-11-02
 
