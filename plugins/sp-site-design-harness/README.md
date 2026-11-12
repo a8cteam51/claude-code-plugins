@@ -45,7 +45,8 @@ its own short conversational intake. Invoke it by asking Claude to design or
 improve the visual design of a site, landing page, or similar.
 
 **Output:** `directions/NN-<slug>.html`, `directions/NN-<slug>.tokens.md`,
-`directions/index.html`.
+`directions/index.html`, and with two to four directions
+`directions/compare.html`, every direction side by side.
 
 The user picks a direction outside the harness, in conversation — this
 plugin never auto-selects one.
@@ -126,6 +127,8 @@ projects/<slug>/
     01-<slug>.tokens.md … NN-<slug>.tokens.md
     NN-<slug>.changes.md  /iterate change log, pre-handoff
     index.html
+    compare.html          every direction side by side (two to four directions)
+    compare/              a desktop and a mobile full-page capture per direction
   handoff/
     DESIGN.md
     decisions.md
