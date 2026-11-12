@@ -32,6 +32,7 @@ From a run that built a block theme with a WooCommerce store, a Jetpack form and
 - **The browser tools** (`SKILL.md` § Tooling, `visual-refinement.md`): the harness has no substitute, where the guides said the extension had none while also describing the Chrome DevTools route.
 - **Briefs that change content** (`SKILL.md` Phase 3): checked against the handoff's images first. The run had a paragraph dropped as a duplicate that the design showed.
 - **Project repositories** (`project-template-guide.md`): a post type key is at most 20 characters, and a long PHP prefix leaves room for four letters; a directory a plugin writes into `wp-content` at runtime (`jetpack-waf/`) gets a `.gitignore` line; example features are deleted without staging the deletions, after a builder recreated a deleted file and the index contradicted the tree.
+
 ## [0.10.2] - 2026-11-12
 
 ### Changed

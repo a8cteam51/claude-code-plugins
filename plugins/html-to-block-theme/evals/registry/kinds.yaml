@@ -95,3 +95,27 @@ files:
       - { match: "Never invent block attribute names", kind: platform }
       - { match: "**Read the block's `block.json`**", kind: platform }
       - { match: "**WordPress texturises content on output.**", kind: platform }
+
+  # These two took over mapping-guide.md's WooCommerce and Forms (Jetpack) sections, which were
+  # environment: facts about a plugin, each marked with the version it was seen in.
+  skills/html-to-block-theme/references/woocommerce-guide.md:
+    sections:
+      "WooCommerce guide": reference
+      "Before building": environment
+      "Stylesheets: WooCommerce's print after the theme's": environment
+      "Templates": environment
+      "Products": environment
+      "WooCommerce Subscriptions": environment
+      "Cart": environment
+      "Checkout": environment
+      "My Account": environment
+      "Mini-Cart": environment
+      "In a project repository": environment
+
+  skills/html-to-block-theme/references/jetpack-forms-guide.md:
+    sections:
+      "Jetpack Forms guide": reference
+      "On a local site": environment
+      "Markup": environment
+      "Styling a form": environment
+      "Accessibility": environment
