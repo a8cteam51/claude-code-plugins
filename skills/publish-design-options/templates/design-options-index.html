@@ -6,6 +6,8 @@
 <title>{{PROJECT}} — {{TITLE_LOWER}}</title>
 <meta name="description" content="{{TITLE}} for {{PROJECT}}, prepared for review.">
 <meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://rsms.me/">
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
 <style>
   :root{
     --blue:#2e72f5;
@@ -13,7 +15,7 @@
     --paper:#fff;
     --rule:#e2e2e2;
     --quiet:#6b6b6b;
-    --grotesk:-apple-system,BlinkMacSystemFont,"Helvetica Neue","Inter",Helvetica,Arial,sans-serif;
+    --grotesk:"InterVariable","Inter",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif;
     --rail:clamp(1.5rem,5vw,4.5rem);
   }
   *,*::before,*::after{box-sizing:border-box}
@@ -43,12 +45,12 @@
   .cover h1{
     margin:0;
     font-size:clamp(3.5rem,13.5vw,13rem);
-    line-height:.86;letter-spacing:-.045em;font-weight:500;
+    line-height:.86;font-weight:500;
   }
   .cover p{
     margin:clamp(1.25rem,3vh,2.5rem) 0 0;max-width:40ch;
     font-size:clamp(1.15rem,2.6vw,2.1rem);
-    line-height:1.2;letter-spacing:-.02em;font-weight:500;
+    line-height:1.2;font-weight:500;
     color:rgba(255,255,255,.92);
   }
   /* ---- Footer rail: three parts, per the deck template ---- */
@@ -79,17 +81,17 @@
   .toc a::before{
     content:counter(opt);
     font-size:clamp(2rem,7vw,5.5rem);line-height:.85;
-    letter-spacing:-.04em;font-weight:500;color:var(--ink);
+    font-weight:500;color:var(--ink);
   }
   .toc__name{
     display:block;
     font-size:clamp(2rem,7vw,5.5rem);line-height:.9;
-    letter-spacing:-.045em;font-weight:500;
+    font-weight:500;
   }
   .toc__note{
     display:block;margin-top:.7em;max-width:56ch;
     font-size:clamp(.95rem,1.5vw,1.125rem);line-height:1.4;
-    letter-spacing:-.01em;color:var(--quiet);
+    color:var(--quiet);
   }
   @media (hover:hover){
     .toc a:hover{background:var(--blue);padding-inline:clamp(.75rem,2vw,1.5rem)}
