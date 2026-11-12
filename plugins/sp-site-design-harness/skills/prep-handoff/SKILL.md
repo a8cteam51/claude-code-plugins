@@ -133,9 +133,16 @@ republish. When the user says the partner has signed off, continue to Step 5
      Page row in `views.md`'s Sitemap has its entry in Content status,
      listing its placeholder strings, images and `#` links, or saying it has
      none. Spot-check it: every `href="#"` in a view's HTML is in that view's
-     entry. And `decisions.md` carries the list in full, not summarised.
+     entry or in the shared "On every page" list. And `decisions.md` carries the list in full, not summarised.
    - `DESIGN.md`'s color values match `:root` in `handoff/source/assets/site.css`.
      If they differ, `site.css` wins; update DESIGN.md and say so.
+   - **`DESIGN.md` doesn't ask for what the set left out.** It was written
+     in Stage 2, before the set's rules applied: check that it names the
+     local font files rather than a CDN, and asks for no comment form error
+     state (its accessibility gate's error row included). The build reads
+     DESIGN.md first, so a stale line there becomes a question in the
+     blueprint, or a feature that can't work. The set wins; update
+     DESIGN.md and say so.
 3. Report what's in the package and the next step:
 
 ```

@@ -51,7 +51,9 @@ facts you can't find and whose default would be wrong to assume:
 | Search | On |
 
 If the user doesn't answer, go with the defaults and list them in the notes
-as assumptions.
+as assumptions. If nobody is there to ask (an unattended run), skip the
+question, take the defaults, leave out or fake-mark every fact the brief
+doesn't give, and say in Assumptions that the question was not put.
 
 **The sitemap.** List every destination a visitor can reach, from all of
 these sources together: the homepage's nav, footer and calls to action
@@ -81,7 +83,10 @@ build must decide how the listing is produced.
 **Facts the pages need.** List every fact a visitor would act on that the
 pages will show (view-specs § Everywhere): hours, phones, addresses,
 prices, staff names and credentials, claims in FAQ answers. Any the brief
-doesn't give goes into the Step 0 question.
+doesn't give goes into the Step 0 question. The homepage and its header and
+footer count too: a credential after a name in a caption, or a ZIP code in
+the footer's address, came from the homepage in one run and wasn't in the
+brief.
 
 ## Step 1 — Read the system
 
@@ -138,10 +143,16 @@ and redo it when the rules arrive.
      stylesheet serves, so the faces are the same ones the homepage
      rendered with.
    - Add an `@font-face` rule per file at the top of `site.css`, with the
-     same `font-family`, `font-weight`, `font-style` and `font-display` the
-     CDN stylesheet declared.
+     same `font-family`, `font-style`, `font-display` and `unicode-range` the
+     CDN stylesheet declared. Fetch that stylesheet with a current browser
+     User-Agent, or the CDN serves other formats. When it serves one variable
+     file for several weights (the same URL under `font-weight: 340` and
+     `480`), write one rule for the file with the weight range
+     (`font-weight: 340 480`) rather than one per weight.
    - Remove the CDN `<link>`s, `preconnect`s and `@import`s from
      `home.html`.
+   - If DESIGN.md names the CDN as the fonts' source, change it to the
+     local files, so the handoff doesn't say two things.
 
    A licensed family follows the licence gate in
    `../create-design/references/typography.md` § Embedding: one without a
@@ -164,6 +175,10 @@ and redo it when the rules arrive.
    over a hero (transparent, inverted, absolutely positioned), inner views
    need a solid header. Design it once as a second header, identical across
    all inner views, and name both headers in the notes.
+8. **The nav markup is well formed.** After the real nav is in, check that
+   every `<ul>` is closed and that only `<li>` sits inside one. A stray
+   unclosed `<ul>` before the mobile search form once passed every other
+   check, and fixing it later changed the open panel's spacing.
 
 ## Step 4 — Design the views
 
@@ -290,7 +305,11 @@ The notes file has these sections, in order:
    what the client needs to supply (post content, author names, images,
    external URLs, facts left out per view-specs § Everywhere).
    html-to-block-theme copies this list into its report, so a string missing here looks
-   finished on the built site.
+   finished on the built site. Items the chrome repeats on every page (the
+   Book button's `#`, social `#` links, the newsletter form's `action`) may
+   be listed once under "On every page", with each page's entry listing only
+   what differs on it. A state file lists its own `#` links too, not "as
+   `single.html`": the package check reads each entry on its own.
 7. **Assumptions**: defaults used in Step 0 without confirmation.
 8. **Fixes to the homepage**: anything changed in `home.html` beyond the
    stylesheet move, asset paths and local fonts (real nav, a skip link),
