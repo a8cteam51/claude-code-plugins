@@ -270,7 +270,7 @@ Must be empty. Otherwise abort.
 One CLI call. Updating an existing space:
 
 ```bash
-sf publish "$STAGE" --space "$SPACE_ID" --team allan-team --wait --json -y \
+sf publish "$STAGE" --space "$SPACE_ID" --team team-51 --wait --json -y \
   -m "Design options: <names> — <date>"
 ```
 
@@ -300,8 +300,8 @@ space at first publish, carrying `page.view`, `comments.read`, and
 partner link — read it, never create one:
 
 ```bash
-sf share link ls --space "$SPACE_ID" --team allan-team --json 2>&1
-sf share link copy <lnk_id> --space "$SPACE_ID" --team allan-team --show-secret --json 2>&1
+sf share link ls --space "$SPACE_ID" --team team-51 --json 2>&1
+sf share link copy <lnk_id> --space "$SPACE_ID" --team team-51 --show-secret --json 2>&1
 ```
 
 Two quirks, both verified: `share link ls` does **not** accept `--show-secret`
