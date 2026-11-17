@@ -249,6 +249,25 @@
       "skills": [
         "./skills/fresh-eyes-review"
       ]
+    },
+    {
+      "name": "wpcom-to-pressable-migration",
+      "source": "./plugins/wpcom-to-pressable-migration",
+      "description": "Move Team 51 sites from WordPress.com (Atomic) to Pressable: a read-only audit that reports blockers, decisions and manual work and generates a per-site runbook; a guided run that creates the Pressable site with the team51 CLI, copies it with Reprint run on Pressable (a rehearsal, then a final pull), switches deploys to Pressable's GitHub integration with the .deployignore allowlist, and changes DNS; and verification checks at each stage.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Automattic Special Projects"
+      },
+      "repository": "https://github.com/a8cteam51/claude-code-plugins",
+      "license": "MIT",
+      "keywords": ["wordpress", "migration", "pressable", "wordpress-com", "atomic", "reprint", "team51", "dns", "jetpack", "audit"],
+      "category": "development-tools",
+      "strict": true,
+      "skills": [
+        "./skills/wpcom-to-pressable-audit",
+        "./skills/wpcom-to-pressable-run",
+        "./skills/wpcom-to-pressable-verify"
+      ]
     }
   ]
 }
