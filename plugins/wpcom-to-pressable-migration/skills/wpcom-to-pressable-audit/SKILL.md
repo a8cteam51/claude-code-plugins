@@ -52,7 +52,8 @@ without it.
 
 ## Steps
 
-Run independent steps in parallel.
+Run independent steps in parallel, but only one WP-CLI call against the Atomic site at a time: two at once failed
+with "Could not connect to the SSH server" (2026-11-17).
 
 ### 1. Site inventory → `site.json`, `webroot.json`
 
@@ -71,7 +72,9 @@ python3 "$S/wpcom_facts.py" <blog ID> --out "$D/wpcom.json"
 ```
 
 Then add, editing the same file: `stickers` (`mcp__team51__wpcom_list_site_stickers`) and `existing_sites`, a list of
-`{blog_id, url, note}` for other WordPress.com sites on the same domain or name (an older blog on `www.` is common).
+`{blog_id, url, note}` for other WordPress.com sites on the same domain or name (an older blog on `www.` is common, and
+the staging site from step 5). Where your evidence answers whether one matters, add `severity` (`info` or `manual`),
+`action` and `"steps": ["decom.wpcom-sites"]`; otherwise it is raised as a decision.
 Fleet stats (`mcp__team51__wpcom_list_sites_stats_summary`, saved to a file, filtered with `grep`) give views for
 those; a blog with the Stats module off returns an error there, which is itself the answer.
 
@@ -101,10 +104,24 @@ a registration; put that in `context.json`.
 ### 5. Repo and deploys → `deploy.json`
 
 Find the repo (`gh api --paginate 'orgs/a8cteam51/properties/values?per_page=100'`, filtered for the domain, or the
-current directory's remote). Check its layout (themes/plugins/mu-plugins at the root) and whether the deploy branch's
-`.deployignore` already has a `# BEGIN Pressable deploy allowlist` block. Check whether WordPress.com GitHub
-Deployments is connected (the site's Deployments screen, or the repo README). Compare the live theme and mu-plugins
-with the repo if you can (`team51 wpcom:download-site-plugins` is for plugins only; otherwise note it as not checked).
+current directory's remote). Its custom properties also name the WordPress.com staging site
+(`site-url-staging`, `wpcom-blog-id-staging`): add that to `existing_sites` in `wpcom.json` for decommission. Check the
+layout (themes/plugins/mu-plugins at the root) and whether the deploy branch's `.deployignore` already has a
+`# BEGIN Pressable deploy allowlist` block.
+
+WordPress.com GitHub Deployments: `team51 wpcom:site:deployment:webhook:list <blog ID>` names the connected
+deployment and repo ("Using site deployment 7391 (a8cteam51/…)").
+
+Drift: compare every file the repo tracks under themes/, plugins/ and mu-plugins/ with the live site, read-only:
+
+```bash
+ARGS=$(git ls-files themes mu-plugins plugins | python3 -c "import json,sys; print(json.dumps({'paths':[l.strip() for l in sys.stdin if l.strip()]}))")
+T51_ARGS="$ARGS" "$S/wp_eval.sh" wpcom <blog ID> "$S/file_hashes.php" > "$D/live-hashes.json"
+```
+
+then compare each `hashes[path]` with the md5 of the file at the deploy branch. Files `.deployignore` keeps out are
+missing on the server by design. Real differences go in `drift`: the Pressable integration's first deploy would
+overwrite them.
 
 ```json
 { "repo": "a8cteam51/<repo>", "branch": "trunk", "wpcom_deployments": "connected | not connected | unknown: why",
@@ -128,7 +145,8 @@ anything fragile.
                "action": "", "owner": "TAM | Developer | …" } ] }
 ```
 
-Where the history answers something the report asks, record it, for example
+A note with severity `decision` can carry `"decision_key": "<key>"`; once that key is recorded with `state.py decide`,
+the note drops to info. Where the history answers something the report asks, record it, for example
 `python3 "$S/state.py" --dir "$D" decide partner_collaborator <email>`. `state.py` needs a `state.json`, so build once
 first (step 8), then record and build again.
 

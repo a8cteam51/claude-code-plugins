@@ -153,9 +153,11 @@ def jetpack(m):
                      "traffic figures for the site.", "Nothing to do. Turn Stats on after cutover if the partner wants it."))
     products = [p for p in (jp.get("product_slugs") or [])]
     if products:
-        out.append(F("jetpack.products", "Jetpack", "decision", "Paid Jetpack products are attached to the old blog ID",
-                     "Products: %s." % ", ".join("`%s`" % p for p in products),
-                     "Decide whether each moves to the new connection (a licence key on Pressable) or lapses with the old site.",
+        decided = g(m, "decisions", "jetpack_products")
+        out.append(F("jetpack.products", "Jetpack", "manual" if decided else "decision", "Paid Jetpack products are attached to the old blog ID",
+                     "Products: %s.%s" % (", ".join("`%s`" % p for p in products), (" Decided: %s." % decided) if decided else ""),
+                     "Decide whether each moves to the new connection (a licence key on Pressable) or lapses with the old site. "
+                     "Record it with `state.py decide jetpack_products \"<what happens>\"`.",
                      steps=["post.jetpack-products"]))
     gaps = sorted(label for mod, label in PLAN_MODULES.items() if mod in modules)
     if gaps:
@@ -220,6 +222,12 @@ def atlantis(m):
     if not t51.get("atlantis_present"):
         return [F("access.atlantis", "Team 51", "info", "Atlantis is not on the source",
                   "", "`pressable:create-site` installs it on the new site; check it is active after the pull.")]
+    # The key encrypts Atlantis Messages content and nothing else, so with no messages there is nothing to carry.
+    if not t51.get("atlantis_messages"):
+        return [F("access.atlantis-key", "Team 51", "info", "The Atlantis key does not need to move",
+                  "The source has no Atlantis messages, the only thing the key encrypts (fingerprint %s). The new site keeps the key "
+                  "Atlantis wrote when it was installed." % t51.get("atlantis_key"),
+                  "Check the count is still 0 at the final pull; if a message appears, carry the key (`prep.atlantis-key`).")]
     return [F("access.atlantis-key", "Team 51", "auto", "Carry the Atlantis encryption key to Pressable",
               "Key fingerprint %s; %s stored messages. Site creation writes a new key on Pressable." % (t51.get("atlantis_key"), t51.get("atlantis_messages")),
               "Step `prep.atlantis-key`, before the first pull.", steps=["prep.atlantis-key"])]
@@ -263,14 +271,14 @@ def dns(m):
         mail = z.get("mail_provider_hint") or "none found"
         if reg == "automattic" and host == "wpcom":
             out.append(F("dns.wpcom.%s" % apex, "DNS", "manual", "%s: registered and hosted at WordPress.com; only the site records change" % apex,
-                         "Mail: %s. The domain is detached from the Atomic site (kept as a domain-only registration) and its apex and "
-                         "`www` records are pointed at Pressable inside the WordPress.com zone. Mail and other records stay." % mail,
-                         "Steps `cut.detach-domain`, `cut.records`. Find the WordPress.com account that holds the registration first.",
-                         steps=["prep.domain-account", "cut.detach-domain", "cut.records"]))
+                         "Mail: %s. The apex `A` records are pointed at Pressable inside the WordPress.com zone, with an "
+                         "`atomic-domain` TXT for Pressable; `www` too if it has its own record. Mail and other records stay." % mail,
+                         "Steps `cut.add-domain`, `cut.records`. Find the WordPress.com account that holds the registration first.",
+                         steps=["prep.domain-account", "cut.add-domain", "cut.records"]))
         elif host == "wpcom":
             out.append(F("dns.wpcom-dns.%s" % apex, "DNS", "manual", "%s: DNS at WordPress.com, registered elsewhere" % apex,
                          "Mail: %s." % mail, "Records change inside the WordPress.com zone (`cut.records`).",
-                         steps=["prep.domain-account", "cut.detach-domain", "cut.records"]))
+                         steps=["prep.domain-account", "cut.add-domain", "cut.records"]))
         else:
             out.append(F("dns.access.%s" % apex, "DNS", "decision", "%s: DNS is hosted elsewhere; confirm who can change it" % apex,
                          "DNS host: %s; registrar: %s; mail: %s." % (host, z.get("registrar"), mail),
@@ -327,9 +335,11 @@ def deploys(m):
 @check
 def estate(m):
     out = []
+    # The audit sets a severity and action where it could answer the question itself (a staging copy, a dead blog).
     for s in g(m, "wpcom", "existing_sites", default=[]):
-        out.append(F("estate.%s" % s.get("blog_id"), "Related sites", "decision", "Another WordPress.com site uses this name: %s" % s.get("url"),
-                     s.get("note", ""), "Confirm it is not live, or that the DNS change does not affect it."))
+        out.append(F("estate.%s" % s.get("blog_id"), "Related sites", s.get("severity", "decision"),
+                     "Another WordPress.com site uses this name: %s" % s.get("url"), s.get("note", ""),
+                     s.get("action", "Confirm it is not live, or that the DNS change does not affect it."), steps=s.get("steps")))
     for s in g(m, "pressable_related", default=[]):
         out.append(F("estate.pressable.%s" % s.get("id"), "Related sites", "info", "Related Pressable site: %s" % s.get("url"),
                      s.get("note", ""), "Nothing to do; noted so the right site is targeted."))
@@ -356,8 +366,11 @@ def context(m):
     notes = g(m, "context", "notes", default=[])
     out = []
     for i, n in enumerate(notes[:15]):
-        out.append(F("context.%d" % i, "Context from P2, Slack and Linear", n.get("severity", "info"), n.get("note", ""),
-                     "%s %s" % (n.get("source", ""), n.get("url", "")), n.get("action", ""), owner=n.get("owner")))
+        # A note that asks a question names the decision that answers it; once recorded, it is no longer a question.
+        answer = g(m, "decisions", n.get("decision_key") or "")
+        severity = "info" if answer and n.get("severity") in ("decision", "blocker") else n.get("severity", "info")
+        detail = "%s %s" % (n.get("source", ""), n.get("url", "")) + (" Decided: %s." % answer if answer else "")
+        out.append(F("context.%d" % i, "Context from P2, Slack and Linear", severity, n.get("note", ""), detail, n.get("action", ""), owner=n.get("owner")))
     return out
 
 

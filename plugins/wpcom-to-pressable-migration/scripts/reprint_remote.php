@@ -13,7 +13,8 @@
  *   help     `php reprint.phar <command> --help`, for checking flags against the installed client.
  *   setup    Creates the work directory, downloads reprint.phar and runs `keygen` for the source.
  *            Prints the Migration Token (a public key) to paste into the source's Reprint screen.
- *   run      Starts `pull-files` or `pull-db` in the background. Resumable: run it again after a failure.
+ *   run      Runs `pull-files` or `pull-db`. On Pressable pass "foreground": true (a background process dies
+ *            with the WP-CLI call); "max_seconds" caps it (default 1800). Resumable: run it again after a failure.
  *   status   Whether the background run is alive, its exit code and the end of its log.
  *   place    Copies the pulled wp-content into this site's wp-content, skipping platform files.
  *            Pass "dry_run": true first to see what it would write.
@@ -248,9 +249,31 @@ switch ( $action ) {
 		@unlink( $exit ); // phpcs:ignore
 		file_put_contents( $script, "#!/bin/sh\n" . implode( ' ', $common ) . "\necho \$? > " . escapeshellarg( $exit ) . "\n" ); // phpcs:ignore
 		chmod( $script, 0700 ); // phpcs:ignore
-		$res = $sh( 'nohup sh ' . escapeshellarg( $script ) . ' >> ' . escapeshellarg( $log ) . ' 2>&1 & echo $!' );
-		file_put_contents( $pid_file, trim( $res['output'] ) ); // phpcs:ignore
-		$out += array( 'step' => $step, 'pid' => trim( $res['output'] ), 'log' => $log, 'next' => 'Check with action=status.' );
+		if ( empty( $args['foreground'] ) ) {
+			$res = $sh( 'nohup sh ' . escapeshellarg( $script ) . ' >> ' . escapeshellarg( $log ) . ' 2>&1 & echo $!' );
+			file_put_contents( $pid_file, trim( $res['output'] ) ); // phpcs:ignore
+			$out += array( 'step' => $step, 'pid' => trim( $res['output'] ), 'log' => $log, 'next' => 'Check with action=status.' );
+			break;
+		}
+		// Pressable runs each WP-CLI call in its own container, so a background process dies with the call (2026-11-17).
+		// Run in the foreground instead, capped so a hung pull cannot hold the call open; Reprint resumes on the next run.
+		$max     = max( 60, (int) ( $args['max_seconds'] ?? 1800 ) );
+		$started = microtime( true );
+		$res     = $sh( 'timeout ' . $max . ' sh ' . escapeshellarg( $script ) . ' >> ' . escapeshellarg( $log ) . ' 2>&1; echo $?' );
+		$code    = (int) trim( substr( $res['output'], strrpos( "\n" . $res['output'], "\n" ) ) );
+		$lines   = is_file( $log ) ? file( $log, FILE_IGNORE_NEW_LINES ) : array();
+		// Pressable's object cache keeps serving the pre-import options until flushed (2026-11-17).
+		if ( 'db' === $step && 0 === $code ) {
+			$out['cache_flushed'] = wp_cache_flush();
+		}
+		$out    += array(
+			'step'     => $step,
+			'exit'     => $code,
+			'seconds'  => (int) ( microtime( true ) - $started ),
+			'timed_out' => 124 === $code,
+			'tail'     => $redact( implode( "\n", array_slice( $lines, -15 ) ) ),
+			'next'     => 0 === $code ? 'Done.' : ( 124 === $code ? 'Cut off at max_seconds: run the same command again to resume.' : 'Failed: read the tail, then run again to resume.' ),
+		);
 		break;
 
 	case 'status':
@@ -302,6 +325,7 @@ switch ( $action ) {
 		$same    = 0;
 		$over    = array();
 		$top     = array();
+		$links   = array();
 		$it      = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $from, FilesystemIterator::SKIP_DOTS ), RecursiveIteratorIterator::SELF_FIRST );
 		foreach ( $it as $path => $info ) {
 			$rel = substr( $path, strlen( $from ) + 1 );
@@ -309,6 +333,11 @@ switch ( $action ) {
 				if ( $rel === $s || 0 === strpos( $rel, $s . '/' ) ) {
 					continue 2;
 				}
+			}
+			// Atomic links its platform plugins (Jetpack, Akismet, Gutenberg...) into wp-content; rehearse.plugins installs them.
+			if ( $info->isLink() ) {
+				$links[] = $rel;
+				continue;
 			}
 			$dest = "$to/$rel";
 			if ( $info->isDir() ) {
@@ -334,7 +363,7 @@ switch ( $action ) {
 			}
 			++$written;
 		}
-		$out += array( 'from' => $from, 'to' => $to, 'dry_run' => $dry, 'would_write' => $written, 'unchanged' => $same, 'overwrites' => $over, 'by_top_level' => $top, 'skipped' => $skip );
+		$out += array( 'from' => $from, 'to' => $to, 'dry_run' => $dry, 'would_write' => $written, 'unchanged' => $same, 'overwrites' => $over, 'by_top_level' => $top, 'skipped' => $skip, 'symlinks_skipped' => $links );
 		break;
 
 	case 'sql':

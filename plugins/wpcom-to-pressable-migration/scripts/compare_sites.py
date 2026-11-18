@@ -14,6 +14,12 @@ import sys
 # Plugins each platform supplies itself. A difference in these is a note, not a problem.
 HOST_PLUGINS = {"wpcomsh", "page-optimize", "gutenberg", "woocommerce-fraud-protection", "pressable-cache-management",
                 "pressable-onepress-login", "jetpack", "akismet"}
+# WordPress.com's own mu-plugins, which the copy leaves behind on purpose.
+WPCOM_MU = ("wpcomsh", "woocommerce-fraud-protection")
+# REST namespaces WordPress.com's platform plugins register (thinkbiggerinnovation.com, 2026-11-17).
+WPCOM_NAMESPACES = ("help-center", "jetpack-global-styles/", "newspack-blocks/", "wpcomsh/", "wpcom/", "wpcom-")
+# Namespaces Jetpack did not register while held offline by the quarantine; re-check them after cut.jetpack.
+OFFLINE_NAMESPACES = ("my-jetpack/", "jetpack/v4/explat")
 
 
 def main():
@@ -48,6 +54,10 @@ def main():
     for label, a, b in (("mu-plugin files", src["mu_plugins"]["files"], dst["mu_plugins"]["files"]),
                         ("mu-plugin dirs", src["mu_plugins"]["dirs"], dst["mu_plugins"]["dirs"])):
         only_src, only_dst = sorted(set(a) - set(b)), sorted(set(b) - set(a))
+        platform = [m for m in only_src if m.startswith(WPCOM_MU)]
+        only_src = [m for m in only_src if m not in platform]
+        if platform:
+            notes.append("WordPress.com %s left behind as expected: %s" % (label, ", ".join(platform)))
         if only_src:
             problems.append("%s missing on target: %s" % (label, ", ".join(only_src)))
         if only_dst:
@@ -77,7 +87,9 @@ def main():
                 src["jetpack"]["blog_id"], "; the quarantine keeps Jetpack offline until cut.jetpack clears it" if quarantined
                 else " and the quarantine is gone: clear it now (cut.jetpack) before Jetpack talks to the live blog"))
     src_key, dst_key = src["team51"].get("atlantis_key"), dst["team51"].get("atlantis_key")
-    if src_key and src_key != dst_key:
+    if src_key and src_key != dst_key and not src["team51"].get("atlantis_messages"):
+        notes.append("Atlantis encryption key differs (source %s, target %s); the source has no messages, so nothing is lost" % (src_key, dst_key or "none"))
+    elif src_key and src_key != dst_key:
         problems.append("Atlantis encryption key differs (source %s, target %s): the copied Atlantis messages cannot be "
                         "decrypted; see step prep.atlantis-key" % (src_key, dst_key or "none"))
     if dst["team51"].get("safety_net"):
@@ -89,8 +101,18 @@ def main():
     if not_carried:
         notes.append("constants in source wp-config but not target: " + ", ".join(not_carried))
     src_ns, dst_ns = set(src["rest_namespaces"]), set(dst["rest_namespaces"])
-    if src_ns - dst_ns:
-        problems.append("REST namespaces missing on target: " + ", ".join(sorted(src_ns - dst_ns)))
+    missing_ns = sorted(src_ns - dst_ns)
+    platform_ns = [n for n in missing_ns if n.startswith(WPCOM_NAMESPACES)]
+    offline_ns = [n for n in missing_ns if n.startswith(OFFLINE_NAMESPACES)
+                  and "t51-migration-quarantine.php" in dst["mu_plugins"]["files"]]
+    missing_ns = [n for n in missing_ns if n not in platform_ns and n not in offline_ns]
+    if platform_ns:
+        notes.append("WordPress.com platform REST namespaces not on target (expected): " + ", ".join(platform_ns))
+    if offline_ns:
+        notes.append("Jetpack REST namespaces missing while the quarantine holds Jetpack offline; re-check after "
+                     "cut.jetpack: " + ", ".join(offline_ns))
+    if missing_ns:
+        problems.append("REST namespaces missing on target: " + ", ".join(missing_ns))
     src_cron, dst_cron = set(src["cron"]["hooks"]), set(dst["cron"]["hooks"])
     if src_cron - dst_cron:
         notes.append("cron hooks not scheduled on target: " + ", ".join(sorted(src_cron - dst_cron)[:30]))

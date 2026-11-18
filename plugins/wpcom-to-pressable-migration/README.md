@@ -74,15 +74,25 @@ scripts/compare_sites.py, parity.php, db_diff.py, url_check.py, frontend/  the c
 - **Pressable deploys through its GitHub integration**, connected just before DNS. `pressable:create-site` runs without
   a repository; `pressable:prepare-site-repository` writes the allowlist block from the Pressable site's files after the
   final pull; `pressable:connect-site-repository` connects. WordPress.com deployments are disconnected first.
-- **A domain registered at WordPress.com stays there**, DNS included. It is detached from the Atomic site and its apex
-  and `www` records point at Pressable. Pressable is expected to ask for an `atomic-domain` TXT record first.
+- **A domain registered at WordPress.com stays there**, DNS included. Only the apex `A` records change, edited in place
+  in the WordPress.com zone while the domain is still attached to the Atomic site, plus the `atomic-domain` TXT Pressable
+  is expected to ask for. Detaching the domain from the site is a fallback only.
 - **The freeze is optional.** The audit reads the activity log; a site that is rarely written to gets a request to the
   partner and a straggler check instead.
 
 ## Known gaps
 
-- Nothing has been run end to end. The copy, the domain detach and the Jetpack swap are the parts most likely to change.
-- How a pulled tree lays out wp-content under Reprint's `--fs-root` is inferred; `place` searches for it.
+- Nothing has been run end to end. The rehearsal copy worked on thinkbiggerinnovation.com (2026-11-17). Attaching the
+  domain on Pressable and the Jetpack swap are the parts most likely to change.
+- Reprint is built to mirror a site into its own folder and run it there, so it has no step that installs into a hosted
+  site's wp-content. Its tree keeps the source's absolute paths (`srv/htdocs/wp-content`, plus `wordpress/plugins` for
+  the symlinked platform plugins), and `place` copies wp-content across. Its `--remap` option might write straight into
+  wp-content; that is untested.
+- Reprint's host-plugin list for WordPress.com covers only `wpcomsh` and its loader. Jetpack, Akismet, Gutenberg,
+  page-optimize and woocommerce-fraud-protection come across as symlink targets; `place` skips them, and
+  `rehearse.plugins` installs only those active on the source.
+- Reprint 0.11.8's URL rewrite turns a bare `href="#"` into `href="/"`. On thinkbiggerinnovation.com this hit only old
+  revisions.
 - Whether Pressable rewrites URLs when the primary domain changes is not confirmed; the runbook checks and falls back to
   `wp search-replace`.
 - There is no HTML report and no shared migrations space; the other direction's `report_html.py` and `space.py` could be

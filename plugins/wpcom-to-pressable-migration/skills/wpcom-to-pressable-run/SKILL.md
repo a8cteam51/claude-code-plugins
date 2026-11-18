@@ -44,7 +44,7 @@ clear yes, every time. A yes for one step does not cover the next. The riskiest:
 - `run` with `step: db`, which replaces the Pressable database;
 - `place`, which writes into Pressable's wp-content;
 - merging the `.deployignore` PR and `pressable:connect-site-repository`;
-- detaching the domain and changing DNS records;
+- adding the domain on Pressable and changing DNS records;
 - deleting the copied Jetpack options and removing the quarantine.
 
 Read-only checks (`probe`, `status`, `help`, `place` with `dry_run`, the verify scripts) need no confirmation.
@@ -53,7 +53,7 @@ Read-only checks (`probe`, `status`, `help`, `place` with `dry_run`, the verify 
 
 Stop. Report what the check showed. Do not work around it. In the window, a failed gate means: remove the freeze if
 there is one, tell the user, and investigate with the live site untouched. Nothing has changed for visitors until
-`cut.detach-domain`.
+`cut.add-domain`.
 
 ## The Reprint copy
 
@@ -64,7 +64,9 @@ own constants and is never printed.
 
 - `probe` - read-only environment check. `bgtest` then shows whether a background process outlives the WP-CLI call.
 - `setup` - downloads `reprint.phar`, makes a key pair, prints the **Migration Token** to authorise on the live site.
-- `run` (`step: files` | `db`) - starts the pull in the background; run it again after a failure and Reprint resumes.
+- `run` (`step: files` | `db`) - runs the pull. On Pressable always pass `"foreground": true`: each WP-CLI call runs in
+  its own container, so a background process dies when the call ends (2026-11-17). The call returns when the pull ends
+  or at `max_seconds` (default 1800); run it again after a failure or a cut-off and Reprint resumes. `/tmp` persists.
   `files` pulls only wp-content, without WordPress.com's platform plugins (`--exclude-host-plugins`) and without the
   freeze mu-plugin. `db` imports straight into the Pressable database and rewrites the live URL to the temporary one.
 - `status` - alive or not, exit code, the last progress line and the end of the log.
@@ -73,8 +75,7 @@ own constants and is never printed.
 - `help` - a Reprint command's `--help`, to check flags against the installed client when something fails.
 - `cleanup` - deletes the work directory. Only at decommission, or to start a pull over.
 
-If `bgtest` shows background runs do not survive, run the pull in the foreground through the same script, or on a
-laptop (`php reprint.phar pull-files` into a local folder, upload over SFTP, `wp db import`), and write down which in
+If a foreground run cannot finish either, run the pull on a laptop (`php reprint.phar pull-files` into a local folder, upload over SFTP, `wp db import`), and write down which in
 `$D/notes.md`.
 
 ## Rules that hold throughout

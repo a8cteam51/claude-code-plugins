@@ -47,6 +47,8 @@ $row_hash = function ( $cols ) use ( $wpdb, $hosts, $has_regexp ) {
 		foreach ( $hosts as $h ) {
 			$expr = 'REPLACE(' . $expr . ', ' . $wpdb->prepare( '%s', $h ) . ", '{h}')";
 		}
+		// Reprint's URL rewrite unescapes JSON slashes (https:\/\/ becomes https://); both are the same JSON (2026-11-17).
+		$expr = 'REPLACE(' . $expr . ", '\\\\/', '/')";
 		if ( $has_regexp ) {
 			$expr = 'REGEXP_REPLACE(' . $expr . ", 's:[0-9]+:\"', 's:#:\"')";
 		}
