@@ -112,7 +112,9 @@ def main():
             values[name] = target[key]
     for key in ("partner_collaborator", "pressable_ips", "window_started"):
         if decisions.get(key):
-            values[key] = decisions[key]
+            # state.py records each decision as {"value": ..., "at": ...}.
+            v = decisions[key]
+            values[key] = v.get("value") if isinstance(v, dict) else v
 
     today = datetime.date.today().isoformat()
     counts = {sev: sum(1 for f in findings if f["severity"] == sev) for sev, _, _ in SEVERITY_HEADINGS}

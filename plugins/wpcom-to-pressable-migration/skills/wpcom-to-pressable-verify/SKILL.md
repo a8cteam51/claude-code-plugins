@@ -81,14 +81,21 @@ Pressable, and the quarantine's noindex.
 T51_ARGS='{"action":"status","work":"/tmp/t51-reprint-<site name>"}' "$S/wp_eval.sh" pressable <pressable ID> "$S/reprint_remote.php"
 ```
 
-**Stragglers** - rows written to the old site after the window started (`decisions.window_started` in `state.json`).
+**Stragglers** - rows written to the old site after the window started (`decisions.window_started.value` in
+`state.json`).
 
 ```bash
 T51_ARGS='{"since":"<YYYY-MM-DD HH:MM:SS UTC>"}' "$S/wp_eval.sh" wpcom <blog ID> "$S/parity.php" \
   | python3 -c "import json,sys; print(json.load(sys.stdin)['after_since'])"
 ```
 
-After cutover the domain points at Pressable, so address the old site by its blog ID.
+Run it before the DNS change (`cut.old-site`). Once the domain moves, the team51 CLI cannot reach the old site until
+WordPress.com moves it to its `*.wpcomstaging.com` address: it goes through the old site's primary domain, which then
+lands on Pressable. In between, read the old site's Activity Log instead.
+
+**Which host answers** - the `host-header` response header: `WordPress.com` for the Atomic site, `wpcloud` for Pressable.
+`x-ac` names the edge pool and reads `_atomic_…` on both, so it cannot tell them apart. Before `cut.jetpack` the
+quarantine's noindex also marks the Pressable copy.
 
 ## Checkpoints
 
@@ -96,13 +103,13 @@ After cutover the domain points at Pressable, so address the old site by its blo
 |---|---|---|
 | `rehearsal` | site comparison, parity, URL crawl, front end, database diff, quarantine present | No missing tables, active plugins or theme. No missing assets or new errors on the front end. Differences in recent rows are expected on a live source. |
 | `final` | the same, after the final pull | The database diff reports NO GAPS, or every gap is explained and recorded. This is the go-live gate: give an explicit go or no-go. |
-| `live` | DNS from several resolvers, certificate, `/.well-known/hosting-provider`, site comparison against the live domain, front end against the pre-window baseline, quarantine absent, Jetpack on a new blog ID, stragglers | The domain resolves to Pressable everywhere, the certificate is valid, mail records unchanged against `zone-before.txt`, straggler counts zero. |
+| `live` | DNS from several resolvers, `host-header`, certificate, site comparison against the live domain, front end against the pre-window baseline, quarantine absent, Jetpack on a blog ID other than the old site's, stragglers | The domain resolves to Pressable everywhere and `host-header` is `wpcloud`, the certificate is valid, mail records unchanged against `zone-before.txt`, no Jetpack REST namespaces missing, straggler counts zero. |
 
 For `live` DNS:
 
 ```bash
 for r in 1.1.1.1 8.8.8.8 9.9.9.9; do echo "$r: $(dig +short <domain> @$r | tr '\n' ' ') | MX: $(dig +short MX <domain> @$r | tr '\n' ' ')"; done
-curl -sL https://<domain>/.well-known/hosting-provider; echo; curl -sI https://<domain> | head -n 8
+curl -sI "https://<domain>/?nocache=$RANDOM" | grep -iE '^HTTP|^host-header'
 ```
 
 ## Reporting

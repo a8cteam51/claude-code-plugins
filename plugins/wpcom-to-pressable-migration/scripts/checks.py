@@ -272,7 +272,7 @@ def dns(m):
         if reg == "automattic" and host == "wpcom":
             out.append(F("dns.wpcom.%s" % apex, "DNS", "manual", "%s: registered and hosted at WordPress.com; only the site records change" % apex,
                          "Mail: %s. The apex `A` records are pointed at Pressable inside the WordPress.com zone, with an "
-                         "`atomic-domain` TXT for Pressable; `www` too if it has its own record. Mail and other records stay." % mail,
+                         "`atomic-domain` TXT for Pressable at the apex and `www`. Mail and other records stay." % mail,
                          "Steps `cut.add-domain`, `cut.records`. Find the WordPress.com account that holds the registration first.",
                          steps=["prep.domain-account", "cut.add-domain", "cut.records"]))
         elif host == "wpcom":
@@ -291,7 +291,8 @@ def dns(m):
         out.append(F("dns.verification.%s" % apex, "DNS", "manual", "Pressable will ask for an `atomic-domain` TXT record for %s" % apex,
                      "Pressable and WordPress.com are both WP Cloud, which proves ownership of a domain with an `atomic-domain-…` TXT "
                      "record. Names in the zone that already carry one: %s." % (", ".join(verification) or "none seen"),
-                     "Add the value Pressable shows for the apex and `www` in the zone before setting the domain primary (`cut.add-domain`).",
+                     "Pressable writes both values into its own zone when the domain is added; copy them into this zone, and give "
+                     "a wildcard-only `www` its own `A` records first (`cut.add-domain`).",
                      steps=["cut.add-domain"]))
         if z.get("wildcard"):
             out.append(F("dns.wildcard.%s" % apex, "DNS", "info", "The zone has a wildcard record",
@@ -337,9 +338,13 @@ def estate(m):
     out = []
     # The audit sets a severity and action where it could answer the question itself (a staging copy, a dead blog).
     for s in g(m, "wpcom", "existing_sites", default=[]):
+        # Jetpack picks the blog by URL: a Jetpack blog already on the domain is the one the new connection may reuse
+        # (thinkbiggerinnovation.com reused its 2023 blog, 2026-11-18). Never retire one before cut.jetpack shows which it is.
         out.append(F("estate.%s" % s.get("blog_id"), "Related sites", s.get("severity", "decision"),
                      "Another WordPress.com site uses this name: %s" % s.get("url"), s.get("note", ""),
-                     s.get("action", "Confirm it is not live, or that the DNS change does not affect it."), steps=s.get("steps")))
+                     s.get("action", "Confirm it is not live, or that the DNS change does not affect it.")
+                     + " If it is a Jetpack site on this domain, the new connection may reuse it: check its owner and plan, and "
+                       "retire nothing until `cut.jetpack` shows which blog the site connected to.", steps=s.get("steps")))
     for s in g(m, "pressable_related", default=[]):
         out.append(F("estate.pressable.%s" % s.get("id"), "Related sites", "info", "Related Pressable site: %s" % s.get("url"),
                      s.get("note", ""), "Nothing to do; noted so the right site is targeted."))

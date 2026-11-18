@@ -33,7 +33,8 @@ days old, or the window is close, re-run it.
 
 Work in order. The order encodes dependencies: the quarantine before the first pull, the final pull before the
 allowlist (it reads the Pressable site's files), WordPress.com deployments off before the allowlist merges, the
-integration connected before DNS, the copied Jetpack connection deleted before the quarantine comes off.
+integration connected before DNS, the old site's straggler count and Monitor webhook done before DNS (the CLI loses the
+old site when the domain moves), the copied Jetpack connection deleted before the quarantine comes off.
 
 ### Steps that change something
 
@@ -44,7 +45,8 @@ clear yes, every time. A yes for one step does not cover the next. The riskiest:
 - `run` with `step: db`, which replaces the Pressable database;
 - `place`, which writes into Pressable's wp-content;
 - merging the `.deployignore` PR and `pressable:connect-site-repository`;
-- adding the domain on Pressable and changing DNS records;
+- adding the domain on Pressable and changing DNS records (in the WordPress.com zone, `www` covered only by a wildcard
+  needs its own `A` records before its `atomic-domain` TXT, or it stops resolving);
 - deleting the copied Jetpack options and removing the quarantine.
 
 Read-only checks (`probe`, `status`, `help`, `place` with `dry_run`, the verify scripts) need no confirmation.
@@ -52,8 +54,8 @@ Read-only checks (`probe`, `status`, `help`, `place` with `dry_run`, the verify 
 ### When verification fails
 
 Stop. Report what the check showed. Do not work around it. In the window, a failed gate means: remove the freeze if
-there is one, tell the user, and investigate with the live site untouched. Nothing has changed for visitors until
-`cut.add-domain`.
+there is one, tell the user, and investigate with the live site untouched. Nothing changes for visitors until Pressable
+has provisioned the domain, a few minutes after `cut.records` points the apex at it.
 
 ## The Reprint copy
 

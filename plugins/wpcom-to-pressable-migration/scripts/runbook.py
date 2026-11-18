@@ -119,8 +119,7 @@ STEPS = [
               "Only the apex (and `www`, if it has its own record) change; this is the record of everything else.",
          verify="The script reports no names without an answer, and every name in `dns-{apex}.json` is in the file."),
     dict(id="prep.source-exporter", phase="prep", actor="human", title="Make the live site's Reprint exporter ready", when=None,
-         body=UNTESTED +
-              "The pull authenticates with a key pair made on Pressable (`rehearse.setup`). The live site has to accept its public "
+         body="The pull authenticates with a key pair made on Pressable (`rehearse.setup`). The live site has to accept its public "
               "key, called the Migration Token. Two ways, both a **write on the live site**, so get a yes first:\n\n"
               "1. **Reprint plugin** (simplest): install **Reprint** from WordPress.org on the live site and open **Tools → Reprint "
               "Server**. Its form takes the token.\n"
@@ -138,8 +137,7 @@ STEPS = [
 
     # -------------------------------------------------------------- rehearse
     dict(id="rehearse.probe", phase="rehearse", actor="agent", title="Probe the Pressable site and test a background run", when=None,
-         body=UNTESTED +
-              "Read-only first: PHP, shell functions, extensions, writable places outside the web root, table prefix.\n\n"
+         body="Read-only first: PHP, shell functions, extensions, writable places outside the web root, table prefix.\n\n"
               "```bash\n" + remote('{"action":"probe","work":"{work}"}') + "\n```\n\n"
               "Needs `exec` in `shell_functions`, `/tmp` writable and outside the web root, and table prefix `{source_prefix}` "
               "(the source's). Probed on another Pressable site (2026-11-17): all present, `max_execution_time` 0.\n\n"
@@ -150,47 +148,41 @@ STEPS = [
                 "mean background runs survive; on Pressable they did not (2026-11-17: each WP-CLI call gets its own container), "
                 "so the runbook's pulls run with `\"foreground\": true`, which holds the call open until the pull ends."),
     dict(id="rehearse.setup", phase="rehearse", actor="both", title="Install the Reprint client on Pressable and authorize it", when=None,
-         body=UNTESTED +
-              "**Writes to the Pressable site** (the work directory only): downloads `reprint.phar` and makes a key pair. The "
+         body="**Writes to the Pressable site** (the work directory only): downloads `reprint.phar` and makes a key pair. The "
               "private key stays in `{work}`.\n\n"
               "```bash\n" + remote('{"action":"setup","work":"{work}","source":"https://{domain}"}') + "\n```\n\n"
               "It prints a **Migration Token** (a public key). A person pastes it into **Tools → Reprint Server** on the live site "
               "and chooses **Authorize client**.",
          verify="The live site's Reprint screen lists the token as authorized, and the first pull below gets past preflight."),
     dict(id="rehearse.files", phase="rehearse", actor="agent", title="Pull wp-content onto Pressable", when=None,
-         body=UNTESTED +
-              "Only wp-content, without WordPress.com's platform plugins or the freeze file. **Writes to the work directory.**\n\n"
+         body="Only wp-content, without WordPress.com's platform plugins or the freeze file. **Writes to the work directory.**\n\n"
               "```bash\n" + remote('{"action":"run","work":"{work}","step":"files","foreground":true,"source":"https://{domain}/?reprint-api","new_site_url":"https://{target}","exclude":["{source_content_dir}/mu-plugins/t51-migration-freeze.php"]}') + "\n"
               + remote('{"action":"status","work":"{work}"}') + "\n```\n\n"
               "It returns when the pull ends (`exit` 0) or at `max_seconds` (exit 124). On anything but 0, run the same command "
               "again: Reprint resumes. Note `seconds`; the window's final pull repeats this.",
          verify="`status` shows `files.exit` 0 and a `pulled_wp_content` path."),
     dict(id="rehearse.place", phase="rehearse", actor="agent", title="Put the pulled wp-content in place", when=None,
-         body=UNTESTED +
-              "Look first:\n\n```bash\n" + remote('{"action":"place","work":"{work}","dry_run":true}') + "\n```\n\n"
+         body="Look first:\n\n```bash\n" + remote('{"action":"place","work":"{work}","dry_run":true}') + "\n```\n\n"
               "It skips platform files of both hosts, caches and the migration mu-plugins, and lists any file it would overwrite. "
               "On a new site the overwrites are only what create-site installed (Atlantis). Then, **writing to wp-content**:\n\n"
               "```bash\n" + remote('{"action":"place","work":"{work}"}') + "\n```",
          verify="`by_top_level` covers plugins, themes, mu-plugins and uploads, and `overwrites` holds nothing unexpected."),
     dict(id="rehearse.db", phase="rehearse", actor="agent", title="Pull the database into Pressable", when=None,
-         body=UNTESTED +
-              "Replaces this site's tables with the live site's and rewrites `https://{domain}` to `https://{target}`. The "
+         body="Replaces this site's tables with the live site's and rewrites `https://{domain}` to `https://{target}`. The "
               "quarantine (a file) stays in force. **Replaces the Pressable database.**\n\n"
               "```bash\n" + remote('{"action":"run","work":"{work}","step":"db","foreground":true,"source":"https://{domain}/?reprint-api","new_site_url":"https://{target}"}') + "\n"
               + remote('{"action":"status","work":"{work}"}') + "\n```\n\n"
               "If anything fails, check the flags against the installed client: `" + remote('{"action":"help","work":"{work}","command":"pull-db"}') + "`.",
          verify="`db.exit` is 0, and `wp option get home` on Pressable returns `https://{target}`."),
     dict(id="rehearse.users", phase="rehearse", actor="agent", title="Restore the Team 51 login after the import", when=None,
-         body=UNTESTED +
-              "The import replaced the users table with the live site's. The concierge user site creation made, and the "
+         body="The import replaced the users table with the live site's. The concierge user site creation made, and the "
               "password it saved in 1Password, are gone; the live site's users (Team 51's account, the partner's, any others) "
               "came across with their WordPress.com-linked accounts. Rotate the concierge password so 1Password matches again. "
               "**Writes to the Pressable site and 1Password.**\n\n"
               "```bash\nteam51 pressable:rotate-site-wp-user-password {pressable_id} --user=concierge@wordpress.com\n```",
          verify="Logging in to `https://{target}/wp-admin` with the 1Password entry works, and MyPressable's WP Admin button logs in."),
     dict(id="rehearse.plugins", phase="rehearse", actor="agent", title="Install what WordPress.com supplied itself", when=None,
-         body=UNTESTED +
-              "```bash\n{scripts}/wp_eval.sh pressable {pressable_id} {scripts}/site_audit.php > {dir}/site-target.json\n"
+         body="```bash\n{scripts}/wp_eval.sh pressable {pressable_id} {scripts}/site_audit.php > {dir}/site-target.json\n"
               "python3 {scripts}/compare_sites.py {dir}/site.json {dir}/site-target.json\n```\n\n"
               "For each plugin missing on the target that was active on the source (Jetpack, Akismet, Jetpack Boost and the like), "
               "install the current stable release and activate it: "
@@ -222,8 +214,7 @@ STEPS = [
               "```bash\npython3 {scripts}/state.py --dir {dir} decide window_started \"$(date -u '+%Y-%m-%d %H:%M:%S')\"\n```",
          verify="The time is recorded."),
     dict(id="window.pull", phase="window", actor="agent", title="Final pull: files, then database", when=None,
-         body=UNTESTED +
-              "Same commands as the rehearsal, with the same work directory, so only changes come down. **Replaces the Pressable "
+         body="Same commands as the rehearsal, with the same work directory, so only changes come down. **Replaces the Pressable "
               "database.**\n\n"
               "```bash\n" + remote('{"action":"run","work":"{work}","step":"files","foreground":true,"source":"https://{domain}/?reprint-api","new_site_url":"https://{target}","exclude":["{source_content_dir}/mu-plugins/t51-migration-freeze.php"]}') + "\n"
               "# when files.exit is 0:\n"
@@ -261,60 +252,82 @@ STEPS = [
                 "matches."),
 
     # -------------------------------------------------------------------- cut
+    dict(id="cut.old-site", phase="cut", actor="agent", title="Finish with the old site while the CLI can still reach it", when=None,
+         body="Once the domain moves, the team51 CLI cannot reach the old site for a while: it goes through WordPress.com's API "
+              "at the old site's primary domain, which then lands on Pressable (\"api_not_found … jetpack.jsonAPI does not exist\"). "
+              "It works again once WordPress.com moves the old site to its `*.wpcomstaging.com` address (thinkbiggerinnovation.com, "
+              "2026-11-18). So, just before the DNS change, count what the old site took since the window started and take its "
+              "Jetpack Monitor webhook off:\n\n"
+              "```bash\nT51_ARGS='{{\"since\":\"{window_started}\"}}' {scripts}/wp_eval.sh wpcom {source_blog_id} {scripts}/parity.php \\\n"
+              "  | python3 -c \"import json,sys; print(json.load(sys.stdin)['after_since'])\"\n"
+              "team51 jetpack-monitor:register-webhook {source_blog_id} --deregister\n```\n\n"
+              "With the webhook gone, an outage during the cutover is not reported until `post.monitoring` registers the new blog.",
+         verify="Counts zero (or each row ported), and `register-webhook {source_blog_id} --list` shows webhook `none`."),
     dict(id="cut.add-domain", phase="cut", actor="both", title="Add {domain} to the Pressable site", when=None,
-         body=UNTESTED +
-              "The registration, the name servers and every other record stay at WordPress.com: only the apex `A` records change "
-              "(next step). Pressable and WordPress.com are both WP Cloud, which proves ownership of a domain already on a WP Cloud "
-              "site with an `atomic-domain-…` TXT record; `choice.{apex}` already has one in this zone, and in March 2024 the apex "
-              "stayed \"provisioning\" on Pressable until its TXT was added.\n\n"
+         body="The registration, the name servers and every other record stay at WordPress.com. Nothing changes for visitors in "
+              "this step: WP Cloud keeps sending {domain} to the Atomic site until Pressable has provisioned it (next step). "
+              "There is no need to detach the domain from the Atomic site.\n\n"
               "```bash\nteam51 pressable:add-site-domain {pressable_id} {domain}\nteam51 pressable:add-site-domain {pressable_id} www.{domain}\n```\n\n"
-              "If it asks for verification, add the TXT value it shows at the apex (and `www` if asked) in the WordPress.com zone "
-              "and retry. Adding a TXT record changes nothing for visitors. Do not set primary yet.\n\n"
-              "Do this and the next step together: if attaching the domain on Pressable takes it off the Atomic site, the live "
-              "site stops answering on {domain} until the apex points at Pressable.",
-         verify="`mcp__team51__pressable_list_site_domains` lists both."),
+              "Pressable makes the first domain primary by itself and the CLI then runs `wp search-replace` from the temporary "
+              "address to {domain}; `--primary` is not needed (2026-11-18).\n\n"
+              "Pressable writes the records it wants into its own DNS zone for the domain (MyPressable → the site → DNS): an "
+              "`atomic-domain-…` TXT for the apex and one for `www`, and `openhosting1/2._domainkey` CNAMEs. That zone is not the "
+              "one the internet sees. Copy the two TXT values (full length, with the copy buttons) into the **WordPress.com** zone, "
+              "at `@` and `www`. Check the DKIM CNAMEs are already there (they usually are); add any that are not.\n\n"
+              "`www` covered only by a wildcard (`* CNAME {apex}`, see `zone-before.txt`): a TXT at `www` makes `www` exist as a "
+              "name, and the wildcard stops answering for it, so `www` would stop resolving. Add `www` `A` records for "
+              "`{pressable_ips}` **before** its TXT. Today Pressable's addresses send `www` to the Atomic site as well, so this "
+              "changes nothing for visitors.\n\n"
+              "```bash\nfor n in {apex} www.{apex}; do dig +short TXT $n @ns1.wordpress.com | grep atomic; dig +short A $n @ns1.wordpress.com; done\n```",
+         verify="`mcp__team51__pressable_list_site_domains` lists both (`provisioned` is still false), and both TXT values come "
+                "back from `ns1.wordpress.com` exactly as Pressable shows them."),
     dict(id="cut.records", phase="cut", actor="human", title="Point the apex at Pressable", when=None,
-         body=UNTESTED +
-              "In the WordPress.com DNS screen for {apex}, replace the apex `A` records (\"Handled by WordPress.com\") with "
-              "`{pressable_ips}`, the Pressable site's addresses. The domain stays attached to the Atomic site while you do: that row "
-              "can be edited in place (checked 2026-11-17). If it cannot on another site, detach the domain from the site first "
-              "(Domains → the domain → disconnect it, keeping the registration), then edit.\n\n"
-              "`www`: if the zone has its own `www` record, point it at the apex (`CNAME {apex}`). If it has none and a wildcard "
-              "`* CNAME {apex}` answers for it (check `zone-before.txt`), it follows the apex with nothing to add.\n\n"
-              "Leave every other record exactly as it is, then check nothing else moved; WordPress.com manages some records "
-              "with the site (`wpcloud*`/`openhosting*` DKIM, `_domainconnect`):\n\n"
+         body="In the WordPress.com DNS screen for {apex}, **add** two apex `A` records, `{pressable_ips}`. The \"Handled by "
+              "WordPress.com\" `A` row cannot be edited, only deleted; adding the first custom apex `A` removes it by itself "
+              "(2026-11-18). There is no gap: Pressable's addresses keep serving the Atomic site until the handover.\n\n"
+              "Leave every other record exactly as it is, then check nothing else moved:\n\n"
               "```bash\npython3 {scripts}/zone_snapshot.py {apex} --names {dir}/zone-before.txt --diff {dir}/zone-before.txt\n```\n\n"
-              "The only differences should be the apex `A` lines and the new `atomic-domain` TXT. Put back anything else that went. "
-              "Then set the domain primary on Pressable:\n\n"
-              "```bash\nteam51 pressable:add-site-domain {pressable_id} {domain} --primary\n```\n\n"
-              "Rollback: put the apex `A` records back to the values in `zone-before.txt`.",
+              "The only differences should be the apex `A` lines and the apex `atomic-domain` TXT (`www` is not in the names "
+              "file unless it had its own record; check it with `dig`). Put back anything else that went.\n\n"
+              "**The handover.** Pressable shows both domains `provisioned` and `healthy` a few minutes after the apex points at "
+              "it, and only then does WP Cloud send {domain} to the Pressable site. Tell the hosts apart by `host-header` "
+              "(`WordPress.com` on the Atomic site, `wpcloud` on Pressable) or by the quarantine's noindex. Not by `x-ac`: it "
+              "names the edge pool and reads `_atomic_…` on both.\n\n"
+              "```bash\ncurl -s -D - -o /tmp/home.html \"https://{domain}/?nocache=$RANDOM\" | grep -iE '^HTTP|^host-header'; grep -o \"<meta name='robots'[^>]*>\" /tmp/home.html\n```\n\n"
+              "Rollback: delete the two new records and add `A` records with the values in `zone-before.txt`.",
          verify="```bash\nfor r in 1.1.1.1 8.8.8.8 9.9.9.9; do echo \"$r: $(dig +short {apex} @$r | tr '\\n' ' ') | www: $(dig +short www.{apex} @$r | tr '\\n' ' ')\"; done\n"
-                "curl -sL https://{domain}/.well-known/hosting-provider; echo; curl -sI https://{domain} | head -5\n```\n\n"
-                "Pressable's addresses from every resolver, a valid certificate, and `wp option get home` on Pressable returns "
-                "`https://{domain}`. If it still holds the temporary address, run `wp search-replace https://{target} https://{domain} --all-tables` there."),
-    dict(id="cut.jetpack", phase="cut", actor="both", title="Replace the copied Jetpack connection with a new one", when=None,
-         body=UNTESTED +
-              "The copy still holds the live site's connection tokens; the quarantine has kept Jetpack offline. Delete them, then "
-              "connect afresh. **Writes to the Pressable site.**\n\n"
+                "curl -sI https://www.{domain} | grep -iE '^HTTP|^location'\n```\n\n"
+                "Pressable's addresses from every resolver; both domains `provisioned` and `healthy`; `host-header: wpcloud` with "
+                "the quarantine's noindex; `www` redirects to the apex; a valid certificate (WP Cloud's shared "
+                "`tls.automattic.com` lists {domain})."),
+    dict(id="cut.jetpack", phase="cut", actor="both", title="Replace the copied Jetpack connection", when=None,
+         body="Only after the handover: connecting makes WordPress.com call the site at {domain}, which before then reaches the "
+              "old site. The copy still holds the live site's connection tokens and the quarantine has kept Jetpack offline. "
+              "Delete them and take the quarantine off (that also ends the noindex). **Writes to the live site.**\n\n"
               "```bash\nteam51 pressable:run-site-wp-cli-command 'option delete jetpack_options jetpack_private_options' {pressable_id}\n"
-              "{scripts}/mu_plugin.sh remove pressable {pressable_id} t51-migration-quarantine.php\n```\n\n"
-              "Then a person connects Jetpack in wp-admin as the Team 51 account, and records the new blog ID:\n\n"
-              "```bash\npython3 {scripts}/state.py --dir {dir} target --blog-id <new blog ID>\npython3 {scripts}/build_audit.py --dir {dir}\n```\n\n"
-              "Never reconnect the old WordPress.com site, and never use Jetpack's \"migrate\" identity-crisis option on Pressable: "
-              "the old blog ID stays with the old site.",
-         verify="The Jetpack debug tool (`https://jptools.wordpress.com/debug/?url={domain}`) shows a healthy connection on a new "
-                "blog ID, and the quarantine is gone (`mu_plugin.sh status`)."),
+              "{scripts}/mu_plugin.sh remove pressable {pressable_id} t51-migration-quarantine.php\n"
+              "team51 pressable:run-site-wp-cli-command 'cache flush' {pressable_id}\n```\n\n"
+              "Then a person connects Jetpack in wp-admin as the Team 51 account. Never the \"migrate\" identity-crisis option, "
+              "and never reconnect the old WordPress.com site: the old blog ID stays with it.\n\n"
+              "WordPress.com picks the blog by URL, so the connection may land on a blog that already holds {domain}, such as the "
+              "domain's Jetpack site from an earlier host. thinkbiggerinnovation.com reused its 2023 blog, Team 51-owned, with an "
+              "active Jetpack Complete plan (2026-11-18). That is fine, but look at it before going on: owner, plan, subscribers, "
+              "and Jetpack Social connections (an old account with auto-share on would post every new post to it).\n\n"
+              "```bash\npython3 {scripts}/state.py --dir {dir} target --blog-id <blog ID>\npython3 {scripts}/build_audit.py --dir {dir}\n```",
+         verify="On Pressable: connected, with an owner, not offline, no identity crisis, on a blog ID other than "
+                "`{source_blog_id}`; `compare_sites.py` lists no Jetpack REST namespaces missing; the quarantine is gone "
+                "(`mu_plugin.sh status`) and the home page has no noindex."),
     dict(id="cut.smoke", phase="cut", actor="human", title="Smoke test the live site", when=None,
          body="Home page, key pages, a form submission (it now sends mail), wp-admin login, and the front-end check against the "
               "pre-window baseline (verify skill, checkpoint `live`).",
          verify="A person signs off. Tell the partner the site has moved."),
 
     # ------------------------------------------------------------------- post
-    dict(id="post.stragglers", phase="post", actor="agent", title="Check nothing was written to the old site in the window", when=None,
-         body="The old site is still live at its WordPress.com address. Count rows written since the window started:\n\n"
-              "```bash\nT51_ARGS='{{\"since\":\"{window_started}\"}}' {scripts}/wp_eval.sh wpcom {source_blog_id} {scripts}/parity.php \\\n"
-              "  | python3 -c \"import json,sys; print(json.load(sys.stdin)['after_since'])\"\n```",
-         verify="All counts zero, or each row copied across by hand."),
+    dict(id="post.stragglers", phase="post", actor="both", title="Check nothing was written to the old site in the window", when=None,
+         body="`cut.old-site` counted up to the DNS change. For the time since, read the old site's **Activity Log** in the "
+              "WordPress.com dashboard (blog `{source_blog_id}`) for content changes after `{window_started}` UTC. Once the old "
+              "site has moved to its `*.wpcomstaging.com` address the CLI reaches it again, and the `cut.old-site` command works.",
+         verify="No content changes, or each one copied across by hand."),
     dict(id="post.subscribers", phase="post", actor="human", title="Migrate subscribers to the new blog ID", when=has("post.subscribers"),
          body="Blog Subscription Migration, on https://mc.a8c.com/jetpack-tools/\n\n- Source blog ID: `{source_blog_id}`\n"
               "- Destination blog ID: `{target_blog_id}`\n- Support reference: the Linear issue",
@@ -332,9 +345,16 @@ STEPS = [
          body="The WooPayments team switches the existing account to blog `{target_blog_id}`. Nobody onboards afresh.",
          verify="Payments settings show the original account."),
     dict(id="post.monitoring", phase="post", actor="agent", title="Check Team 51 monitoring picked up the new site", when=None,
-         body="Atlantis active and reporting, Jetpack Monitor on with the OpsOasis webhook "
-              "(`team51 jetpack-monitor:register-webhook`), PHP fatals scanning covering the Pressable site.",
-         verify="The next daily health check lists the site without problems."),
+         body="Register the OpsOasis webhook on the new blog; Jetpack Monitor comes on with the connection but without it. "
+              "**Adds a webhook to the site's Monitor settings.**\n\n"
+              "```bash\nteam51 jetpack-monitor:register-webhook {target_blog_id}\n"
+              "team51 jetpack-monitor:register-webhook {target_blog_id} {source_blog_id} --list\n"
+              "team51 wpcom:atlantis-status --site={target_blog_id} --no-prod --no-issues-only\n"
+              "team51 atlantis:mark-managed {pressable_id} --host=pressable --dry-run\n```\n\n"
+              "If the old blog still shows webhook `ours` (its deregister failed in `cut.old-site`), deregister it once the CLI "
+              "reaches the old site again, or a downtime alert arrives twice.",
+         verify="New blog: webhook `ours`; old blog: `none`. Atlantis reporting with its modules on; the site already managed. "
+                "The next daily health check lists the site without problems."),
 
     # ------------------------------------------------------------------ decom
     dict(id="decom.wait", phase="decom", actor="human", title="Keep the old site for an agreed period", when=None,
@@ -352,7 +372,8 @@ STEPS = [
     dict(id="decom.wpcom-sites", phase="decom", actor="human", title="Retire the old WordPress.com sites", when=has("decom.wpcom-sites"),
          body="The report lists them: the old production blog `{source_blog_id}`, its staging site, and any stale blog on the "
               "same name. Delete each (or ask a Happiness Engineer to) once the agreed period is over and the plan is cancelled. "
-              "The old site's subscribers and stats must already be on the new blog ID.",
+              "The old site's subscribers and stats must already be on the new blog ID. **Never retire `{target_blog_id}`**: if "
+              "Jetpack reused a blog the audit called stale, it is now the live site's.",
          verify="Blog RC shows each one deleted; the domain still resolves to Pressable."),
     dict(id="decom.opsoasis", phase="decom", actor="human", title="Tidy Team 51 monitoring", when=None,
          body="Remove the `known_issues` row for blog `{source_blog_id}` once the old site is gone.",

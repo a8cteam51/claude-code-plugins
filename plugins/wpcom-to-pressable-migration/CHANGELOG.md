@@ -3,6 +3,14 @@
 ## [0.1.0] - 2026-11-17
 
 ### Added
+- From the first cutover (thinkbiggerinnovation.com, 2026-11-18): `cut.old-site` counts stragglers and removes the old
+  blog's Monitor webhook before DNS, because the CLI loses the old site when the domain moves. `cut.add-domain` copies
+  Pressable's `atomic-domain` TXT values (from its own zone) into the WordPress.com zone and gives a wildcard-only `www`
+  its own `A` records first; Pressable sets primary itself. `cut.records` adds apex `A` records (the WordPress.com row
+  cannot be edited) and waits for the handover, read from `host-header` rather than `x-ac`. `cut.jetpack` runs only
+  after the handover, flushes the cache and checks the blog Jetpack lands on, which may be an existing one;
+  `decom.wpcom-sites` never retires it. `post.monitoring` registers the webhook and checks Atlantis. Decisions are read
+  by value in the runbook (`window_started` printed as a dict before). Steps run on this migration lose UNTESTED.
 - From the first rehearsal (thinkbiggerinnovation.com): pulls run in the foreground, because each Pressable WP-CLI call
   runs in its own container and a background process dies with it. The pull source is the `?reprint-api` address the
   Reprint Server screen shows. `place` skips symlinks (Atomic links Jetpack, Akismet, Gutenberg and page-optimize into
