@@ -72,6 +72,7 @@ files:
       "Layout mapping cheatsheet": platform
       "Post content sits at content width, in every template": decision
       "Name every group": decision
+      "Locks in stored markup": platform
       "Layout recipes that replace CSS": platform
       "Layout traps (defaults that fight the design)": platform
       "Images": platform
@@ -119,3 +120,4 @@ files:
       "Markup": environment
       "Styling a form": environment
       "Accessibility": environment
+      "Behaviour": environment

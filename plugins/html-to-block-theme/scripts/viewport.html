@@ -75,6 +75,14 @@
  *                                  Groups only one pane has are differences too: the first
  *                                  five are listed with only: "a" or "b", and unpaired
  *                                  gives their count.
+ *   h2bt.domFacts( index[, root] ) what one pane's DOM says without judgement, as three lists:
+ *                                  duplicate_ids (ids that occur more than once), unnamed (form
+ *                                  controls with no label, aria-label or aria-labelledby, and
+ *                                  buttons and links with no accessible name) and empty_links
+ *                                  (links whose href is # or empty). Each list holds its first
+ *                                  fifty items, and counts gives the full numbers. Elements
+ *                                  that are not rendered are read too: a closed menu's button
+ *                                  needs its name once the menu opens.
  *   h2bt.sweep( widths, task[, height] )
  *                                  resizes to each width in turn. A string task is a function
  *                                  body run in every pane; only the widths where the panes
@@ -310,6 +318,111 @@
 			}
 			return out;
 		},
+		domFacts: ( doc, win, options ) => {
+			const root = options.root ? doc.querySelector( options.root ) : doc.documentElement;
+			if ( ! root ) {
+				return null;
+			}
+			const SHOWN = 50;
+			const tagOf = ( element ) => element.tagName.toLowerCase();
+			const describe = ( element ) => tagOf( element )
+				+ ( element.id ? '#' + element.id : '' )
+				+ ( typeof element.className === 'string' && element.className.trim() ? '.' + element.className.trim().split( /\s+/ ).slice( 0, 2 ).join( '.' ) : '' );
+			// An element with neither an id nor a class is found by the nearest ancestor that has one.
+			const where = ( element ) => {
+				const own = element.id || ( typeof element.className === 'string' && element.className.trim() );
+				const anchor = own || ! element.parentElement ? null : element.parentElement.closest( '[id], [class]' );
+				return describe( element ) + ( anchor ? ' in ' + describe( anchor ) : '' );
+			};
+			// Near enough the name a browser computes. The element itself may be hidden (a closed
+			// menu's button) and still needs its name; what is hidden inside it gives none.
+			const nameOf = ( element ) => {
+				const label = element.getAttribute( 'aria-label' );
+				return label && label.trim() ? label : [ ...element.childNodes ].map( textOf ).join( ' ' );
+			};
+			const textOf = ( node ) => {
+				if ( node.nodeType === 3 ) {
+					return node.nodeValue;
+				}
+				if ( node.nodeType !== 1 || node.getAttribute( 'aria-hidden' ) === 'true' || node.hidden || win.getComputedStyle( node ).display === 'none' ) {
+					return '';
+				}
+				const tag = tagOf( node );
+				if ( tag === 'img' || ( tag === 'input' && node.type === 'image' ) ) {
+					return node.getAttribute( 'aria-label' ) || node.getAttribute( 'alt' ) || '';
+				}
+				if ( tag === 'svg' ) {
+					const title = node.querySelector( 'title' );
+					return node.getAttribute( 'aria-label' ) || ( title ? title.textContent : '' );
+				}
+				return tag === 'script' || tag === 'style' || tag === 'template' ? '' : nameOf( node );
+			};
+			const labelled = ( element ) => ( element.getAttribute( 'aria-labelledby' ) || '' ).split( /\s+/ )
+				.map( ( id ) => ( id ? doc.getElementById( id ) : null ) )
+				.filter( Boolean )
+				.map( ( target ) => target.textContent )
+				.join( ' ' );
+			const has = ( text ) => !! ( text && text.trim() );
+			const inScope = ( selector ) => [ ...root.querySelectorAll( selector ) ].filter( ( element ) => ! element.closest( 'template' ) );
+
+			const byId = new Map();
+			inScope( '[id]' ).forEach( ( element ) => {
+				if ( element.id ) {
+					byId.set( element.id, [ ...( byId.get( element.id ) || [] ), tagOf( element ) ] );
+				}
+			} );
+			const duplicateIds = [ ...byId ].filter( ( [ , tags ] ) => tags.length > 1 ).map( ( [ id, tags ] ) => ( { id, count: tags.length, tags: [ ...new Set( tags ) ] } ) );
+
+			const unnamed = [];
+			inScope( 'input, select, textarea' ).forEach( ( element ) => {
+				const type = tagOf( element ) === 'input' ? element.type : '';
+				if ( type === 'hidden' || type === 'submit' || type === 'reset' ) {
+					return;
+				}
+				if ( type === 'button' || type === 'image' ) {
+					if ( ! has( element.getAttribute( 'aria-label' ) ) && ! has( labelled( element ) ) && ! has( type === 'image' ? element.getAttribute( 'alt' ) : element.value ) && ! has( element.title ) ) {
+						unnamed.push( { kind: 'button', el: where( element ), type } );
+					}
+					return;
+				}
+				const labels = element.labels ? [ ...element.labels ] : [];
+				if ( has( element.getAttribute( 'aria-label' ) ) || has( labelled( element ) ) || labels.some( ( label ) => has( label.textContent ) ) ) {
+					return;
+				}
+				const item = { kind: 'control', el: where( element ) };
+				if ( type ) {
+					item.type = type;
+				}
+				// What a sighted visitor reads in its place, and a screen reader does not get as a label.
+				const instead = [ 'placeholder', 'title' ].filter( ( attribute ) => has( element.getAttribute( attribute ) ) );
+				if ( instead.length ) {
+					item.only = instead.join( ', ' );
+				}
+				unnamed.push( item );
+			} );
+			inScope( 'button, [role="button"], a[href], [role="link"]' ).forEach( ( element ) => {
+				if ( element.getAttribute( 'aria-hidden' ) === 'true' || has( labelled( element ) ) || has( nameOf( element ) ) || has( element.title ) ) {
+					return;
+				}
+				const link = tagOf( element ) === 'a' || element.getAttribute( 'role' ) === 'link';
+				const item = { kind: link ? 'link' : 'button', el: where( element ) };
+				if ( link && element.hasAttribute( 'href' ) ) {
+					item.href = element.getAttribute( 'href' ).slice( 0, 80 );
+				}
+				unnamed.push( item );
+			} );
+
+			const emptyLinks = inScope( 'a[href]' )
+				.filter( ( element ) => [ '', '#' ].includes( element.getAttribute( 'href' ).trim() ) )
+				.map( ( element ) => ( { el: where( element ), href: element.getAttribute( 'href' ), text: nameOf( element ).replace( /\s+/g, ' ' ).trim().slice( 0, 60 ) } ) );
+
+			return {
+				counts: { duplicate_ids: duplicateIds.length, unnamed: unnamed.length, empty_links: emptyLinks.length },
+				duplicate_ids: duplicateIds.slice( 0, SHOWN ),
+				unnamed: unnamed.slice( 0, SHOWN ),
+				empty_links: emptyLinks.slice( 0, SHOWN ),
+			};
+		},
 		texts: ( doc, win, options ) => {
 			const root = options.root ? doc.querySelector( options.root ) : doc.body;
 			if ( ! root ) {
@@ -496,6 +609,9 @@
 		},
 		texts( index, root, hidden ) {
 			return this.probe( index, 'texts', { root, hidden: !! hidden } );
+		},
+		domFacts( index, root ) {
+			return this.probe( index, 'domFacts', { root } );
 		},
 		async compareText( options = {} ) {
 			const tolerance = options.tolerance === undefined ? 0.5 : options.tolerance;

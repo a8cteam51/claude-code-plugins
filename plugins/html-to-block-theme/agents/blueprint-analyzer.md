@@ -107,7 +107,7 @@ Then **return only this digest**:
 
 - **A plugin's markup in the content does not prove the plugin runs.** Report it as present with its behaviour unverified, for the orchestrator to check on the live page.
 - **Blank gaps in captured markup are evidence.** An inner block that prints nothing leaves its separators, so empty places before a comment form, or after a post list, show that the original template holds blocks the capture cannot show (a comment list, a pagination). Report them under `unseen_blocks`. Their design is unknown.
-- **Inventory what the page does besides presentation** under `beyond_presentation`: script-driven regions, third-party scripts, forms that post to an endpoint, links that depend on the visitor. The blueprint puts each in or out of scope, so that a new theme cannot remove a feature silently.
+- **Inventory what the page does besides presentation** under `beyond_presentation`: script-driven regions, third-party scripts, forms that post to an endpoint, ids that two forms of one page share (an integration can read a field by its id), links that depend on the visitor. The blueprint puts each in or out of scope, so that a new theme cannot remove a feature silently.
 
 ### Discipline
 

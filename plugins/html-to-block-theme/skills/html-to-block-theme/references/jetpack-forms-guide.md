@@ -2,7 +2,7 @@
 
 Read this when the design has a contact or newsletter form and Jetpack is available: `jetpack/contact-form` is the mapping, and a one-field form covers a newsletter signup. `mapping-guide.md` still governs the blocks around the form.
 
-Each passage says which Jetpack Forms version it was read or seen in. Those marked **(16.4)** come from a run on WordPress 7.1.4 with Jetpack 16.4: what a builder saw in the browser, in the editor or in Jetpack's source, reported in its hand-back and not checked a second time.
+Each passage says which Jetpack Forms version it was read or seen in. Those marked **(16.4)** come from two projects on WordPress 7.1.4 with Jetpack 16.4: what was seen there in the browser, in the editor or in Jetpack's source, and not checked a second time.
 
 ## On a local site
 
@@ -18,6 +18,7 @@ Each passage says which Jetpack Forms version it was read or seen in. Those mark
 - **A form in a template part takes the page's title as its accessible name** unless `formTitle` is set: set it to what the form is. Read in Jetpack Forms 16.3.1.
 - **The submit button is a `core/button`** with `"tagName":"button"` and `"type":"submit"`, inside the form, as the editor writes it. The form prints a button of its own, labelled "Submit", whenever its rendered content holds neither a `wp-block-button` nor a `wp-block-jetpack-button` class. A button block that validates and renders nothing is therefore replaced without a word: compare the button's label with the design's after the write. Read in Jetpack Forms 16.1.2.
 - **A telephone field without the country selector is a plain input.** `jetpack/field-telephone` with `showCountrySelector: false` and an inner `jetpack/phone-input` renders `<input type="tel">` on the front end; the editor still wraps it differently. **(16.4)**
+- **A synced form is a database post, placed by `ref`.** In a template or a part that id ties the theme file to one database (`standards.md` § Block markup conventions). Jetpack answers the referencing block from its own `pre_render_block` callback, at priority 10, and renders the form post's blocks there, so `render_block` never fires for the referencing block: its `className` and its `formTitle` print nowhere, and belong on the form post's own block. A filter that has to know which form was placed hooks `pre_render_block` after priority 10, where the rendered form arrives as the first argument. Read in Jetpack Forms 16.4's `class-contact-form-block.php`; two theme filters hooked that way were seen to work.
 
 ## Styling a form
 
@@ -27,4 +28,13 @@ Each passage says which Jetpack Forms version it was read or seen in. Those mark
 
 ## Accessibility
 
-- **Jetpack prints no `autocomplete` attribute on any field.** A `render_block_jetpack/contact-form` filter with `WP_HTML_Tag_Processor` adds `name`, `email` and `tel` by the field's wrapper class (`wp-block-jetpack-field-name`, `-email`, `-telephone`), without touching the form's signed content. **(16.4)**
+- **Jetpack prints no `autocomplete` attribute on any field.** A `render_block_jetpack/contact-form` filter with `WP_HTML_Tag_Processor` adds `name`, `email` and `tel` by the field's wrapper class (`wp-block-jetpack-field-name`, `-email`, `-telephone`), without touching the form's signed content. Key the tokens on the wrapper class, not on the input's `name`: switching a field's variant changes the name. **(16.4)**
+- **Two forms in one view with the same field ids print duplicate element ids.** Jetpack prints a field's `id` as given, so the second form's labels bind to the first form's inputs, its own inputs have no accessible name, and its error links focus the first form. Where a view can show two forms (the page's own and one in a part or a template), compare their field ids. **(16.4)**
+  - **Do not rename a field id before reading what consumes it.** An integration, a CRM or a mailing list, can map fields by that exact id, and a rename drops the field on its way there without an error.
+  - **Scope the printed ids per form at render,** with `WP_HTML_Tag_Processor`: `id`, `for`, `aria-describedby`, Jetpack's `data-jp-field-id` and the Interactivity context's `fieldId` take a per-form prefix, and every input's `name` stays. For a synced form the place is `pre_render_block` after Jetpack's own callback (§ Markup).
+  - **Prove it with one real submission of each form** on the local site, with mail and outbound requests blocked: read what the integration stored, and delete the test entries. The pull request names the integration that reads the ids.
+- **The telephone field's country selector** prints a trigger with no label of its own (a script writes the flag and the dialling code into it) and a search input named only by its placeholder. Its target is under the minimum size, and ArrowDown on it changes the country without saying so. Where the country code is not needed, use the plain variant (§ Markup). The markup was read in Jetpack Forms 16.4's `class-contact-form-field.php`; the size and the key were seen in one view and not checked a second time.
+
+## Behaviour
+
+- **A synced form in a template posts to the wrong page.** Jetpack posts a form to the current address only when the form carries its widget, template or template-part attribute, and otherwise to the permalink of whichever post the global holds: on a listing, a sign-up lands on a single entry's page. In a template Jetpack writes that attribute onto the form block in the template's markup, and a form placed by `ref` is rendered from its own post, which does not carry it. Read the rendered `action` of every form that sits in a template or a part, on a listing, a search and a single view. Correct a wrong one with the `grunion_contact_form_form_action` filter, and confirm with one real local submission that the visitor stays on the page. Read in Jetpack Forms 16.4's `class-contact-form.php` and `class-util.php`, and seen for a synced form in an archive template. In a part Jetpack reads the part's id from a global instead; a synced form in a part was not tried.
