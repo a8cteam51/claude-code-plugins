@@ -1,32 +1,46 @@
 <?php
-// Run by export-pages.sh, which stages it in <site-path>/.h2bt/ and fills in its placeholder.
+// Run by export-pages.sh, which stages it in <site-path>/.h2bt/ and fills in its placeholders.
 
 $export_dir = __DIR__ . '/__EXPORT_DIR__';
+$post_types = array_values( array_unique( array_filter( explode( ',', '__POST_TYPES__' ) ) ) );
 
 if ( ! is_dir( $export_dir ) || ! is_writable( $export_dir ) ) {
 	echo 'H2BT_EXPORT_FAIL reason=export-dir-not-writable dir=' . $export_dir . "\n";
 	exit;
 }
 
-$counts = array(
-	'page'     => 0,
-	'wp_block' => 0,
-	'skipped'  => 0,
-);
+// A type that is not registered would export nothing, and nothing is not a pass.
+foreach ( $post_types as $post_type ) {
+	if ( ! post_type_exists( $post_type ) ) {
+		echo 'H2BT_EXPORT_FAIL reason=unknown-post-type type=' . $post_type . "\n";
+		exit;
+	}
+}
 
-$posts = get_posts(
-	array(
-		'post_type'   => array( 'page', 'wp_block' ),
-		'post_status' => array( 'publish', 'draft', 'pending', 'private', 'future' ),
-		'numberposts' => -1,
-		'orderby'     => 'ID',
-		'order'       => 'ASC',
+// A deleted page or a type no longer named would otherwise still be audited; cleared after the type check, so a refused type leaves the last export in place.
+foreach ( glob( $export_dir . '/*-[0-9]*.html' ) ?: array() as $earlier ) {
+	if ( is_file( $earlier ) && ! unlink( $earlier ) ) {
+		echo 'H2BT_EXPORT_FAIL reason=clear-failed file=' . $earlier . "\n";
+		exit;
+	}
+}
+
+$counts  = array_fill_keys( array_merge( array( 'page', 'wp_block' ), $post_types ), 0 );
+$skipped = 0;
+
+// Read from the table: a plugin can narrow a query for its own post type, as an events plugin did.
+global $wpdb;
+$statuses = array( 'publish', 'draft', 'pending', 'private', 'future' );
+$posts    = $wpdb->get_results(
+	$wpdb->prepare(
+		"SELECT ID, post_type, post_content FROM $wpdb->posts WHERE post_type IN (" . implode( ',', array_fill( 0, count( $post_types ), '%s' ) ) . ') AND post_status IN (' . implode( ',', array_fill( 0, count( $statuses ), '%s' ) ) . ') ORDER BY ID ASC',
+		array_merge( $post_types, $statuses )
 	)
 );
 
 foreach ( $posts as $export_post ) {
 	if ( false === strpos( $export_post->post_content, '<!-- wp:' ) ) {
-		++$counts['skipped'];
+		++$skipped;
 		continue;
 	}
 
@@ -38,4 +52,10 @@ foreach ( $posts as $export_post ) {
 	++$counts[ $export_post->post_type ];
 }
 
-echo 'H2BT_EXPORT_OK pages=' . $counts['page'] . ' patterns=' . $counts['wp_block'] . ' skipped=' . $counts['skipped'] . "\n";
+$line = 'H2BT_EXPORT_OK pages=' . $counts['page'] . ' patterns=' . $counts['wp_block'] . ' skipped=' . $skipped;
+foreach ( $counts as $post_type => $count ) {
+	if ( 'page' !== $post_type && 'wp_block' !== $post_type ) {
+		$line .= ' ' . $post_type . '=' . $count;
+	}
+}
+echo $line . "\n";

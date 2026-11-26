@@ -11,6 +11,11 @@
 # The comparison allows no differing pixel and no colour tolerance, and compare never writes a
 # baseline: a path or width that has none fails until --mode baseline is run for it.
 #
+# A full-page shot shows every disclosure as it loads, so nothing inside a closed one is
+# compared. --open-disclosures opens every details element, accordion item and tab panel in
+# main before the shot and waits for the images inside. Its shots are files of their own
+# (<name>-open.png), so it needs a baseline taken with the same flag.
+#
 # It drives the repository's own @playwright/test (a template devDependency) with the local
 # Chrome (the skill already requires Chrome). Files live under <repo>/tests/.cache/h2bt-parity/,
 # which the template's .gitignore already ignores.
@@ -18,8 +23,11 @@
 # Usage:
 #   parity-check.sh --repo <wp-content> --base-url <url> --paths "/,/about/" \
 #     --mode baseline|compare [--widths 1440,390] [--local-storage key=value]...
+#     [--open-disclosures]
 #
 # Last line: H2BT_PARITY_OK mode=<mode> shots=<n> or H2BT_PARITY_FAIL mode=<mode> ... (exit 1).
+# With --open-disclosures the OK line also says how many disclosures were opened, over all
+# shots (opened=<n>), and a line above it says how many in each shot.
 #
 set -euo pipefail
 
@@ -28,12 +36,20 @@ usage() {
 Usage:
   parity-check.sh --repo <wp-content> --base-url <url> --paths "/,/about/" \
     --mode baseline|compare [--widths 1440,390] [--local-storage key=value]...
+    [--open-disclosures]
 
   --mode baseline   capture (or replace) the reference screenshots
   --mode compare    capture again and fail on any pixel difference from the baseline
   --widths          comma-separated viewport widths (default 1440,390)
   --local-storage   key=value pairs seeded before each page loads (repeatable), e.g. to mark a
                     newsletter popup as dismissed
+  --open-disclosures
+                    open every details element, accordion item and tab panel in main before
+                    the shot, and wait for the images inside. The shots are kept apart from
+                    the closed ones (<name>-open.png): take the baseline with the flag too.
+                    The OK line then carries opened=<n> before dir=; a failed run prints
+                    only the "Opened <n> in <name>" line of each shot. 0 means the page
+                    had none it knows.
 EOF
 }
 
@@ -46,6 +62,7 @@ paths=""
 mode=""
 widths="1440,390"
 storage=()
+open=0
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--repo) need_value "$@"; repo="$2"; shift 2 ;;
@@ -54,6 +71,7 @@ while [[ $# -gt 0 ]]; do
 		--mode) need_value "$@"; mode="$2"; shift 2 ;;
 		--widths) need_value "$@"; widths="$2"; shift 2 ;;
 		--local-storage) need_value "$@"; storage+=("$2"); shift 2 ;;
+		--open-disclosures) open=1; shift ;;
 		-h|--help) usage; exit 0 ;;
 		*) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
 	esac
@@ -82,7 +100,12 @@ fi
 
 # One screenshot per path and width. Playwright keeps only letters, digits and hyphens of a
 # name, which made / and /home/, or /about/team/ and /about-team/, one file. So the name
-# carries a short hash of the path as well as its readable form.
+# carries a short hash of the path as well as its readable form, and -open for a shot with
+# every disclosure open, which is another picture than the page as it loads.
+shot_suffix=""
+if [[ "$open" -eq 1 ]]; then
+	shot_suffix="-open"
+fi
 shots_json="$(python3 -c '
 import hashlib, json, re, sys
 paths = [p for p in sys.argv[1].split(",") if p]
@@ -96,7 +119,7 @@ for width in widths:
     if not width.isdigit():
         sys.exit("--widths must be whole numbers: " + width)
     for path in paths:
-        shot = "%s-%s.png" % (name(path), width)
+        shot = "%s-%s%s.png" % (name(path), width, sys.argv[3])
         if shot in seen:
             sys.exit("%s and %s would share the screenshot %s; check one of them in a separate run" % (seen[shot], path, shot))
         seen[shot] = path
@@ -104,7 +127,7 @@ for width in widths:
 if not shots:
     sys.exit("--paths and --widths name no screenshot")
 print(json.dumps(shots))
-' "$paths" "$widths")" || { echo "H2BT_PARITY_FAIL mode=$mode reason=bad-paths-or-widths"; exit 1; }
+' "$paths" "$widths" "$shot_suffix")" || { echo "H2BT_PARITY_FAIL mode=$mode reason=bad-paths-or-widths"; exit 1; }
 shot_names="$(python3 -c 'import json,sys; print("\n".join(shot["name"] for shot in json.loads(sys.argv[1])))' "$shots_json")"
 
 if [[ "$mode" == "compare" ]]; then
@@ -140,6 +163,7 @@ const { test, expect } = require( '@playwright/test' );
 const baseUrl = process.env.H2BT_PARITY_BASE_URL.replace( /\/$/, '' );
 const shots = JSON.parse( process.env.H2BT_PARITY_SHOTS );
 const storage = JSON.parse( process.env.H2BT_PARITY_STORAGE || '{}' );
+const openDisclosures = process.env.H2BT_PARITY_OPEN === '1';
 
 {
 	for ( const { path, width, name } of shots ) {
@@ -182,6 +206,64 @@ const storage = JSON.parse( process.env.H2BT_PARITY_STORAGE || '{}' );
 				] );
 			} );
 			await page.waitForTimeout( 1000 );
+			if ( openDisclosures ) {
+				const opened = await page.evaluate( async () => {
+					const root = document.querySelector( 'main' ) || document.body;
+					const found = new Set();
+					// Details that share a name are a group in which opening one closes the others.
+					root.querySelectorAll( 'details[name]' ).forEach( ( element ) => element.removeAttribute( 'name' ) );
+					root.querySelectorAll( 'details:not([open])' ).forEach( ( element ) => {
+						element.open = true;
+						found.add( element );
+					} );
+					// Clicks cannot open every item of an accordion that closes the others, so the state is written.
+					root.querySelectorAll( '.wp-block-accordion-item:not(.is-open)' ).forEach( ( item ) => {
+						item.classList.add( 'is-open' );
+						const toggle = item.querySelector( '.wp-block-accordion-heading__toggle' );
+						if ( toggle ) {
+							toggle.setAttribute( 'aria-expanded', 'true' );
+						}
+						found.add( item );
+					} );
+					root.querySelectorAll( '.wp-block-accordion-panel, .wp-block-tab-panel, [role="tabpanel"]' ).forEach( ( panel ) => {
+						if ( ! panel.hasAttribute( 'hidden' ) && ! panel.hasAttribute( 'inert' ) && getComputedStyle( panel ).display !== 'none' ) {
+							return;
+						}
+						panel.removeAttribute( 'hidden' );
+						panel.removeAttribute( 'inert' );
+						if ( getComputedStyle( panel ).display === 'none' ) {
+							panel.style.setProperty( 'display', 'block', 'important' );
+						}
+						found.add( panel.closest( '.wp-block-accordion-item' ) || panel );
+					} );
+					// An image in a closed panel has not been requested yet: a shot taken now shows an empty box.
+					const images = [ ...found ].flatMap( ( element ) => [ ...element.querySelectorAll( 'img' ) ] );
+					images.forEach( ( image ) => {
+						image.loading = 'eager';
+					} );
+					const step = Math.max( 200, Math.floor( window.innerHeight * 0.6 ) );
+					for ( let y = 0; y < document.documentElement.scrollHeight; y += step ) {
+						window.scrollTo( 0, y );
+						await new Promise( ( resolve ) => setTimeout( resolve, 60 ) );
+					}
+					window.scrollTo( 0, 0 );
+					await Promise.race( [
+						Promise.all(
+							images.map( ( image ) =>
+								image.complete
+									? image.decode().catch( () => {} )
+									: new Promise( ( resolve ) => {
+											image.onload = image.onerror = resolve;
+									  } )
+							)
+						),
+						new Promise( ( resolve ) => setTimeout( resolve, 10000 ) ),
+					] );
+					return found.size;
+				} );
+				require( 'fs' ).appendFileSync( process.env.H2BT_PARITY_OPENED, name + ' ' + opened + '\n' );
+				await page.waitForTimeout( 500 );
+			}
 			// Both limits are needed for an exact match: without threshold: 0 Playwright
 			// accepts a pixel whose colour moved by up to a fifth of the scale.
 			await expect( page ).toHaveScreenshot( name, {
@@ -200,9 +282,10 @@ EOF
 
 storage_json="$(python3 -c 'import json,sys; print(json.dumps(dict(a.split("=",1) for a in sys.argv[1:])))' "${storage[@]+"${storage[@]}"}")"
 args=( playwright test --config "$work/playwright.config.js" )
+: >"$work/opened.txt"
 
 set +e
-( cd "$repo" && H2BT_PARITY_MODE="$mode" H2BT_PARITY_BASE_URL="$base_url" H2BT_PARITY_SHOTS="$shots_json" H2BT_PARITY_STORAGE="$storage_json" ./node_modules/.bin/"${args[@]}" ) >"$work/last-run.log" 2>&1
+( cd "$repo" && H2BT_PARITY_MODE="$mode" H2BT_PARITY_BASE_URL="$base_url" H2BT_PARITY_SHOTS="$shots_json" H2BT_PARITY_STORAGE="$storage_json" H2BT_PARITY_OPEN="$open" H2BT_PARITY_OPENED="$work/opened.txt" ./node_modules/.bin/"${args[@]}" ) >"$work/last-run.log" 2>&1
 status=$?
 set -e
 
@@ -214,8 +297,20 @@ while IFS= read -r name; do
 	[[ -f "$work/snapshots/$name" ]] && shots=$((shots + 1))
 done <<<"$shot_names"
 
+# Printed for a failed run too: a shot that differs with nothing opened differs for another reason.
+opened_field=""
+if [[ "$open" -eq 1 ]]; then
+	opened=0
+	while read -r name count; do
+		[[ "$count" =~ ^[0-9]+$ ]] || continue
+		echo "Opened $count in $name"
+		opened=$((opened + count))
+	done <"$work/opened.txt"
+	opened_field=" opened=$opened"
+fi
+
 if [[ "$status" -eq 0 && "$shots" -eq "$wanted" ]]; then
-	echo "H2BT_PARITY_OK mode=$mode shots=$shots dir=$work/snapshots"
+	echo "H2BT_PARITY_OK mode=$mode shots=$shots$opened_field dir=$work/snapshots"
 	exit 0
 fi
 sed 's/\x1b\[[0-9;]*m//g' "$work/last-run.log" | grep -E '✘|Error:|pixels? \(ratio|different|No such file|not found' | head -40 || true

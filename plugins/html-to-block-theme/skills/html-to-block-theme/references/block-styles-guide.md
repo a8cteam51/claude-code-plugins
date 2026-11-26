@@ -87,6 +87,7 @@ Notes:
   ```
 
 - Map one design class to one variation and reuse it everywhere that class appeared. Do not create variations for one-off styling — push that onto the block instance's `style`, or accept it as documented custom CSS (rung 4) if truly unavoidable.
+- **A block's own CSS is not a rung** (`"style":{"css":"…"}` in its attributes, the editor's Additional CSS). WordPress strips it when content is saved by a user without `edit_css`, and on an import that forces filtered HTML (`force_filtered_html_on_import`: multisite, and hosts that set it), from a filter of its own that `kses_remove_filters()` leaves in place (`wp_strip_custom_css_from_blocks` on `content_save_pre`, WordPress 7.0 and later). `write-page.sh` then fails with its bytes differing, and an editor's later save would drop the rule without a word. A render probe prints it and the validator passes it, so nothing warns before the write. A value a registered style needs per instance goes on the instance as a block support where one exists (above), and is a second registered style where none does. The standards audit fails on it (`block_css`), in theme files and in page content. Read in WordPress 7.1.4's `block-supports/custom-css.php`; the failed write was seen.
 
 ## Section styles (a variation that restyles inner blocks)
 
@@ -185,6 +186,11 @@ These are stated where the block is mapped; a stylesheet has to honour them:
 - `core/query-pagination` is styled on the block itself, never on a wrapper (§ Query loops, archives and pagination).
 - A list inside a query loop is a nested list, with a different default marker (same section).
 - `core/breadcrumbs` draws its separator as `.wp-block-breadcrumbs li:not(:last-child)::after` (margin `0 0.5em`, opacity `.7`, 7.1.3). The same selector in the theme only ties with core's, so stylesheet order decides: write `nav.wp-block-breadcrumbs li:not(:last-child)::after`. The separator character is the `--separator` property the block prints inline.
+
+Two more hold for whatever a plugin prints:
+
+- **A plugin's stylesheet can print after the theme's on-demand block stylesheets,** as WooCommerce's does (`woocommerce-guide.md` § Stylesheets) and Jetpack's for a form (`jetpack-forms-guide.md` § Styling a form): do not rely on order. A theme rule for markup a plugin prints needs strictly higher specificity than the plugin's rule, and `!important` where the plugin uses it: a tie can lose on order. Prove such a rule in the page's real load order (`visual-refinement.md` § Other measurements that paid off).
+- **A block stylesheet does not load when a `pre_render_block` filter returns that block's markup.** `render_block()` returns the filter's value before the `render_block` filter runs, and that is where an on-demand block stylesheet is enqueued. Rules for such output go in the stylesheet of the enclosing block. Read in WordPress 7.1.4's `blocks.php` and `script-loader.php`.
 
 ## Discipline
 

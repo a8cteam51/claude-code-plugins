@@ -6,7 +6,7 @@ The files can be a handoff package from **sp-site-design-harness** (a site desig
 
 The agent maps the design to WordPress primitives — templates, template parts, `theme.json`, block styles, and page content an editor can change — rather than reproducing it with hand-written CSS. It plans a blueprint first, then builds section by section and refines its output against the originals in a real browser until it matches as closely as possible.
 
-The source can also be an existing live site: the skill mirrors its pages into a design directory first (`scripts/mirror-site.py`) and then works the same way (`references/live-site-guide.md`).
+The source can also be an existing live site: the skill mirrors its pages into a design directory first (`scripts/mirror-site.py`) and then works the same way (`references/live-site-guide.md`). Replacing the old theme on production stays your step; the guide says what a run leaves for it.
 
 ## What it does
 
@@ -87,7 +87,7 @@ The build then follows `references/project-template-guide.md`.
 **How it's checked:**
 - `scripts/standards-audit.sh` detects the template layout.
 - `scripts/template-checks.sh --repo <wp-content> [--tests] [--e2e]` runs the repository's CI gates: build integrity, blocks allowlist, PHPCS and PHPStan, ESLint and stylelint, PHPUnit in wp-env, and Playwright. It runs them from a mirror of the tracked files, because the Studio site's `wp-content` also holds Studio's own runtime files.
-- `scripts/parity-check.sh` takes pixel-exact full-page baselines and compares against them. Use it before porting a finished standalone build into a template repository or running auto-fixers; the guide ends with that porting recipe.
+- `scripts/parity-check.sh` takes pixel-exact full-page baselines and compares against them. Use it before porting a finished standalone build into a template repository or running auto-fixers; the guide ends with that porting recipe. With `--open-disclosures` it takes the shots with every `details` element, accordion item and tab panel open, which a full-page shot otherwise shows closed.
 
 **Extra prerequisites:**
 - Node at the repository's `engines.node`.
@@ -98,7 +98,7 @@ The skill works on a feature branch and never commits to `trunk` or `develop`, w
 
 ## After the run
 
-A second skill, `change-built-theme`, is for what follows a run: a fix, a design change, a new block style, new page content. The project template's CI does not run the standards audit, so nothing else holds such a change to the guides. The skill sends each change to the guide that governs it and ends with the audit, which it runs on the page content `scripts/export-pages.sh` exports from the site: the run's own page sources do not hold what changed since.
+A second skill, `change-built-theme`, is for what follows a run: a fix, a design change, a new block style, new page content. The project template's CI does not run the standards audit, so nothing else holds such a change to the guides. The skill sends each change to the guide that governs it and ends with the audit, which it runs on the page content `scripts/export-pages.sh` exports from the site: the run's own page sources do not hold what changed since. The export reads pages and user patterns; `--post-type` names other post types whose block content a change wrote.
 
 > Make the focus ring visible on the dark band, in the theme we built.
 

@@ -38,20 +38,42 @@
 #      the area a header or footer part renders as a <div>, not as a landmark.
 #  13. Standalone layout: no comment in style.css or a block stylesheet after the file's
 #      header comment.
-#   It also lists, for review, image blocks in templates and parts that point at a theme
-#   file and reserve no space (no width and height, no aspectRatio).
+#  14. No block with CSS of its own (style.css in its attributes, the editor's Additional
+#      CSS). WordPress strips it when the content is saved by a user without edit_css, and
+#      on an import that forces filtered HTML (force_filtered_html_on_import: multisite,
+#      and hosts that set it).
+#   It also lists what a person has to decide, as REVIEW lines. They never fail the audit,
+#   and each kind has a counter in the last line:
+#     image_review            image blocks in templates and parts that point at a theme file
+#                             and reserve no space (no width and height, no aspectRatio)
+#     id_review               in templates, parts and patterns: a block with a numeric ref,
+#                             and a query block or a product collection that names a term,
+#                             a post or an author by id
+#     link_review             links with no target: href="#", href="" and "url":"#", but
+#                             not a block whose url is bound, which stores "#" in its place
+#     url_review              absolute addresses into wp-content/themes/, with a scheme or
+#                             without one (//host/…), and http:// addresses under
+#                             wp-content/ on a host that is not a local one
+#     nav_review              a navigation block with no ref and no links of its own, and in
+#                             page content one whose links are written inline
+#     unfiltered_html_review  a core/html block that holds an iframe or a form, and any block
+#                             that saves inline svg
+#     stack_wrap_review       vertical flex groups that name no flexWrap
+#     lock_review             templateLock all or contentOnly on a core type that gives its
+#                             inner blocks a template of its own
 #   A theme.json that is missing or does not parse is a failure of its own: checks 6 and 8
 #   cannot read it, and WordPress ignores it.
 #
 # Usage: standards-audit.sh --theme-dir <dir> [--layout auto|standalone|template]
 #                           [--content-dir <dir>]
-# --content-dir adds a directory of page-content markup files (*.html) to checks 1, 7, 8, 10
-# and 11, since page content lives in the database and not in the theme.
+# --content-dir adds a directory of page-content markup files (*.html) to checks 1, 7, 8, 10,
+# 11 and 14 and to the review lists, since page content lives in the database and not in the
+# theme.
 # Exits non-zero if stray comments, block-CSS organization violations, a front-page.html
 # template, a block inside the theme, a reserved preset slug, a dropped colour, a fraction
 # of a pixel, post content without a constrained layout, a group without a name, a setting
-# written as a class, an undeclared template part, a stylesheet comment or an unreadable
-# theme.json are found.
+# written as a class, an undeclared template part, a stylesheet comment, a block with CSS of
+# its own or an unreadable theme.json are found.
 #
 # Last line: H2BT_AUDIT_OK ... or H2BT_AUDIT_FAIL ..., on every exit path but a usage error.
 #
@@ -69,16 +91,20 @@ ships no templates/front-page.html and no block.json, that no preset slug in the
 collides with a core flag class, that no element, state or viewport style holds a
 colour function WordPress drops, that no value is a fraction of a pixel, that every
 template gives post content a constrained layout, that every group block has a name, that
-no setting is written as a class, that every template part is declared in theme.json, and
-(standalone layout) that no stylesheet carries a comment after its file header.
-Prints a report. Exits 1 on any violation, 0 otherwise.
+no setting is written as a class, that every template part is declared in theme.json, that
+no block carries CSS of its own (style.css), and (standalone layout) that no stylesheet
+carries a comment after its file header.
+Prints a report. Exits 1 on any violation, 0 otherwise. REVIEW lines are for a person to
+decide and never fail it: database ids in theme files, links with no target, absolute theme
+addresses, a navigation that names no post, markup a save can strip, vertical flex groups
+that wrap, and a lock that empties a block in the editor.
 
 --layout auto (default) picks "template" when the theme has assets/sass/style.scss,
 includes/, and .phpcs.xml (an a8csp-project-template theme), else "standalone".
 
 --content-dir names a directory of page-content markup files (*.html), such as
-<site-path>/.h2bt/pages. They get the comment, colour-function, whole-pixel, group-name
-and class checks too.
+<site-path>/.h2bt/pages. They get the comment, colour-function, whole-pixel, group-name,
+class and block-CSS checks too, and the review lists.
 EOF
 }
 
@@ -318,7 +344,8 @@ import sys
 
 theme_dir, content_dir, layout = sys.argv[1], sys.argv[2], sys.argv[3]
 reserved = dropped = review = subpixel = unconstrained = invalid = unnamed = 0
-class_hooks = undeclared = css_comments = 0
+class_hooks = undeclared = css_comments = block_css = 0
+id_review = link_review = url_review = nav_review = unfiltered_review = stack_review = lock_review = 0
 # So that a page of forty groups does not bury the rest of the report.
 UNNAMED_SHOWN = 8
 COMMENTS_SHOWN = 8
@@ -341,6 +368,21 @@ CLASS_ATTRIBUTE = re.compile(r'\bclass="([^"]*)"')
 NEXT_DELIMITER = re.compile(r'<!--\s+/?wp:')
 TYPOGRAPHY_CLASS = re.compile(r'^has-(.+)-(font-family|font-size)$')
 TYPOGRAPHY_ATTRIBUTE = {'font-family': 'fontFamily', 'font-size': 'fontSize'}
+# Closing delimiters too: they say which block a piece of HTML belongs to, and whether a block holds others.
+ANY_DELIMITER = re.compile(r'<!--\s+(/)?wp:([a-z][a-z0-9-]*(?:/[a-z][a-z0-9-]*)?)(?:\s+(\{.*?\}))?\s+(/)?-->', re.S)
+NO_TARGET_HREF = re.compile(r'href="#?"')
+NO_TARGET_URL = re.compile(r'"url":\s*"#"')
+# The scheme may be missing: //host/wp-content/… names a host as well.
+CONTENT_ADDRESS = re.compile(r'(?<![\w:/\\])(?:(https?):)?(?:\\?/){2}([^\s"\'<>()/\\]+)[^\s"\'<>()]*?\\?/wp-content\\?/(themes\\?/)?', re.I)
+# A local site is http by nature: its own addresses say nothing about another environment.
+LOCAL_HOST = re.compile(r'^(?:localhost|127\.0\.0\.1|\[::1\]|[a-z0-9.-]+\.(?:localhost|local|test))(?::\d+)?$', re.I)
+UNFILTERED = re.compile(r'<(iframe|form)\b', re.I)
+SAVED_SVG = re.compile(r'<svg\b', re.I)
+# Core types that read a stored templateLock and pass a template of their own (WordPress 7.1.4); a plugin's types cannot be known here.
+TEMPLATED = ('accordion-panel',)
+# The product collection's two keys were read in WooCommerce 11.2.1 (ProductCollection\QueryBuilder).
+QUERY_BLOCKS = ('query', 'woocommerce/product-collection')
+QUERY_ID_KEYS = ('taxQuery', 'include', 'exclude', 'parents', 'author', 'woocommerceHandPickedProducts', 'woocommerceAttributes')
 # Classes that are not the theme's hooks even when its stylesheet selects them: a registered
 # style, what core itself writes into className (an embed's aspect ratio), core's hidden text.
 CORE_CLASS = ('is-style-', 'wp-', 'screen-reader-text')
@@ -349,6 +391,59 @@ CORE_CLASS = ('is-style-', 'wp-', 'screen-reader-text')
 def blanked(pattern, text):
     """Blank out what a pattern matches, keeping its line breaks so that line numbers stay true."""
     return pattern.sub(lambda match: re.sub(r'[^\n]', ' ', match.group(0)), text)
+
+
+def lines_shown(lines):
+    return ', '.join(str(number) for number in lines[:6]) + (', …' if len(lines) > 6 else '')
+
+
+def counted(number, noun):
+    return '%d %s%s' % (number, noun, '' if number == 1 else ('es' if noun.endswith('s') else 's'))
+
+
+def line_of(text, position):
+    return text.count('\n', 0, position) + 1
+
+
+def ids_in(node):
+    """The database ids in a query attribute: numbers, and strings of digits such as "3" or "3,7"."""
+    if isinstance(node, bool):
+        return []
+    if isinstance(node, int):
+        return [node]
+    if isinstance(node, str):
+        return [int(part) for part in node.split(',') if part.strip().isdigit()] if re.fullmatch(r'\s*\d+(\s*,\s*\d+)*\s*', node) else []
+    if isinstance(node, dict):
+        node = list(node.values())
+    return [found for value in node for found in ids_in(value)] if isinstance(node, list) else []
+
+
+def block_tree(text):
+    """Every block of a file, with the pieces of HTML that are its own, each with its offset, and the number of blocks inside it. Then the pieces outside any block."""
+    blocks, stack, outside, last = [], [], [], 0
+    for match in ANY_DELIMITER.finditer(text):
+        (stack[-1]['html'] if stack else outside).append((last, text[last:match.start()]))
+        last = match.end()
+        closing, name, raw, void = match.groups()
+        name = name[5:] if name.startswith('core/') else name
+        if closing:
+            for depth in range(len(stack) - 1, -1, -1):
+                if stack[depth]['name'] == name:
+                    del stack[depth:]
+                    break
+            continue
+        try:
+            attrs = json.loads(raw) if raw else {}
+        except ValueError:
+            attrs = {}
+        block = {'name': name, 'attrs': attrs if isinstance(attrs, dict) else {}, 'raw': raw or '', 'line': line_of(text, match.start()), 'html': [], 'inner': 0}
+        if stack:
+            stack[-1]['inner'] += 1
+        blocks.append(block)
+        if not void:
+            stack.append(block)
+    (stack[-1]['html'] if stack else outside).append((last, text[last:]))
+    return blocks, outside
 
 
 def report_subpixel(label, text):
@@ -458,13 +553,13 @@ def markup_files():
             for name in sorted(names):
                 if name.endswith(('.html', '.php')):
                     full = os.path.join(root, name)
-                    yield full, os.path.relpath(full, theme_dir), folder != 'patterns'
+                    yield full, os.path.relpath(full, theme_dir), folder != 'patterns', True
     if content_dir:
         for root, _, names in os.walk(content_dir):
             for name in sorted(names):
                 if name.endswith('.html'):
                     full = os.path.join(root, name)
-                    yield full, full, False
+                    yield full, full, False, False
 
 
 def stylesheet_sources():
@@ -488,7 +583,7 @@ for full in stylesheet_sources():
         sheet = blanked(SCSS_LINE_COMMENT, sheet)
     styled_classes.update(CLASS_SELECTOR.findall(sheet))
 
-for full, label, theme_file in markup_files():
+for full, label, theme_file, in_theme in markup_files():
     try:
         with open(full, encoding='utf-8', errors='replace') as handle:
             text = handle.read()
@@ -562,6 +657,84 @@ for full, label, theme_file in markup_files():
                 review += 1
     if unnamed_here > UNNAMED_SHOWN:
         print('  UNNAMED     %s: and %d more groups without a name' % (label, unnamed_here - UNNAMED_SHOWN))
+    svg_lines, svg_names, stack_lines = [], [], []
+    blocks, outside = block_tree(text)
+    no_target = [line_of(text, offset + match.start()) for offset, piece in outside for match in NO_TARGET_HREF.finditer(piece)]
+    for block in blocks:
+        name, attrs, line = block['name'], block['attrs'], block['line']
+        own_html = ''.join(piece for _, piece in block['html'])
+        # A block whose url is bound stores "#" where the address is printed at render. An image's url is its source, not its link.
+        bindings = attrs['metadata'].get('bindings') if isinstance(attrs.get('metadata'), dict) else None
+        if name == 'image' or not (isinstance(bindings, dict) and 'url' in bindings):
+            no_target += [line_of(text, offset + match.start()) for offset, piece in block['html'] for match in NO_TARGET_HREF.finditer(piece)]
+            no_target += [line for _ in NO_TARGET_URL.finditer(block['raw'])]
+        style = attrs.get('style')
+        if isinstance(style, dict) and isinstance(style.get('css'), str) and style['css'].strip():
+            print('  BLOCK CSS   %s:%d %s has CSS of its own (style.css) — WordPress strips it when the content is saved by a user without edit_css, and on an import that forces filtered HTML; register a block style for it'
+                  % (label, line, name))
+            block_css += 1
+        ref = ids_in(attrs.get('ref'))
+        if in_theme:
+            named = [('ref', ref)] if ref else []
+            query = attrs.get('query') if name in QUERY_BLOCKS else None
+            if isinstance(query, dict):
+                named += [('query.' + key, ids_in(query.get(key))) for key in QUERY_ID_KEYS if ids_in(query.get(key))]
+            for where, ids in named:
+                print('  REVIEW      %s:%d %s names a database id (%s: %s) — ids differ per environment, and a wrong one fails without a word; write the content inline or pick by a slug, or name the post or term in the report'
+                      % (label, line, name, where, ', '.join(str(found) for found in ids)))
+                id_review += 1
+        if name == 'navigation' and not ref:
+            if not block['inner']:
+                print('  REVIEW      %s:%d navigation names no navigation post and holds no links — it shows the newest navigation post of the site, or makes one; name that post in the report as content'
+                      % (label, line))
+                nav_review += 1
+            elif not in_theme:
+                print('  REVIEW      %s:%d navigation holds its links inline in page content — an editor\'s first change makes it a navigation post, which a header that names none then shows; write a page\'s own menu as a list with a registered style'
+                      % (label, line))
+                nav_review += 1
+        if name == 'html':
+            held = sorted({found.lower() for found in UNFILTERED.findall(own_html)})
+            if held:
+                print('  REVIEW      %s:%d html holds %s — a save by a role without unfiltered_html removes it; name the block in the report, and the roles that hold the capability'
+                      % (label, line, ' and '.join('an iframe' if found == 'iframe' else 'a form' for found in held)))
+                unfiltered_review += 1
+        if SAVED_SVG.search(own_html):
+            svg_lines.append(line)
+            if name not in svg_names:
+                svg_names.append(name)
+        block_layout = attrs.get('layout')
+        if name == 'group' and isinstance(block_layout, dict) and block_layout.get('type') == 'flex' and block_layout.get('orientation') == 'vertical' and block_layout.get('flexWrap') not in ('nowrap', 'wrap'):
+            stack_lines.append(line)
+        if attrs.get('templateLock') in ('all', 'contentOnly') and name in TEMPLATED:
+            print('  REVIEW      %s:%d %s has "templateLock":"%s" and its type gives its inner blocks a template of its own — the editor replaces the stored children when it loads the block; use "insert" and give each child "lock":{"move":true,"remove":true}'
+                  % (label, line, name, attrs['templateLock']))
+            lock_review += 1
+    if svg_lines:
+        print('  REVIEW      %s: %s with inline svg in the saved markup (%s; line %s) — a save by a role without unfiltered_html removes it; name each in the report, and the roles that hold the capability'
+              % (label, counted(len(svg_lines), 'block'), ', '.join(svg_names[:3]) + (', …' if len(svg_names) > 3 else ''), lines_shown(svg_lines)))
+        unfiltered_review += len(svg_lines)
+    if stack_lines:
+        print('  REVIEW      %s: %s with no flexWrap named (line %s) — a vertical flex group wraps by default; write "flexWrap":"nowrap", or "wrap" where the design\'s own column wraps'
+              % (label, counted(len(stack_lines), 'vertical flex group'), lines_shown(stack_lines)))
+        stack_review += len(stack_lines)
+    no_target.sort()
+    if no_target:
+        print('  REVIEW      %s: %s with no target (href="#", href="" or "url":"#"; line %s) — a placeholder for a page still to come, or a question for the owner of the site; name each in the report'
+              % (label, counted(len(no_target), 'link'), lines_shown(no_target)))
+        link_review += len(no_target)
+    into_theme, plain_http = [], []
+    for match in CONTENT_ADDRESS.finditer(text):
+        if match.group(3):
+            into_theme.append(line_of(text, match.start()))
+        elif (match.group(1) or '').lower() == 'http' and not LOCAL_HOST.match(match.group(2)):
+            plain_http.append(line_of(text, match.start()))
+    if into_theme:
+        print('  REVIEW      %s: %s into wp-content/themes/ (line %s) — markup tied to one host and scheme; name a theme file by its root-relative path'
+              % (label, counted(len(into_theme), 'absolute address'), lines_shown(into_theme)))
+    if plain_http:
+        print('  REVIEW      %s: %s under wp-content/ (line %s) — mixed content on an https site; find what built the address'
+              % (label, counted(len(plain_http), 'http:// address'), lines_shown(plain_http)))
+    url_review += len(into_theme) + len(plain_http)
 
 for full in stylesheet_sources():
     try:
@@ -594,6 +767,8 @@ if layout == 'standalone':
 
 if class_hooks == 0:
     print('  OK — no setting written as a class, and no unregistered class hook')
+if block_css == 0:
+    print('  OK — no block carries CSS of its own')
 if layout == 'standalone' and css_comments == 0:
     print('  OK — no stylesheet comment after a file header')
 if dropped == 0:
@@ -606,15 +781,21 @@ if review == 0:
     print('  OK — every theme-file image in a template or part reserves its space')
 if unnamed == 0:
     print('  OK — every group block has a name')
-print('COUNTS %d %d %d %d %d %d %d %d %d %d' % (reserved, dropped, review, subpixel, unconstrained, invalid, unnamed, class_hooks, undeclared, css_comments))
+print('COUNTS %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d'
+      % (reserved, dropped, review, subpixel, unconstrained, invalid, unnamed, class_hooks, undeclared, css_comments,
+         block_css, id_review, link_review, url_review, nav_review, unfiltered_review, stack_review, lock_review))
 PY
 sed '$d' "$attr_report"
-read -r _ reserved_slugs dropped_colors image_review subpixel_values post_content_layout theme_json unnamed_groups class_hooks template_parts css_comments < <(tail -1 "$attr_report")
+read -r _ reserved_slugs dropped_colors image_review subpixel_values post_content_layout theme_json unnamed_groups class_hooks template_parts css_comments \
+	block_css id_review link_review url_review nav_review unfiltered_html_review stack_wrap_review lock_review < <(tail -1 "$attr_report")
 rm -f "$attr_report"
 
+# The counters this audit gained later come last, so that the earlier ones keep their places.
+reviews="id_review=${id_review} link_review=${link_review} url_review=${url_review} nav_review=${nav_review} unfiltered_html_review=${unfiltered_html_review} stack_wrap_review=${stack_wrap_review} lock_review=${lock_review}"
+
 echo
-if [[ "$violations" -gt 0 || "$css_org" -gt 0 || "$front_page" -gt 0 || "$theme_blocks" -gt 0 || "$reserved_slugs" -gt 0 || "$dropped_colors" -gt 0 || "$subpixel_values" -gt 0 || "$post_content_layout" -gt 0 || "$theme_json" -gt 0 || "$unnamed_groups" -gt 0 || "$class_hooks" -gt 0 || "$template_parts" -gt 0 || "$css_comments" -gt 0 ]]; then
-	echo "H2BT_AUDIT_FAIL layout=${layout} stray_comments=${violations} css_org=${css_org} front_page=${front_page} theme_blocks=${theme_blocks} reserved_slugs=${reserved_slugs} dropped_colors=${dropped_colors} subpixel_values=${subpixel_values} post_content_layout=${post_content_layout} theme_json=${theme_json} unnamed_groups=${unnamed_groups} class_hooks=${class_hooks} template_parts=${template_parts} css_comments=${css_comments} image_review=${image_review} css_lines=${total}"
+if [[ "$violations" -gt 0 || "$css_org" -gt 0 || "$front_page" -gt 0 || "$theme_blocks" -gt 0 || "$reserved_slugs" -gt 0 || "$dropped_colors" -gt 0 || "$subpixel_values" -gt 0 || "$post_content_layout" -gt 0 || "$theme_json" -gt 0 || "$unnamed_groups" -gt 0 || "$class_hooks" -gt 0 || "$template_parts" -gt 0 || "$css_comments" -gt 0 || "$block_css" -gt 0 ]]; then
+	echo "H2BT_AUDIT_FAIL layout=${layout} stray_comments=${violations} css_org=${css_org} front_page=${front_page} theme_blocks=${theme_blocks} reserved_slugs=${reserved_slugs} dropped_colors=${dropped_colors} subpixel_values=${subpixel_values} post_content_layout=${post_content_layout} theme_json=${theme_json} unnamed_groups=${unnamed_groups} class_hooks=${class_hooks} template_parts=${template_parts} css_comments=${css_comments} image_review=${image_review} css_lines=${total} block_css=${block_css} ${reviews}"
 	exit 1
 fi
-echo "H2BT_AUDIT_OK layout=${layout} stray_comments=0 css_org=0 front_page=0 theme_blocks=0 reserved_slugs=0 dropped_colors=0 subpixel_values=0 post_content_layout=0 theme_json=0 unnamed_groups=0 class_hooks=0 template_parts=0 css_comments=0 image_review=${image_review} css_lines=${total}"
+echo "H2BT_AUDIT_OK layout=${layout} stray_comments=0 css_org=0 front_page=0 theme_blocks=0 reserved_slugs=0 dropped_colors=0 subpixel_values=0 post_content_layout=0 theme_json=0 unnamed_groups=0 class_hooks=0 template_parts=0 css_comments=0 image_review=${image_review} css_lines=${total} block_css=0 ${reviews}"

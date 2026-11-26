@@ -17,6 +17,7 @@ The guides are in `${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/references/`
 4. **Branch.** In a project repository, start a new branch off `trunk` with the repository's prefixes, never `trunk` or `develop` (`project-template-guide.md` § Preconditions (template mode)).
 5. **Check the database before blaming a file.** A `wp_template`, `wp_template_part` or `wp_global_styles` post saved in the Site Editor wins over the theme's file (`${CLAUDE_PLUGIN_ROOT}/skills/html-to-block-theme/SKILL.md`, Preconditions step 10).
 6. **Audit once before the change,** as in step 2 of *Before calling it done*. What fails then is not this change's: say so in the pull request rather than fixing it in passing.
+7. **The parts of a rebuilt live site hold its chrome's words and links as they were on the capture date** (`live-site-guide.md` § Report additions). While the old site is still the live one, fetch its chrome's text and links again before changing a part, and before the theme is switched on. Three weeks after one capture, a part promoted an event that had ended and the header's links differed from the footer's.
 
 ## Read the guide the change needs
 
@@ -44,15 +45,17 @@ Before writing a block you have not written on this core, read its `block.json` 
   - text wrapping is written in the longhand (`standards.md` § Text wrapping);
   - no explanatory comment in the theme's JS, or in the Sass of a project repository, which its linters do not check either (`standards.md` § Comments);
   - Sass arithmetic in pixels is read in its output (`block-styles-guide.md`, template mode);
-  - no database id in a theme file: a product collection picks its products by a property, and the pull request says what each environment must hold (`woocommerce-guide.md` § Products);
+  - no database id in a theme file, which the audit lists and does not fail on (`standards.md` § Block markup conventions): a product collection picks its products by a property (`woocommerce-guide.md` § Products), and the pull request says what each environment must hold;
+  - a rule for markup a plugin prints outranks the plugin's own, and a rule or a script for such markup is proved in the page's real load order, not injected into a loaded page (`block-styles-guide.md` § Selectors that surprise, `visual-refinement.md` § Other measurements that paid off);
   - classes, custom properties and handles carry the theme slug (`project-template-guide.md` § Permanent identifiers).
 
 ## Page content
 
 Page content, media and menus live in the database and reach other environments apart from the code.
 
-- **Change existing content with a script** that replaces exact strings by count, refuses a page whose counts differ, keeps a revision, and runs dry on the dev site first, never on production (`project-template-guide.md` § Content and dependencies). Not with `write-page.sh`, which writes the whole page over what an editor changed since.
+- **Change existing content with a script** that replaces exact strings by count, refuses a page whose counts differ, gates and undoes per post, keeps a revision, reads back what it stored, and runs dry on the dev site first, never on production (`project-template-guide.md` § Content and dependencies, which has the whole protocol). Not with `write-page.sh`, which writes the whole page over what an editor changed since.
 - **A new page** is written with `write-page.sh`, as in a run.
+- **A change meant to alter how many posts look** has no parity check to hold it: compare what each page says, before and after (`project-template-guide.md` § A change that is meant to move pixels).
 - **The pull request lists** each content change, the environments it still has to reach, and the data each environment must hold.
 
 ## Before calling it done
@@ -65,14 +68,18 @@ Page content, media and menus live in the database and reach other environments 
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/standards-audit.sh" --theme-dir "<theme-dir>" --content-dir "<site-path>/.h2bt/export"
    ```
 
-   The export writes the block markup of every page and user pattern (`wp_block`, synced or not) to `<site-path>/.h2bt/export/`, and must end `H2BT_EXPORT_OK`. A run's `.h2bt/pages` holds what the run wrote, not what changed since. The audit must end `H2BT_AUDIT_OK`, or fail only on what it failed on before the change. `standards.md` says what each rule is for. With no Studio site, audit the theme alone and say that the page content was not audited.
+   The export writes the block markup of every page and user pattern (`wp_block`, synced or not) to `<site-path>/.h2bt/export/`, and must end `H2BT_EXPORT_OK`. A run's `.h2bt/pages` holds what the run wrote, not what changed since. The audit must end `H2BT_AUDIT_OK`, or fail only on what it failed on before the change. Its `REVIEW` lines do not fail it: fix or explain in the pull request each one the change added (`standards.md` names each kind). `standards.md` says what each rule is for. With no Studio site, audit the theme alone and say that the page content was not audited.
+
+   The export reads pages and user patterns unless told otherwise. When the change writes or generates the block content of another post type (posts, a custom type whose template prints `core/post-content`), pass it: `--post-type page,wp_block,<type>`. The list replaces the default, the last line then carries `<type>=<n>` as well, and a type the site does not register ends `H2BT_EXPORT_FAIL reason=unknown-post-type` and leaves the earlier export as it was. Content an editor wrote there fails the audit on its own account: audit before the change too, and answer only for what the change added. A scripted content change audits its dry-run output the same way before it is applied. One migration's output was audited by hand for want of this, and one checkpoint skipped it.
 3. **The repository's gates,** in template mode: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/template-checks.sh" --repo <repo>` must end `H2BT_TEMPLATE_CHECKS_OK` (`project-template-guide.md` § Checks).
 4. **Validate** each changed template, part and page with the Studio validator, and open each once in the editor: nothing missing, collapsed or unstyled (`visual-refinement.md` § The editor canvas).
 5. **Look at it in a browser** at desktop width, one pixel either side of each breakpoint, the narrowest width and 1900px (`run.json` `widths`, where there is one):
    - no sideways overflow;
    - the largest image of the first screen is not `loading="lazy"`;
    - every hover and focus state the change touched, with no box changing size;
-   - keyboard focus through the page, open menus and drawers included.
+   - keyboard focus through the page, open menus and drawers included;
+   - what the DOM of each changed view says without judgement: no id twice, no control, button or link without an accessible name, no link to `#` or to nothing (`visual-refinement.md` § Checks to run before the final validation);
+   - each accordion item, `details` and tab panel the change touched, open: a closed one hides what changed inside it from a screenshot and from a text comparison (`project-template-guide.md` § Visual parity guard, where `parity-check.sh --open-disclosures` captures them open).
 6. **Record what it taught.** What applies to this site goes in `<site-path>/.h2bt/lessons.md`. What applies to any site built with the plugin goes in `<site-path>/.h2bt/plugin-findings.md`, in the form the html-to-block-theme skill's Phase 4, step 5 gives: what was observed, how it was checked, and which plugin file it changes, naming neither the site nor a design value.
 
 Pushing and opening a pull request wait for the user's approval.
