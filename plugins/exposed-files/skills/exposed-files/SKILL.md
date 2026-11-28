@@ -72,7 +72,7 @@ The quarantine command deletes files from live sites. Suggest it; never run it w
 
 ```bash
 team51 site:quarantine-exposed-files example.com --dry-run
-team51 site:quarantine-exposed-files example.com --backup-dir=~/exposed-files-quarantine
+team51 site:quarantine-exposed-files example.com --backup-dir="$HOME/exposed-files-quarantine"
 ```
 
 - Naming the site scans it again and handles every public file except harmless ones. Narrow it with `--risk=high` or `--risk=high,medium`.
