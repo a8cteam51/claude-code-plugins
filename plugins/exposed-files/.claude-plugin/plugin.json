@@ -1,0 +1,18 @@
+{
+  "name": "exposed-files",
+  "version": "1.0.0",
+  "description": "Scan Team51 sites for publicly downloadable database dumps, WordPress exports, backups, logs and CSV exports, explain what was found, and guide the cleanup with the team51 CLI.",
+  "author": {
+    "name": "Automattic Special Projects"
+  },
+  "repository": "https://github.com/a8cteam51/claude-code-plugins",
+  "license": "MIT",
+  "keywords": [
+    "wordpress",
+    "security",
+    "privacy",
+    "exposed-files",
+    "backups",
+    "team51-cli"
+  ]
+}

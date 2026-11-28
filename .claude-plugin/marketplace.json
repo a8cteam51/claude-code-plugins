@@ -249,6 +249,23 @@
       "skills": [
         "./skills/fresh-eyes-review"
       ]
+    },
+    {
+      "name": "exposed-files",
+      "source": "./plugins/exposed-files",
+      "description": "Scan Team51 sites for publicly downloadable database dumps, exports, backups and logs with the team51 CLI, explain the risk of each file, and guide the cleanup.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Automattic Special Projects"
+      },
+      "repository": "https://github.com/a8cteam51/claude-code-plugins",
+      "license": "MIT",
+      "keywords": ["wordpress", "security", "privacy", "exposed-files", "backups", "team51-cli"],
+      "category": "development-tools",
+      "strict": true,
+      "skills": [
+        "./skills/exposed-files"
+      ]
     }
   ]
 }
