@@ -7,7 +7,7 @@ The scanning is done by the [team51 CLI](https://github.com/a8cteam51/team51-cli
 ## Requirements
 
 - The team51 CLI, with 1Password unlocked.
-- The `site:scan-exposed-files` and `site:quarantine-exposed-files` commands (team51 CLI on `trunk`).
+- The `site:scan-exposed-files` and `site:quarantine-exposed-files` commands, added to the team51 CLI in a8cteam51/team51-cli#213.
 
 ## Use
 

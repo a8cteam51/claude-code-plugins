@@ -76,7 +76,7 @@ team51 site:quarantine-exposed-files example.com --backup-dir=~/exposed-files-qu
 ```
 
 - Naming the site scans it again and handles every public file except harmless ones. Narrow it with `--risk=high` or `--risk=high,medium`.
-- To handle only some files, edit the scan's CSV export down to them and pass it with `--files=<csv>`.
+- To handle only some files, export the scan as CSV (`--all --export=<scratch>/example-scan.csv --export-format=csv`), keep only the rows to remove, and pass it with `--files=<csv>`. It needs the `Site ID` and `Path` columns. `Risk` is filtered by `--risk`, and rows whose `Public` is `no` or `skipped` are left alone. Don't pass the JSON export or a fleet report: neither is a list of files in this shape.
 - `--download-only` copies without deleting, so the partner can decide first.
 - The copies hold personal data. Keep `--backup-dir` on an encrypted disk and out of synced folders (iCloud, Dropbox, Google Drive). Every file is recorded in `<backup-dir>/manifest.jsonl`, and the run's report goes in the same folder.
 - `still-served` after a delete usually means a cache. With "Cloudflare" in the message, the site has its own Cloudflare account: someone with access purges the URL, or it expires. Otherwise check again in a few minutes.
